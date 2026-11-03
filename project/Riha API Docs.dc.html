@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F4F3EE}a{color:#0A7A05;text-decoration:none}a:hover{color:#0B120E}</style>
+</helmet>
+<div style="font-family:Geist,system-ui,sans-serif;color:#0B120E;background:#F4F3EE;-webkit-font-smoothing:antialiased">
+
+<div style="height:64px;display:flex;align-items:center;gap:20px;padding:0 28px;background:#fff;border-bottom:1px solid #E8E6DF">
+  <div style="display:flex;align-items:center;gap:9px"><img src="assets/riha-icon-dark.png" alt="Riha" style="width:28px;height:28px;object-fit:contain"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:16px;letter-spacing:.2em">RIHA</span><span style="font-size:14px;color:#5E6862;padding-left:10px;border-left:1px solid #E4E2DA">Documentação</span></div>
+  <div style="display:flex;align-items:center;gap:10px;width:360px;height:38px;padding:0 12px;border-radius:10px;background:#F4F3EE;color:#8A938E;font-size:13.5px;box-sizing:border-box"><svg width="15" height="15" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg><span style="flex:1">Pesquisar na documentação</span><span style="font-family:'Geist Mono',monospace;font-size:11px;padding:2px 6px;border-radius:5px;background:#fff">/</span></div>
+  <div style="flex:1"></div>
+  <span style="font-family:'Geist Mono',monospace;font-size:12px;padding:5px 10px;border-radius:8px;background:#F4F3EE">Riha-Version: 2026-11-01</span>
+  <a href="#" style="height:38px;padding:0 14px;border-radius:10px;background:#0B120E;color:#fff;font-weight:600;font-size:14px;display:flex;align-items:center">Ir para o painel</a>
+</div>
+
+<div style="display:flex;align-items:flex-start">
+  <div style="width:240px;flex:none;padding:28px 20px;box-sizing:border-box;position:sticky;top:0;display:flex;flex-direction:column;gap:22px;font-size:14px">
+    <div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:11.5px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Começar</div><a href="#intro" style="color:#0B120E;font-weight:600;padding:6px 10px;border-radius:8px;background:#EAE8E1">Introdução</a><a href="#fluxo" style="color:#3E4742;padding:6px 10px">Fluxo de pagamento</a><a href="#auth" style="color:#3E4742;padding:6px 10px">Autenticação</a><a href="#erros" style="color:#3E4742;padding:6px 10px">Erros</a><a href="#auth" style="color:#3E4742;padding:6px 10px">Idempotência</a></div>
+    <div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:11.5px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Pagamentos</div><a href="#sessao" style="color:#3E4742;padding:6px 10px">Checkout Sessions</a><a href="#payment" style="color:#3E4742;padding:6px 10px">Payments</a><span style="color:#3E4742;padding:6px 10px">Payment Links</span><span style="color:#3E4742;padding:6px 10px">Refunds</span></div>
+    <div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:11.5px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Dinheiro</div><span style="color:#3E4742;padding:6px 10px">Balance</span><span style="color:#3E4742;padding:6px 10px">Payouts</span></div>
+    <div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:11.5px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Webhooks</div><a href="#webhooks" style="color:#3E4742;padding:6px 10px">Endpoints e callback_url</a><a href="#webhooks" style="color:#3E4742;padding:6px 10px">Eventos</a><a href="#assinatura" style="color:#3E4742;padding:6px 10px">Assinatura e tentativas</a></div>
+  </div>
+
+  <div style="flex:1;min-width:0;border-left:1px solid #E8E6DF;background:#fff">
+
+    <div id="intro" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;padding:48px 48px;border-bottom:1px solid #EEECE5">
+      <div>
+        <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:44px;letter-spacing:-0.035em;line-height:1.02">Referência da API</h1>
+        <p style="margin:16px 0 0;font-size:16px;line-height:1.65;color:#3E4742;text-wrap:pretty">A API da Riha é REST. Tem URLs organizados por recurso, recebe e devolve JSON, usa códigos HTTP padrão e autentica com a sua chave secreta. Todos os valores são inteiros em centavos de metical: 125000 corresponde a 1 250,00 MT.</p>
+        <p style="margin:12px 0 0;font-size:16px;line-height:1.65;color:#3E4742;text-wrap:pretty">O modo de teste usa as chaves <span style="font-family:'Geist Mono',monospace;font-size:14px;padding:1px 6px;border-radius:5px;background:#F4F3EE">sk_test_</span>. Nenhum dinheiro real é movimentado e os números de teste simulam cada resultado (sucesso, PIN errado, saldo insuficiente, tempo esgotado).</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:24px">
+          <div style="padding:14px 16px;border-radius:14px;border:1px solid #E8E6DF"><div style="font-size:12px;color:#5E6862">URL base</div><div style="font-family:'Geist Mono',monospace;font-size:13.5px;margin-top:4px">https://api.riha.co.mz/v1</div></div>
+          <div style="padding:14px 16px;border-radius:14px;border:1px solid #E8E6DF"><div style="font-size:12px;color:#5E6862">Formato</div><div style="font-family:'Geist Mono',monospace;font-size:13.5px;margin-top:4px">application/json · UTF-8</div></div>
+        </div>
+      </div>
+      <div style="background:#0B120E;color:#C9D3CD;border-radius:18px;overflow:hidden;align-self:start">
+        <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12.5px;font-weight:600;color:#fff">Endpoints</div>
+        <div style="padding:10px 18px 16px;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:2">
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#8EE07F">POST</span><span>/v1/checkout/sessions</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#7FB2FF">GET</span><span>/v1/checkout/sessions/:id</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#8EE07F">POST</span><span>/v1/checkout/sessions/:id/expire</span></div>
+          <div style="height:8px"></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#7FB2FF">GET</span><span>/v1/payments</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#7FB2FF">GET</span><span>/v1/payments/:id</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#8EE07F">POST</span><span>/v1/refunds</span></div>
+          <div style="height:8px"></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#8EE07F">POST</span><span>/v1/payment_links</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#FFD21F">PATCH</span><span>/v1/payment_links/:id</span></div>
+          <div style="height:8px"></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#7FB2FF">GET</span><span>/v1/balance</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#8EE07F">POST</span><span>/v1/payouts</span></div>
+          <div style="height:8px"></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#8EE07F">POST</span><span>/v1/webhook_endpoints</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#FF8A8D">DELETE</span><span>/v1/webhook_endpoints/:id</span></div>
+          <div style="display:flex;gap:12px"><span style="width:52px;color:#7FB2FF">GET</span><span>/v1/events/:id</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="fluxo" style="padding:48px;border-bottom:1px solid #EEECE5">
+      <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.03em">Fluxo de pagamento</h2>
+      <p style="margin:10px 0 0;font-size:15.5px;line-height:1.6;color:#3E4742;max-width:720px">O servidor da loja cria uma sessão e envia o cliente para o checkout da Riha. Depois do pagamento, a Riha avisa o servidor e devolve o cliente à loja. Os dois passos são independentes.</p>
+      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:26px">
+        <div style="padding:16px;border-radius:16px;border:1px solid #E8E6DF;background:#FAFAF7"><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#5E6862">01 · Servidor</div><div style="font-weight:600;font-size:14.5px;margin-top:10px">Cria a sessão</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#3E4742;margin-top:6px;line-height:1.5">POST /v1/checkout/sessions → url</div></div>
+        <div style="padding:16px;border-radius:16px;border:1px solid #E8E6DF;background:#FAFAF7"><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#5E6862">02 · Browser</div><div style="font-weight:600;font-size:14.5px;margin-top:10px">Redireciona o cliente</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#3E4742;margin-top:6px;line-height:1.5">303 → pay.riha.co.mz/c/cs_…</div></div>
+        <div style="padding:16px;border-radius:16px;background:#0A8205;color:#fff"><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#CDEBC7">03 · Riha</div><div style="font-weight:600;font-size:14.5px;margin-top:10px">O cliente paga</div><div style="font-size:12.5px;color:#E3F4DF;margin-top:6px;line-height:1.5">PIN M-Pesa ou e-Mola, ou cartão com 3-D Secure</div></div>
+        <div style="padding:16px;border-radius:16px;background:#0B120E;color:#fff"><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#93A09A">04 · Servidor a servidor</div><div style="font-weight:600;font-size:14.5px;margin-top:10px">Evento assinado</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#C9D3CD;margin-top:6px;line-height:1.5">POST callback_url + endpoints</div></div>
+        <div style="padding:16px;border-radius:16px;border:1px solid #E8E6DF;background:#FAFAF7"><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#5E6862">05 · Browser</div><div style="font-weight:600;font-size:14.5px;margin-top:10px">Volta à loja</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#3E4742;margin-top:6px;line-height:1.5">success_url?session_id=cs_…</div></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;padding:14px 16px;border-radius:14px;background:#FFF6D1;font-size:14px;line-height:1.55;color:#3B3410;max-width:860px"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;margin-top:2px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"></path></svg><span>Não confirme uma encomenda só porque o cliente voltou ao success_url. O cliente pode fechar o browser ou perder a rede depois de pagar. Confirme pelo evento <b style="font-family:'Geist Mono',monospace;font-weight:500">checkout.session.completed</b> ou com <b style="font-family:'Geist Mono',monospace;font-weight:500">GET /v1/checkout/sessions/:id</b>.</span></div>
+    </div>
+
+    <div id="auth" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;padding:48px;border-bottom:1px solid #EEECE5">
+      <div>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.03em">Autenticação e idempotência</h2>
+        <p style="margin:10px 0 0;font-size:15.5px;line-height:1.6;color:#3E4742">Envie a chave no cabeçalho <span style="font-family:'Geist Mono',monospace;font-size:13.5px">Authorization: Bearer</span>. As chaves secretas ficam só no servidor.</p>
+        <div style="margin-top:18px;border:1px solid #E8E6DF;border-radius:14px;overflow:hidden;font-size:14px">
+          <div style="display:grid;grid-template-columns:130px minmax(0,1fr);padding:12px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace;font-size:13px">pk_live_…</span><span style="color:#3E4742">Pública. Só identifica a conta no browser e não cria pagamentos.</span></div>
+          <div style="display:grid;grid-template-columns:130px minmax(0,1fr);padding:12px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace;font-size:13px">sk_live_…</span><span style="color:#3E4742">Secreta. Acesso total à API.</span></div>
+          <div style="display:grid;grid-template-columns:130px minmax(0,1fr);padding:12px 16px"><span style="font-family:'Geist Mono',monospace;font-size:13px">rk_live_…</span><span style="color:#3E4742">Restrita. Permissões por recurso, por exemplo só criar sessões. Use em plugins e parceiros.</span></div>
+        </div>
+        <p style="margin:18px 0 0;font-size:15.5px;line-height:1.6;color:#3E4742">Envie <span style="font-family:'Geist Mono',monospace;font-size:13.5px">Idempotency-Key</span> em todos os POST. Se a rede falhar e repetir o pedido com a mesma chave durante 24 horas, recebe a mesma resposta e não cria uma segunda cobrança.</p>
+      </div>
+      <div style="background:#0B120E;border-radius:18px;overflow:hidden;align-self:start">
+        <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12.5px;font-weight:600;color:#fff">Pedido autenticado</div>
+        <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.8;color:#C9D3CD;white-space:pre">curl https://api.riha.co.mz/v1/balance \
+  -H <span style="color:#8EE07F">"Authorization: Bearer sk_test_51RhA…V71c"</span> \
+  -H <span style="color:#8EE07F">"Riha-Version: 2026-11-01"</span></div>
+      </div>
+    </div>
+
+    <div id="sessao" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;padding:48px;border-bottom:1px solid #EEECE5">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'Geist Mono',monospace;font-size:12px;font-weight:500;padding:3px 8px;border-radius:6px;background:#E2F3DE;color:#0A6B05">POST</span><span style="font-family:'Geist Mono',monospace;font-size:14px">/v1/checkout/sessions</span></div>
+        <h2 style="margin:12px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.03em">Criar uma sessão de checkout</h2>
+        <p style="margin:10px 0 0;font-size:15.5px;line-height:1.6;color:#3E4742">Devolve um <span style="font-family:'Geist Mono',monospace;font-size:13.5px">url</span> para onde envia o cliente. A sessão expira se não for paga.</p>
+        <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin:26px 0 4px">Parâmetros</div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">amount</span><span style="font-size:12.5px;color:#5E6862">integer</span><span style="font-size:11.5px;font-weight:600;color:#C2080D">obrigatório</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Valor em centavos. Mínimo 1000 (10,00 MT).</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">currency</span><span style="font-size:12.5px;color:#5E6862">string</span><span style="font-size:11.5px;font-weight:600;color:#C2080D">obrigatório</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Só <span style="font-family:'Geist Mono',monospace;font-size:13px">MZN</span>.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">success_url</span><span style="font-size:12.5px;color:#5E6862">string</span><span style="font-size:11.5px;font-weight:600;color:#C2080D">obrigatório</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Para onde o cliente volta depois de pagar. Use <span style="font-family:'Geist Mono',monospace;font-size:13px">{CHECKOUT_SESSION_ID}</span> para receber o ID da sessão no URL.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">cancel_url</span><span style="font-size:12.5px;color:#5E6862">string</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Para onde o cliente volta se desistir ou se a sessão expirar.</div></div>
+        <div style="padding:14px 16px;margin:0 -16px;border-top:1px solid #EEECE5;background:#F3FAF1;border-radius:12px"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">callback_url</span><span style="font-size:12.5px;color:#5E6862">string</span><span style="font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 6px;border-radius:5px;background:#0B120E;color:#fff">WEBHOOK DINÂMICO</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Endereço do seu servidor que recebe o resultado desta sessão: <span style="font-family:'Geist Mono',monospace;font-size:12.5px">checkout.session.completed</span>, <span style="font-family:'Geist Mono',monospace;font-size:12.5px">payment.succeeded</span>, <span style="font-family:'Geist Mono',monospace;font-size:12.5px">payment.failed</span> e <span style="font-family:'Geist Mono',monospace;font-size:12.5px">checkout.session.expired</span>. É enviado além dos endpoints fixos da conta. O domínio tem de estar verificado em Definições.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">client_reference_id</span><span style="font-size:12.5px;color:#5E6862">string</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">O seu identificador interno, como o número da encomenda. Volta em todos os eventos e aparece no painel.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">customer</span><span style="font-size:12.5px;color:#5E6862">object</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px"><span style="font-family:'Geist Mono',monospace;font-size:13px">name</span>, <span style="font-family:'Geist Mono',monospace;font-size:13px">phone</span> (formato E.164, +258…) e <span style="font-family:'Geist Mono',monospace;font-size:13px">email</span>. O telefone pré-preenche o número M-Pesa ou e-Mola no checkout.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">line_items</span><span style="font-size:12.5px;color:#5E6862">array</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Lista de <span style="font-family:'Geist Mono',monospace;font-size:13px">name</span>, <span style="font-family:'Geist Mono',monospace;font-size:13px">quantity</span> e <span style="font-family:'Geist Mono',monospace;font-size:13px">unit_amount</span>, mostrada no checkout e no recibo. A soma tem de ser igual a amount.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">payment_method_types</span><span style="font-size:12.5px;color:#5E6862">array</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px"><span style="font-family:'Geist Mono',monospace;font-size:13px">mpesa</span>, <span style="font-family:'Geist Mono',monospace;font-size:13px">emola</span>, <span style="font-family:'Geist Mono',monospace;font-size:13px">card</span>. Por omissão, todos os métodos ativos na conta.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">metadata</span><span style="font-size:12.5px;color:#5E6862">object</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Até 20 pares chave-valor (chave até 40 caracteres, valor até 500). Não é mostrado ao cliente. Copiado para o Payment.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">expires_at</span><span style="font-size:12.5px;color:#5E6862">timestamp</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Entre 15 minutos e 24 horas. Por omissão, 1 hora.</div></div>
+        <div style="padding:14px 0;border-top:1px solid #EEECE5;border-bottom:1px solid #EEECE5"><div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500">description</span><span style="font-size:12.5px;color:#5E6862">string</span><span style="font-family:'Geist Mono',monospace;font-size:13.5px;font-weight:500;margin-left:14px">locale</span><span style="font-size:12.5px;color:#5E6862">pt-MZ · en</span></div><div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:4px">Texto mostrado no checkout e no recibo. Idioma do checkout.</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:20px;align-self:start">
+        <div style="background:#0B120E;border-radius:18px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 10px 18px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font-size:12.5px;font-weight:600;color:#fff">Pedido</span><div style="display:flex;gap:2px;font-family:'Geist Mono',monospace;font-size:11.5px"><span style="padding:4px 9px;border-radius:7px;background:rgba(255,255,255,.14);color:#fff">cURL</span><span style="padding:4px 9px;color:#93A09A">Node</span><span style="padding:4px 9px;color:#93A09A">PHP</span><span style="padding:4px 9px;color:#93A09A">Python</span></div></div>
+          <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.75;color:#C9D3CD;white-space:pre;overflow-x:auto">curl https://api.riha.co.mz/v1/checkout/sessions \
+  -H <span style="color:#8EE07F">"Authorization: Bearer sk_test_…"</span> \
+  -H <span style="color:#8EE07F">"Idempotency-Key: pedido-2094-a1"</span> \
+  -H <span style="color:#8EE07F">"Content-Type: application/json"</span> \
+  -d '{
+    <span style="color:#FFD21F">"amount"</span>: 125000,
+    <span style="color:#FFD21F">"currency"</span>: "MZN",
+    <span style="color:#FFD21F">"client_reference_id"</span>: "pedido_2094",
+    <span style="color:#FFD21F">"success_url"</span>: "https://loja.co.mz/ok?s={CHECKOUT_SESSION_ID}",
+    <span style="color:#FFD21F">"cancel_url"</span>: "https://loja.co.mz/carrinho",
+    <span style="color:#FFD21F">"callback_url"</span>: "https://loja.co.mz/webhooks/riha",
+    <span style="color:#FFD21F">"customer"</span>: { "name": "Ana Machava", "phone": "+258841234231" },
+    <span style="color:#FFD21F">"line_items"</span>: [
+      { "name": "Bolo de chocolate 1 kg", "quantity": 1, "unit_amount": 125000 }
+    ],
+    <span style="color:#FFD21F">"metadata"</span>: { "canal": "loja_online" }
+  }'</div>
+        </div>
+        <div style="background:#151E19;border-radius:18px;overflow:hidden;border:1px solid #23302A">
+          <div style="display:flex;justify-content:space-between;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font-size:12.5px;font-weight:600;color:#fff">Resposta</span><span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#8EE07F">200 OK</span></div>
+          <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.75;color:#C9D3CD;white-space:pre">{
+  <span style="color:#FFD21F">"id"</span>: "cs_test_8K2D4410",
+  <span style="color:#FFD21F">"object"</span>: "checkout.session",
+  <span style="color:#FFD21F">"status"</span>: "open",
+  <span style="color:#FFD21F">"amount"</span>: 125000,
+  <span style="color:#FFD21F">"currency"</span>: "MZN",
+  <span style="color:#FFD21F">"url"</span>: <span style="color:#8EE07F">"https://pay.riha.co.mz/c/cs_test_8K2D4410"</span>,
+  <span style="color:#FFD21F">"client_reference_id"</span>: "pedido_2094",
+  <span style="color:#FFD21F">"callback_url"</span>: "https://loja.co.mz/webhooks/riha",
+  <span style="color:#FFD21F">"payment"</span>: null,
+  <span style="color:#FFD21F">"expires_at"</span>: 1793741400,
+  <span style="color:#FFD21F">"livemode"</span>: false
+}</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="payment" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;padding:48px;border-bottom:1px solid #EEECE5">
+      <div>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.03em">O objeto Payment</h2>
+        <p style="margin:10px 0 0;font-size:15.5px;line-height:1.6;color:#3E4742">Cada tentativa de pagamento cria um Payment. O campo <span style="font-family:'Geist Mono',monospace;font-size:13.5px">source</span> diz de onde veio, para separar vendas da loja online, links manuais e QR no balcão.</p>
+        <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin:26px 0 10px">source.type</div>
+        <div style="border:1px solid #E8E6DF;border-radius:14px;overflow:hidden;font-size:14px">
+          <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:12px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace;font-size:13px">api_checkout</span><span style="color:#3E4742">Sessão criada pela API. Inclui a chave usada (só o ID), o domínio, o IP do pedido e a sessão.</span></div>
+          <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:12px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace;font-size:13px">payment_link</span><span style="color:#3E4742">Link criado no painel ou pela API. Inclui quem o criou e o canal (whatsapp, sms, qr, outro) se o link foi partilhado pelo painel.</span></div>
+          <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:12px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace;font-size:13px">qr</span><span style="color:#3E4742">QR estático impresso ou mostrado no balcão.</span></div>
+          <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:12px 16px"><span style="font-family:'Geist Mono',monospace;font-size:13px">dashboard</span><span style="color:#3E4742">Cobrança enviada a partir do painel para o telemóvel do cliente.</span></div>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin:26px 0 10px">status</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:'Geist Mono',monospace;font-size:12.5px">
+          <span style="padding:4px 9px;border-radius:7px;background:#FFF3C4;color:#7A5A00">processing</span><svg width="14" height="14" viewBox="0 0 24 24" style="fill:none;stroke:#8A938E;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
+          <span style="padding:4px 9px;border-radius:7px;background:#E2F3DE;color:#0A6B05">succeeded</span><span style="color:#8A938E">ou</span>
+          <span style="padding:4px 9px;border-radius:7px;background:#FFE3E1;color:#C2080D">failed</span><svg width="14" height="14" viewBox="0 0 24 24" style="fill:none;stroke:#8A938E;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
+          <span style="padding:4px 9px;border-radius:7px;background:#EDECE6;color:#3E4742">refunded</span><span style="padding:4px 9px;border-radius:7px;background:#EDECE6;color:#3E4742">partially_refunded</span>
+        </div>
+        <div style="font-size:14px;line-height:1.55;color:#3E4742;margin-top:12px">Em <span style="font-family:'Geist Mono',monospace;font-size:13px">failed</span>, o campo <span style="font-family:'Geist Mono',monospace;font-size:13px">failure_code</span> indica o motivo: <span style="font-family:'Geist Mono',monospace;font-size:12.5px">pin_incorrect</span>, <span style="font-family:'Geist Mono',monospace;font-size:12.5px">insufficient_funds</span>, <span style="font-family:'Geist Mono',monospace;font-size:12.5px">customer_timeout</span>, <span style="font-family:'Geist Mono',monospace;font-size:12.5px">customer_cancelled</span>, <span style="font-family:'Geist Mono',monospace;font-size:12.5px">card_declined</span>, <span style="font-family:'Geist Mono',monospace;font-size:12.5px">operator_unavailable</span>.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;align-self:start">
+        <div style="background:#0B120E;border-radius:18px;overflow:hidden">
+          <div style="display:flex;justify-content:space-between;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font-size:12.5px;font-weight:600;color:#fff">Payment · via API</span><span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#93A09A">GET /v1/payments/pay_7Q1A</span></div>
+          <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.75;color:#C9D3CD;white-space:pre">{
+  <span style="color:#FFD21F">"id"</span>: "pay_7Q1A2093",
+  <span style="color:#FFD21F">"object"</span>: "payment",
+  <span style="color:#FFD21F">"status"</span>: "succeeded",
+  <span style="color:#FFD21F">"amount"</span>: 348000,
+  <span style="color:#FFD21F">"fee"</span>: 12180,
+  <span style="color:#FFD21F">"net"</span>: 335820,
+  <span style="color:#FFD21F">"payment_method"</span>: {
+    "type": "mpesa",
+    "mpesa": { "phone_last4": "4231", "operator_reference": "QK72H1LZ9P" }
+  },
+  <span style="color:#8EE07F">"source"</span>: {
+    "type": "api_checkout",
+    "checkout_session": "cs_live_7Q1A2093",
+    "api_key": "key_3f9a",
+    "origin": {
+      "domain": "loja.cafemaputo.co.mz",
+      "ip": "41.220.12.88",
+      "user_agent": "WooCommerce/8.9 riha-woo/1.2.0"
+    }
+  },
+  <span style="color:#FFD21F">"client_reference_id"</span>: "pedido_2093",
+  <span style="color:#FFD21F">"metadata"</span>: { "canal": "loja_online" },
+  <span style="color:#FFD21F">"livemode"</span>: true
+}</div>
+        </div>
+        <div style="background:#151E19;border:1px solid #23302A;border-radius:18px;overflow:hidden">
+          <div style="padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12.5px;font-weight:600;color:#fff">source · link manual</div>
+          <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.75;color:#C9D3CD;white-space:pre"><span style="color:#8EE07F">"source"</span>: {
+  "type": "payment_link",
+  "payment_link": "plink_bolo_1kg",
+  "created_by": "usr_ana_mabota",
+  "created_via": "dashboard",
+  "channel": "whatsapp"
+}</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="webhooks" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;padding:48px;border-bottom:1px solid #EEECE5">
+      <div>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.03em">Webhooks</h2>
+        <p style="margin:10px 0 0;font-size:15.5px;line-height:1.6;color:#3E4742">Há duas formas de receber eventos. Usam o mesmo formato e a mesma assinatura.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px">
+          <div style="padding:18px;border-radius:16px;border:1px solid #E8E6DF"><div style="font-weight:600;font-size:15px">Endpoints da conta</div><div style="font-size:12px;font-weight:700;color:#5E6862;margin-top:2px;letter-spacing:.03em">FIXO</div><div style="font-size:13.5px;line-height:1.55;color:#3E4742;margin-top:10px">Registados em Definições ou com <span style="font-family:'Geist Mono',monospace;font-size:12.5px">POST /v1/webhook_endpoints</span>. Recebem os eventos escolhidos de toda a conta, incluindo levantamentos.</div></div>
+          <div style="padding:18px;border-radius:16px;background:#F3FAF1;border:1px solid #CFE6C9"><div style="font-weight:600;font-size:15px">callback_url</div><div style="font-size:12px;font-weight:700;color:#0A6B05;margin-top:2px;letter-spacing:.03em">DINÂMICO, POR SESSÃO</div><div style="font-size:13.5px;line-height:1.55;color:#3E4742;margin-top:10px">Enviado ao criar a sessão. Recebe só os eventos dessa sessão. Útil quando cada loja, filial ou encomenda tem o seu próprio endereço.</div></div>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin:26px 0 10px">Eventos</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;font-family:'Geist Mono',monospace;font-size:12px">
+          <span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">checkout.session.completed</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">checkout.session.expired</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">payment.processing</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">payment.succeeded</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">payment.failed</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">refund.succeeded</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">payout.created</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">payout.paid</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">payout.failed</span><span style="padding:5px 9px;border-radius:7px;background:#F4F3EE">account.updated</span>
+        </div>
+        <div id="assinatura" style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin:28px 0 10px">Assinatura</div>
+        <p style="margin:0;font-size:14.5px;line-height:1.6;color:#3E4742">Cada pedido traz <span style="font-family:'Geist Mono',monospace;font-size:13px">Riha-Signature: t=…,v1=…</span>. Calcule HMAC-SHA256 de <span style="font-family:'Geist Mono',monospace;font-size:13px">t + "." + corpo</span> com o segredo <span style="font-family:'Geist Mono',monospace;font-size:13px">whsec_</span> e compare com v1. Rejeite se t tiver mais de 5 minutos.</p>
+        <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em;margin:24px 0 10px">Tentativas</div>
+        <p style="margin:0;font-size:14.5px;line-height:1.6;color:#3E4742">Responda 2xx em até 10 segundos. Caso contrário, a Riha volta a tentar 8 vezes ao longo de 3 dias:</p>
+        <div style="display:flex;gap:4px;margin-top:12px">
+          <span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#0B120E;color:#fff;font-family:'Geist Mono',monospace;font-size:11.5px">0</span><span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#F4F3EE;font-family:'Geist Mono',monospace;font-size:11.5px">5 min</span><span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#F4F3EE;font-family:'Geist Mono',monospace;font-size:11.5px">30 min</span><span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#F4F3EE;font-family:'Geist Mono',monospace;font-size:11.5px">2 h</span><span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#F4F3EE;font-family:'Geist Mono',monospace;font-size:11.5px">5 h</span><span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#F4F3EE;font-family:'Geist Mono',monospace;font-size:11.5px">10 h</span><span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#F4F3EE;font-family:'Geist Mono',monospace;font-size:11.5px">24 h</span><span style="flex:1;text-align:center;padding:8px 0;border-radius:8px;background:#F4F3EE;font-family:'Geist Mono',monospace;font-size:11.5px">72 h</span>
+        </div>
+        <p style="margin:14px 0 0;font-size:14.5px;line-height:1.6;color:#3E4742">Um evento pode chegar mais de uma vez ou fora de ordem. Guarde o <span style="font-family:'Geist Mono',monospace;font-size:13px">event.id</span> e ignore repetidos. Pode reenviar qualquer evento pelo painel.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;align-self:start">
+        <div style="background:#0B120E;border-radius:18px;overflow:hidden">
+          <div style="display:flex;justify-content:space-between;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font-size:12.5px;font-weight:600;color:#fff">POST para callback_url</span><span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#93A09A">evento</span></div>
+          <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.75;color:#C9D3CD;white-space:pre"><span style="color:#93A09A">Riha-Signature: t=1793738412,v1=5f2b…c91e</span>
+
+{
+  <span style="color:#FFD21F">"id"</span>: "evt_1PZ8Rk2093",
+  <span style="color:#FFD21F">"type"</span>: "checkout.session.completed",
+  <span style="color:#FFD21F">"created"</span>: 1793738412,
+  <span style="color:#FFD21F">"livemode"</span>: true,
+  <span style="color:#FFD21F">"delivery"</span>: { "target": "callback_url", "attempt": 1 },
+  <span style="color:#FFD21F">"data"</span>: {
+    "object": {
+      "id": "cs_live_7Q1A2093",
+      "status": "complete",
+      "client_reference_id": "pedido_2093",
+      "payment": "pay_7Q1A2093",
+      "amount": 348000,
+      "metadata": { "canal": "loja_online" }
+    }
+  }
+}</div>
+        </div>
+        <div style="background:#151E19;border:1px solid #23302A;border-radius:18px;overflow:hidden">
+          <div style="display:flex;justify-content:space-between;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font-size:12.5px;font-weight:600;color:#fff">Verificar assinatura</span><span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#93A09A">Node</span></div>
+          <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.75;color:#C9D3CD;white-space:pre"><span style="color:#7FB2FF">const</span> event = riha.webhooks.constructEvent(
+  rawBody,
+  req.headers[<span style="color:#8EE07F">"riha-signature"</span>],
+  process.env.RIHA_WEBHOOK_SECRET
+);
+<span style="color:#7FB2FF">if</span> (event.type === <span style="color:#8EE07F">"checkout.session.completed"</span>) {
+  <span style="color:#7FB2FF">await</span> marcarComoPago(event.data.object.client_reference_id);
+}
+res.sendStatus(200);</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="erros" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;padding:48px 48px 64px">
+      <div>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.03em">Erros</h2>
+        <p style="margin:10px 0 0;font-size:15.5px;line-height:1.6;color:#3E4742">Respostas 4xx trazem um objeto <span style="font-family:'Geist Mono',monospace;font-size:13.5px">error</span> com um código estável que pode tratar no seu código. Inclua o <span style="font-family:'Geist Mono',monospace;font-size:13.5px">request_id</span> quando contactar o suporte.</p>
+        <div style="margin-top:18px;border:1px solid #E8E6DF;border-radius:14px;overflow:hidden;font-size:14px">
+          <div style="display:grid;grid-template-columns:70px minmax(0,1fr);padding:11px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace">400</span><span style="color:#3E4742">Parâmetro em falta ou inválido</span></div>
+          <div style="display:grid;grid-template-columns:70px minmax(0,1fr);padding:11px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace">401</span><span style="color:#3E4742">Chave API inválida ou revogada</span></div>
+          <div style="display:grid;grid-template-columns:70px minmax(0,1fr);padding:11px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace">403</span><span style="color:#3E4742">Chave restrita sem permissão, ou conta por verificar</span></div>
+          <div style="display:grid;grid-template-columns:70px minmax(0,1fr);padding:11px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace">404</span><span style="color:#3E4742">Recurso não existe neste modo (teste ou produção)</span></div>
+          <div style="display:grid;grid-template-columns:70px minmax(0,1fr);padding:11px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace">409</span><span style="color:#3E4742">Idempotency-Key reutilizada com outro corpo</span></div>
+          <div style="display:grid;grid-template-columns:70px minmax(0,1fr);padding:11px 16px;border-bottom:1px solid #EEECE5"><span style="font-family:'Geist Mono',monospace">429</span><span style="color:#3E4742">Demasiados pedidos (100 por segundo por conta)</span></div>
+          <div style="display:grid;grid-template-columns:70px minmax(0,1fr);padding:11px 16px"><span style="font-family:'Geist Mono',monospace">5xx</span><span style="color:#3E4742">Erro da Riha ou do operador. Repita com a mesma Idempotency-Key.</span></div>
+        </div>
+      </div>
+      <div style="background:#0B120E;border-radius:18px;overflow:hidden;align-self:start">
+        <div style="display:flex;justify-content:space-between;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="font-size:12.5px;font-weight:600;color:#fff">Resposta de erro</span><span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#FF8A8D">400</span></div>
+        <div style="padding:16px 18px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.75;color:#C9D3CD;white-space:pre">{
+  <span style="color:#FFD21F">"error"</span>: {
+    "type": "invalid_request_error",
+    "code": "callback_url_not_allowed",
+    "param": "callback_url",
+    "message": "O domínio loja-teste.com não está verificado.",
+    "doc_url": "https://docs.riha.co.mz/erros#callback_url_not_allowed",
+    "request_id": "req_9fK2mA81"
+  }
+}</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400..700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E9E7E0;font-family:Geist,system-ui,sans-serif}a{color:#0A7A05}a:hover{color:#0B120E}</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:48px;padding:24px;box-sizing:border-box">
+  <div style="width:260px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:center;gap:10px"><img src="assets/riha-icon-dark.png" alt="Riha" style="width:32px;height:32px;object-fit:contain"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:17px;letter-spacing:.2em;color:#0B120E">RIHA</span></div>
+    <div style="font-size:13.5px;line-height:1.5;color:#3E4742">Protótipo clicável. Navegue dentro do telemóvel ou salte para um ecrã. <a href="Riha Mockups.dc.html">Ver todos os ecrãs</a></div>
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="5">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:11.5px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.06em">{{ g.label }}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="3"><button onClick="{{ i.on }}" style="height:32px;padding:0 12px;border-radius:999px;border:1px solid {{ i.bd }};background:{{ i.bg }};color:{{ i.fg }};font-size:12.5px;font-weight:600;cursor:pointer">{{ i.l }}</button></sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="width:{{ fw }};height:{{ fh }};flex:none">
+    <div style="width:390px;height:844px;border-radius:48px;overflow:hidden;box-shadow:0 0 0 10px #0B120E,0 40px 80px -30px rgba(0,0,0,.45);background:#F4F3EE;transform:scale({{ scale }});transform-origin:top left;margin:10px">
+      <dc-import name="Riha App" start="{{ to }}" jump-key="{{ k }}" on-screen="{{ onScreen }}" style="width:100%;height:100%" hint-size="390px,844px"></dc-import>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { to: 'landing', k: 0, cur: 'landing', scale: 1 };
+  componentDidMount() { this.fit(); this.onR = () => this.fit(); window.addEventListener('resize', this.onR); }
+  componentWillUnmount() { window.removeEventListener('resize', this.onR); }
+  fit() { this.setState({ scale: Math.min(1, (window.innerHeight - 48) / 864) }); }
+  renderVals() {
+    const G = [
+      ['Público', [['landing', 'Landing'], ['signup', 'Registo'], ['kyc', 'Verificação']]],
+      ['Painel', [['home', 'Início'], ['newlink', 'Criar link'], ['share', 'Partilhar'], ['txns', 'Transações']]],
+      ['Checkout', [['checkout', 'Pagar'], ['confirm', 'Confirmar PIN'], ['success', 'Sucesso']]],
+      ['Saldo', [['withdraw', 'Levantar'], ['bank', 'Conta bancária']]],
+      ['Definições', [['settings', 'Definições'], ['api', 'Chaves API'], ['hooks', 'Webhooks']]]
+    ];
+    const c = this.state.cur, sc = this.state.scale;
+    return {
+      groups: G.map(([label, items]) => ({ label, items: items.map(([id, l]) => ({ l, on: () => this.setState(s => ({ to: id, k: s.k + 1, cur: id })), bg: c === id ? '#0B120E' : '#fff', fg: c === id ? '#fff' : '#0B120E', bd: c === id ? '#0B120E' : '#DAD8D0' })) })),
+      to: this.state.to, k: this.state.k, onScreen: (s) => this.setState({ cur: s }),
+      scale: sc, fw: Math.round(410 * sc) + 'px', fh: Math.round(864 * sc) + 'px'
+    };
+  }
+}
+</script>
+</body>
+</html>

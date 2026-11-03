@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#0A7A05;text-decoration:none}a:hover{color:#0B120E}button,input{font:inherit;color:inherit}</style>
+</helmet>
+<div style="width:100%;height:100%;display:flex;font-family:Geist,system-ui,sans-serif;color:#0B120E;background:#F4F3EE;-webkit-font-smoothing:antialiased;position:relative">
+
+  <div style="width:248px;flex:none;height:100%;background:#0B120E;color:#fff;display:flex;flex-direction:column;padding:20px 14px;box-sizing:border-box;position:relative;overflow:hidden">
+    <div style="position:absolute;bottom:-60px;left:-30px;width:30px;height:260px;background:#0A8205;transform:skewX(22deg);opacity:.9"></div>
+    <div style="position:absolute;bottom:-60px;left:12px;width:30px;height:260px;background:#FF0F15;transform:skewX(22deg);opacity:.9"></div>
+    <div style="position:relative;display:flex;align-items:center;gap:9px;padding:0 8px"><img src="assets/riha-icon-light.png" alt="Riha" style="width:28px;height:28px;object-fit:contain"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:16px;letter-spacing:.2em">RIHA</span><span style="margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:3px 7px;border-radius:6px;background:#FF0F15;color:#fff">ADMIN</span></div>
+    <div style="position:relative;display:flex;flex-direction:column;gap:2px;margin-top:28px">
+      <button onClick="{{ nav.overview }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.overview }};color:{{ nf.overview }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>Visão geral</button>
+      <button onClick="{{ nav.approvals }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.approvals }};color:{{ nf.approvals }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg><span style="flex:1">Aprovações</span><span style="font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:#FFD21F;color:#0B120E">{{ pendingApps }}</span></button>
+      <button onClick="{{ nav.payouts }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.payouts }};color:{{ nf.payouts }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M3 10h18M16 15h1.5M7 6V4.5A1.5 1.5 0 0 1 8.5 3h7A1.5 1.5 0 0 1 17 4.5V6"></path></svg><span style="flex:1">Levantamentos</span><span style="font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff">{{ pendingPays }}</span></button>
+      <button onClick="{{ nav.merchants }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.merchants }};color:{{ nf.merchants }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6"></path></svg>Comerciantes</button>
+      <div style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;color:#93A09A;font-weight:600;font-size:14.5px"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"></path></svg>Transações</div>
+      <div style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;color:#93A09A;font-weight:600;font-size:14.5px"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"></path></svg>Risco e alertas</div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="position:relative;display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1)"><div style="width:34px;height:34px;border-radius:10px;background:#8EE07F;color:#0B120E;display:grid;place-items:center;font-weight:700;font-size:13px">NC</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px">Nélia Chissano</div><div style="font-size:12px;color:#93A09A">Operações</div></div></div>
+  </div>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;height:100%">
+    <div style="height:68px;flex:none;display:flex;align-items:center;gap:12px;padding:0 32px;border-bottom:1px solid #E8E6DF">
+      <div style="display:flex;align-items:center;gap:10px;width:420px;height:42px;padding:0 14px;border-radius:12px;background:#fff;border:1px solid #E8E6DF;color:#8A938E;font-size:14px;box-sizing:border-box"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>Pesquisar comerciante, NUIT ou referência</div>
+      <div style="flex:1"></div>
+      <span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #E4E2DA"><span style="width:8px;height:8px;border-radius:50%;background:#0A8205"></span>Produção</span>
+      <span style="font-size:13px;color:#5E6862">Terça, 3 nov · 10:48</span>
+    </div>
+    <div style="flex:1;overflow:auto">
+
+    <!-- OVERVIEW -->
+    <sc-if value="{{ is.overview }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:28px 32px 40px">
+      <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Visão geral da plataforma</h1>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:22px">
+        <div style="background:#0B120E;color:#fff;border-radius:22px;padding:20px;position:relative;overflow:hidden"><div style="position:absolute;top:-30px;right:34px;width:24px;height:200px;background:#0A8205;transform:skewX(22deg)"></div><div style="position:absolute;top:-30px;right:2px;width:24px;height:200px;background:#FF0F15;transform:skewX(22deg)"></div><div style="position:relative;font-size:13px;color:#A9B5AE">Volume processado hoje</div><div style="position:relative;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.04em;margin-top:6px">2 384 900 <span style="font-size:14px;color:#A9B5AE">MT</span></div><div style="position:relative;font-size:12.5px;color:#8EE07F;margin-top:4px">+9% vs. terça passada</div></div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:20px"><div style="font-size:13px;color:#5E6862">Transações hoje</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.04em;margin-top:6px">3 912</div><div style="font-size:12.5px;color:#5E6862;margin-top:4px">96,4% concluídas</div></div>
+        <button onClick="{{ nav.approvals }}" style="background:#FFD21F;border:0;border-radius:22px;padding:20px;text-align:left;cursor:pointer"><div style="font-size:13px;color:#3B3410">Contas por aprovar</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.04em;margin-top:6px">{{ pendingApps }}</div><div style="font-size:12.5px;color:#3B3410;margin-top:4px;font-weight:600">Mais antiga há 3 dias →</div></button>
+        <button onClick="{{ nav.payouts }}" style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:20px;text-align:left;cursor:pointer"><div style="font-size:13px;color:#5E6862">Levantamentos pendentes</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;letter-spacing:-0.04em;margin-top:6px">{{ pendingPayTotal }} <span style="font-size:14px;color:#5E6862">MT</span></div><div style="font-size:12.5px;color:#C2080D;margin-top:4px;font-weight:600">{{ urgentTxt }}</div></button>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,8fr) minmax(0,4fr);gap:14px;margin-top:14px">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Volume por método · 14 dias</div><div style="font-size:13px;color:#5E6862;margin-top:2px">29,6 M MT processados</div></div><div style="display:flex;gap:14px;font-size:12.5px;color:#3E4742"><span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:#C8102E"></span>M-Pesa</span><span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:#F39200"></span>e-Mola</span><span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:#0B120E"></span>Cartão</span></div></div>
+          <div style="display:flex;align-items:flex-end;gap:10px;height:190px;margin-top:20px">
+            <sc-for list="{{ stack }}" as="b" hint-placeholder-count="14"><div style="flex:1;display:flex;flex-direction:column;gap:2px;justify-content:flex-end;height:100%"><div style="height:{{ b.c }};background:#0B120E;border-radius:5px 5px 2px 2px"></div><div style="height:{{ b.e }};background:#F39200;border-radius:2px"></div><div style="height:{{ b.m }};background:#C8102E;border-radius:2px 2px 5px 5px"></div></div></sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#8A938E"><span>21 out</span><span>28 out</span><span>Hoje</span></div>
+        </div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px">
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Estado dos operadores</div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:#F4F3EE"><span style="width:34px;height:34px;border-radius:10px;background:#FDE7E6;color:#C8102E;display:grid;place-items:center;font-weight:800;font-size:14px">M</span><div style="flex:1"><div style="font-weight:600;font-size:14px">M-Pesa</div><div style="font-size:12px;color:#5E6862">99,2% sucesso · 2,1 s</div></div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:#E2F3DE;color:#0A6B05">Operacional</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:#FFF6D1"><span style="width:34px;height:34px;border-radius:10px;background:#FFF0D6;color:#B45F00;display:grid;place-items:center;font-weight:800;font-size:15px">e</span><div style="flex:1"><div style="font-weight:600;font-size:14px">e-Mola</div><div style="font-size:12px;color:#5B4600">97,1% sucesso · 6,8 s</div></div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:#FFE58A;color:#5B4600">Lento</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:#F4F3EE"><span style="width:34px;height:34px;border-radius:10px;background:#0B120E;color:#fff;display:grid;place-items:center"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="2" y="5" width="20" height="14" rx="2.5"></rect><path d="M2 10h20"></path></svg></span><div style="flex:1"><div style="font-weight:600;font-size:14px">Cartões</div><div style="font-size:12px;color:#5E6862">99,9% sucesso · 1,4 s</div></div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:#E2F3DE;color:#0A6B05">Operacional</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:8px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 22px 10px"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Levantamentos a vencer</div><a href="#" onClick="{{ nav.payouts }}" style="font-size:14px;font-weight:600">Ver fila</a></div>
+          <sc-for list="{{ dueSoon }}" as="p" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 120px 130px;gap:14px;align-items:center;padding:12px 22px;border-top:1px solid #F0EEE8"><div style="min-width:0"><div style="font-weight:600;font-size:14px">{{ p.merchant }}</div><div style="font-size:12px;color:#5E6862;font-family:'Geist Mono',monospace">{{ p.id }} · {{ p.bank }}</div></div><div style="font-weight:600;font-size:14px;text-align:right;font-variant-numeric:tabular-nums">{{ p.amtTxt }} MT</div><div><div style="font-size:12px;font-weight:600;color:{{ p.slaFg }}">{{ p.left }}</div><div style="height:5px;border-radius:3px;background:#EEECE5;margin-top:5px;overflow:hidden"><div style="width:{{ p.pct }};height:100%;background:{{ p.slaC }}"></div></div></div></div>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:8px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 22px 10px"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Fila de aprovações</div><a href="#" onClick="{{ nav.approvals }}" style="font-size:14px;font-weight:600">Rever</a></div>
+          <sc-for list="{{ appQueueTop }}" as="a" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;border-top:1px solid #F0EEE8"><div style="width:36px;height:36px;flex:none;border-radius:11px;background:{{ a.av }};display:grid;place-items:center;font-weight:700;font-size:13px">{{ a.ini }}</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">{{ a.name }}</div><div style="font-size:12.5px;color:#5E6862">{{ a.type }} · {{ a.city }}</div></div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ a.rbg }};color:{{ a.rfg }}">Risco {{ a.risk }}</span><span style="font-size:12.5px;color:#5E6862;width:70px;text-align:right">{{ a.sub }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- APPROVALS -->
+    <sc-if value="{{ is.approvals }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;height:100%">
+      <div style="width:380px;flex:none;border-right:1px solid #E8E6DF;display:flex;flex-direction:column;height:100%">
+        <div style="padding:24px 22px 14px"><h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-0.03em">Aprovações</h1><div style="font-size:13.5px;color:#5E6862;margin-top:4px">{{ pendingApps }} contas à espera de verificação</div></div>
+        <div style="flex:1;overflow:auto;padding:0 12px 16px;display:flex;flex-direction:column;gap:4px">
+          <sc-for list="{{ appList }}" as="a" hint-placeholder-count="7">
+            <button onClick="{{ a.on }}" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;border:1px solid {{ a.bd }};background:{{ a.bg }};text-align:left;cursor:pointer">
+              <div style="width:40px;height:40px;flex:none;border-radius:12px;background:{{ a.av }};display:grid;place-items:center;font-weight:700;font-size:13.5px">{{ a.ini }}</div>
+              <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.name }}</div><div style="font-size:12.5px;color:#5E6862;margin-top:1px">{{ a.city }} · {{ a.sub }}</div></div>
+              <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ a.pbg }};color:{{ a.pfg }};white-space:nowrap">{{ a.pt }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;height:100%">
+        <div style="flex:1;overflow:auto;padding:24px 32px">
+          <div style="display:flex;align-items:center;gap:16px">
+            <div style="width:56px;height:56px;border-radius:16px;background:{{ app.av }};display:grid;place-items:center;font-weight:700;font-size:18px">{{ app.ini }}</div>
+            <div style="flex:1"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:26px;letter-spacing:-0.025em">{{ app.name }}</div><div style="font-size:14px;color:#5E6862;margin-top:2px">{{ app.owner }} · Submetido {{ app.sub }}</div></div>
+            <span style="font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:999px;background:{{ app.pbg }};color:{{ app.pfg }}">{{ app.pt }}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin-top:22px;background:#E8E6DF;border:1px solid #E8E6DF;border-radius:18px;overflow:hidden">
+            <div style="background:#fff;padding:14px 16px"><div style="font-size:12px;color:#5E6862">Tipo</div><div style="font-weight:600;font-size:14px;margin-top:3px">{{ app.type }}</div></div>
+            <div style="background:#fff;padding:14px 16px"><div style="font-size:12px;color:#5E6862">NUIT</div><div style="font-weight:500;font-size:14px;margin-top:3px;font-family:'Geist Mono',monospace">{{ app.nuit }}</div></div>
+            <div style="background:#fff;padding:14px 16px"><div style="font-size:12px;color:#5E6862">Cidade</div><div style="font-weight:600;font-size:14px;margin-top:3px">{{ app.city }}</div></div>
+            <div style="background:#fff;padding:14px 16px"><div style="font-size:12px;color:#5E6862">Telemóvel</div><div style="font-weight:600;font-size:14px;margin-top:3px">{{ app.phone }}</div></div>
+            <div style="background:#fff;padding:14px 16px"><div style="font-size:12px;color:#5E6862">Email</div><div style="font-weight:600;font-size:14px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ app.email }}</div></div>
+            <div style="background:#fff;padding:14px 16px"><div style="font-size:12px;color:#5E6862">Volume esperado</div><div style="font-weight:600;font-size:14px;margin-top:3px">{{ app.vol }}</div></div>
+          </div>
+          <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Verificações automáticas</div>
+          <div style="background:#fff;border:1px solid #E8E6DF;border-radius:18px;padding:4px 0">
+            <sc-for list="{{ app.checks }}" as="c" hint-placeholder-count="3">
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px">
+                <div style="width:24px;height:24px;flex:none;border-radius:50%;background:{{ c.bg }};color:{{ c.fg }};display:grid;place-items:center;font-weight:800;font-size:13px">{{ c.sym }}</div>
+                <div style="flex:1"><div style="font-weight:600;font-size:14px">{{ c.l }}</div><div style="font-size:13px;color:#5E6862;margin-top:2px">{{ c.note }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Documentos</div>
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ docs }}" as="d" hint-placeholder-count="4">
+              <div style="background:#fff;border:1px solid #E8E6DF;border-radius:16px;overflow:hidden"><div style="height:110px;background:repeating-linear-gradient(135deg,#F0EEE8 0 10px,#F7F6F2 10px 20px);display:grid;place-items:center;font-family:'Geist Mono',monospace;font-size:11.5px;color:#8A938E">{{ d.file }}</div><div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:13px">{{ d.l }}</span><span style="font-size:12px;font-weight:600;color:#0A7A05">Abrir</span></div></div>
+            </sc-for>
+          </div>
+          <div style="font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Conta para levantamentos</div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:1px solid #E8E6DF;border-radius:16px"><svg width="20" height="20" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M3 21h18M5 21V10M19 21V10M9 21V10M15 21V10M2 10l10-7 10 7z"></path></svg><span style="font-weight:600;font-size:14px">{{ app.bank }}</span><span style="font-size:13px;color:#5E6862">Titular: {{ app.holder }}</span></div>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:10px;padding:16px 32px;border-top:1px solid #E8E6DF;background:#fff">
+          <div style="flex:1;height:44px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-size:14px;color:#8A938E">Nota interna (opcional)</div>
+          <button onClick="{{ decide.reject }}" style="height:44px;padding:0 16px;border-radius:12px;border:1px solid #F2B8B5;background:#fff;color:#C2080D;font-weight:600;font-size:14px;cursor:pointer">Rejeitar</button>
+          <button onClick="{{ decide.info }}" style="height:44px;padding:0 16px;border-radius:12px;border:1px solid #E2E0D8;background:#fff;font-weight:600;font-size:14px;cursor:pointer">Pedir documentos</button>
+          <button onClick="{{ decide.approve }}" style="height:44px;padding:0 20px;border-radius:12px;border:0;background:#0A8205;color:#fff;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:7px"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg>Aprovar conta</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- PAYOUTS -->
+    <sc-if value="{{ is.payouts }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:28px 32px 40px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between"><div><h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Levantamentos</h1><div style="font-size:14px;color:#5E6862;margin-top:4px">Cada pedido tem de ser transferido em até 72 horas.</div></div><div style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #E2E0D8;background:#fff;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Exportar relatório</div></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:20px">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:20px;padding:18px"><div style="font-size:13px;color:#5E6862">Por processar</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-0.035em;margin-top:4px">{{ pendingPayTotal }} <span style="font-size:14px;color:#5E6862">MT</span></div><div style="font-size:12.5px;color:#5E6862;margin-top:2px">{{ pendingPays }} pedidos</div></div>
+        <div style="background:#FFE3E1;border-radius:20px;padding:18px"><div style="font-size:13px;color:#8E0609">Vencem em menos de 8 h</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-0.035em;margin-top:4px;color:#8E0609">{{ urgentCount }}</div><div style="font-size:12.5px;color:#8E0609;margin-top:2px">Priorize estes pedidos</div></div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:20px;padding:18px"><div style="font-size:13px;color:#5E6862">Enviados ao banco</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-0.035em;margin-top:4px">{{ sentTotal }} <span style="font-size:14px;color:#5E6862">MT</span></div><div style="font-size:12.5px;color:#5E6862;margin-top:2px">À espera de confirmação</div></div>
+      </div>
+      <div style="display:flex;gap:24px;margin-top:22px;border-bottom:1px solid #E4E2DA">
+        <sc-for list="{{ payTabs }}" as="x" hint-placeholder-count="4"><button onClick="{{ x.on }}" style="height:40px;padding:0;border:0;background:none;border-bottom:2px solid {{ x.bd }};margin-bottom:-1px;color:{{ x.fg }};font-weight:600;font-size:14.5px;cursor:pointer;display:flex;align-items:center;gap:7px">{{ x.l }}<span style="font-size:12px;padding:1px 7px;border-radius:999px;background:#EAE8E1;color:#3E4742">{{ x.n }}</span></button></sc-for>
+      </div>
+      <sc-if value="{{ hasPick }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 10px 10px 18px;border-radius:16px;background:#0B120E;color:#fff">
+          <span style="font-weight:600;font-size:14px;flex:1">{{ pickTxt }}</span>
+          <button onClick="{{ bulk.export }}" style="height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:transparent;color:#fff;font-weight:600;font-size:13.5px;cursor:pointer">Exportar ficheiro bancário</button>
+          <button onClick="{{ bulk.reject }}" style="height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:transparent;color:#FF9C9F;font-weight:600;font-size:13.5px;cursor:pointer">Rejeitar</button>
+          <button onClick="{{ bulk.approve }}" style="height:38px;padding:0 16px;border-radius:10px;border:0;background:#0A8205;color:#fff;font-weight:600;font-size:13.5px;cursor:pointer">{{ bulkMainTxt }}</button>
+        </div>
+      </sc-if>
+      <div style="margin-top:14px;background:#fff;border:1px solid #E8E6DF;border-radius:20px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:40px 90px minmax(0,1.3fr) minmax(0,1fr) 130px 150px 120px 120px;gap:12px;align-items:center;padding:12px 18px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;background:#FAFAF7;border-bottom:1px solid #EEECE5">
+          <button onClick="{{ pickAll }}" style="width:18px;height:18px;border-radius:5px;border:1.5px solid {{ allBd }};background:{{ allBg }};padding:0;cursor:pointer;display:grid;place-items:center"><svg width="11" height="11" viewBox="0 0 24 24" style="fill:none;stroke:#fff;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg></button>
+          <span>Ref.</span><span>Comerciante</span><span>Conta</span><span style="text-align:right">Valor</span><span>Prazo 72 h</span><span>Estado</span><span></span>
+        </div>
+        <sc-for list="{{ payRows }}" as="p" hint-placeholder-count="8">
+          <div style="display:grid;grid-template-columns:40px 90px minmax(0,1.3fr) minmax(0,1fr) 130px 150px 120px 120px;gap:12px;align-items:center;padding:12px 18px;border-bottom:1px solid #F0EEE8;background:{{ p.rowBg }}">
+            <button onClick="{{ p.pick }}" style="width:18px;height:18px;border-radius:5px;border:1.5px solid {{ p.cbd }};background:{{ p.cbg }};padding:0;cursor:pointer;display:grid;place-items:center"><svg width="11" height="11" viewBox="0 0 24 24" style="fill:none;stroke:#fff;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg></button>
+            <span style="font-family:'Geist Mono',monospace;font-size:12.5px">{{ p.id }}</span>
+            <div style="min-width:0"><div style="font-weight:600;font-size:14px">{{ p.merchant }}</div><div style="font-size:12px;color:#5E6862">Pedido {{ p.req }}</div></div>
+            <div style="font-size:13px;color:#3E4742">{{ p.bank }} <span style="font-family:'Geist Mono',monospace">{{ p.acct }}</span></div>
+            <div style="text-align:right;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums">{{ p.amtTxt }} MT</div>
+            <div><div style="font-size:12px;font-weight:600;color:{{ p.slaFg }}">{{ p.left }}</div><div style="height:5px;border-radius:3px;background:#EEECE5;margin-top:5px;overflow:hidden"><div style="width:{{ p.pct }};height:100%;background:{{ p.slaC }}"></div></div></div>
+            <div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ p.sbg }};color:{{ p.sfg }};white-space:nowrap">{{ p.st }}</span></div>
+            <div style="display:flex;justify-content:flex-end"><button onClick="{{ p.act }}" style="height:32px;padding:0 12px;border-radius:9px;border:1px solid {{ p.abd }};background:{{ p.abg }};color:{{ p.afg }};font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">{{ p.actTxt }}</button></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- MERCHANTS -->
+    <sc-if value="{{ is.merchants }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:28px 32px 40px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between"><div><h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Comerciantes</h1><div style="font-size:14px;color:#5E6862;margin-top:4px">1 284 contas · 1 211 ativas</div></div></div>
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <sc-for list="{{ mTabs }}" as="x" hint-placeholder-count="4"><button onClick="{{ x.on }}" style="height:36px;padding:0 14px;border-radius:999px;border:1px solid {{ x.bd }};background:{{ x.bg }};color:{{ x.fg }};font-size:13.5px;font-weight:600;cursor:pointer">{{ x.l }}</button></sc-for>
+      </div>
+      <div style="margin-top:14px;background:#fff;border:1px solid #E8E6DF;border-radius:20px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:minmax(0,1.5fr) 120px 140px 150px 140px 120px 100px;gap:12px;padding:12px 20px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;background:#FAFAF7;border-bottom:1px solid #EEECE5"><span>Comerciante</span><span>Estado</span><span style="text-align:right">Volume 30 d</span><span style="text-align:right">Saldo</span><span>Principal</span><span>Desde</span><span></span></div>
+        <sc-for list="{{ mRows }}" as="r" hint-placeholder-count="9">
+          <div style="display:grid;grid-template-columns:minmax(0,1.5fr) 120px 140px 150px 140px 120px 100px;gap:12px;align-items:center;padding:12px 20px;border-bottom:1px solid #F0EEE8">
+            <div style="display:flex;align-items:center;gap:12px;min-width:0"><div style="width:36px;height:36px;flex:none;border-radius:11px;background:{{ r.av }};display:grid;place-items:center;font-weight:700;font-size:12.5px">{{ r.ini }}</div><div style="min-width:0"><div style="font-weight:600;font-size:14px">{{ r.name }}</div><div style="font-size:12px;color:#5E6862">{{ r.city }}</div></div></div>
+            <div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ r.sbg }};color:{{ r.sfg }}">{{ r.st }}</span></div>
+            <div style="text-align:right;font-size:14px;font-variant-numeric:tabular-nums">{{ r.vol }}</div>
+            <div style="text-align:right;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">{{ r.bal }} MT</div>
+            <div style="font-size:13.5px;color:#3E4742">{{ r.main }}</div>
+            <div style="font-size:13.5px;color:#3E4742">{{ r.since }}</div>
+            <div style="display:flex;justify-content:flex-end"><span style="height:32px;padding:0 12px;border-radius:9px;border:1px solid #E2E0D8;display:flex;align-items:center;font-size:12.5px;font-weight:600">Ver</span></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    </div>
+  </div>
+
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:14px;background:#0B120E;color:#fff;font-size:14px;font-weight:500;box-shadow:0 20px 40px -16px rgba(0,0,0,.5);z-index:30"><span style="width:8px;height:8px;border-radius:50%;background:#8EE07F"></span>{{ toast }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;start&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;overview&quot;,&quot;options&quot;:[&quot;overview&quot;,&quot;approvals&quot;,&quot;payouts&quot;,&quot;merchants&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    const ok = (l, note) => ({ k: 'ok', l, note });
+    const warn = (l, note) => ({ k: 'warn', l, note });
+    const bad = (l, note) => ({ k: 'bad', l, note });
+    this.apps = [
+      { name: 'Mercearia Tembe', owner: 'Helena Tembe', type: 'Em nome individual', nuit: '401 552 019', city: 'Matola', phone: '+258 85 660 4412', email: 'helena@merceariatembe.co.mz', vol: '50 – 150 mil MT/mês', sub: 'há 2 h', risk: 'Baixo', bank: 'Millennium bim · NIB •••• 3301 7', holder: 'Helena Tembe', av: '#FFD21F',
+        checks: [ok('NUIT válido', 'Confirmado na Autoridade Tributária'), ok('Titular da conta coincide', 'Millennium bim: Helena Tembe'), ok('Documento legível', 'BI válido até 2031')] },
+      { name: 'Txova Entregas, Lda', owner: 'Rui Macuácua', type: 'Empresa (Lda)', nuit: '400 873 215', city: 'Maputo', phone: '+258 84 301 2290', email: 'rui@txova.co.mz', vol: '300 – 600 mil MT/mês', sub: 'há 5 h', risk: 'Médio', bank: 'BCI · NIB •••• 7731 2', holder: 'Rui Macuácua', av: '#E2F3DE',
+        checks: [ok('NUIT válido', 'Confirmado na Autoridade Tributária'), warn('Titular da conta diferente', 'Conta em nome pessoal do sócio, não da empresa'), ok('Documento legível', 'BI e certidão comercial')] },
+      { name: 'Loja da Graça', owner: 'Graça Mabunda', type: 'Em nome individual', nuit: '402 118 640', city: 'Beira', phone: '+258 86 554 0193', email: 'graca.mabunda@gmail.com', vol: 'Até 50 mil MT/mês', sub: 'há 1 dia', risk: 'Baixo', bank: 'BCI · NIB •••• 0921 4', holder: 'Graça Mabunda', av: '#FFF0D6',
+        checks: [ok('NUIT válido', 'Confirmado na Autoridade Tributária'), ok('Titular da conta coincide', 'BCI: Graça Mabunda'), ok('Documento legível', 'BI válido até 2029')] },
+      { name: 'Ndzava Moda', owner: 'Lúcia Ndzava', type: 'Em nome individual', nuit: '409 000 117', city: 'Nampula', phone: '+258 87 220 8817', email: 'ndzavamoda@gmail.com', vol: '150 – 300 mil MT/mês', sub: 'há 1 dia', risk: 'Alto', bank: 'FNB · NIB •••• 8817 0', holder: 'L. Ndzava', av: '#FFE3E1',
+        checks: [bad('NUIT não encontrado', 'Sem registo na Autoridade Tributária'), ok('Titular da conta coincide', 'FNB: L. Ndzava'), warn('Documento pouco legível', 'Fotografia do BI desfocada')] },
+      { name: 'Escola de Condução Xai-Xai', owner: 'Abel Sitoe', type: 'Empresa (Lda)', nuit: '400 665 302', city: 'Xai-Xai', phone: '+258 84 778 1120', email: 'geral@ecxaixai.co.mz', vol: '50 – 150 mil MT/mês', sub: 'há 2 dias', risk: 'Baixo', bank: 'Moza Banco · NIB •••• 4410 9', holder: 'Escola de Condução Xai-Xai, Lda', av: '#EDECE6',
+        checks: [ok('NUIT válido', 'Confirmado na Autoridade Tributária'), ok('Titular da conta coincide', 'Moza Banco: razão social'), ok('Documento legível', 'Alvará e certidão comercial')] },
+      { name: 'Barbearia Chiveve', owner: 'Jorge Mussa', type: 'Em nome individual', nuit: '403 912 778', city: 'Beira', phone: '+258 85 019 3345', email: 'jorge.mussa@gmail.com', vol: 'Até 50 mil MT/mês', sub: 'há 2 dias', risk: 'Baixo', bank: 'BCI · NIB •••• 3345 1', holder: 'Jorge Mussa', av: '#E2F3DE',
+        checks: [ok('NUIT válido', 'Confirmado na Autoridade Tributária'), ok('Titular da conta coincide', 'BCI: Jorge Mussa'), ok('Documento legível', 'BI válido até 2030')] },
+      { name: 'Kuxa Tech, SA', owner: 'Inês Matsinhe', type: 'Empresa (SA)', nuit: '400 120 884', city: 'Maputo', phone: '+258 84 900 1002', email: 'financas@kuxatech.co.mz', vol: 'Mais de 1 M MT/mês', sub: 'há 3 dias', risk: 'Médio', bank: 'Standard Bank · NIB •••• 1002 6', holder: 'Kuxa Tech, SA', av: '#FFD21F',
+        checks: [ok('NUIT válido', 'Confirmado na Autoridade Tributária'), ok('Titular da conta coincide', 'Standard Bank: razão social'), warn('Volume elevado', 'Requer revisão de dois administradores')] }
+    ];
+    this.pays = [
+      ['LV-0058', 'Kanimambo Store', 'BCI', '•• 1190', 84500, '31 out, 16:40', 66, 'review'],
+      ['LV-0057', 'Txopela Rides', 'Millennium bim', '•• 7731', 120000, '31 out, 19:10', 63, 'review'],
+      ['LV-0056', 'Café Maputo', 'BCI', '•• 4821', 15000, '1 nov, 14:02', 44, 'review'],
+      ['LV-0055', 'Mercado Online MZ', 'Standard Bank', '•• 2208', 46200, '1 nov, 19:30', 39, 'new'],
+      ['LV-0054', 'Farmácia Polana', 'Absa', '•• 5520', 32000, '2 nov, 09:12', 25, 'new'],
+      ['LV-0053', 'Mahala Eventos', 'Moza Banco', '•• 0042', 18500, '2 nov, 15:44', 19, 'new'],
+      ['LV-0052', 'Livraria Sumburero', 'BCI', '•• 6634', 7400, '3 nov, 07:30', 3, 'new'],
+      ['LV-0051', 'Pastelaria Nkomati', 'Millennium bim', '•• 3150', 22300, '30 out, 10:00', 72, 'sent'],
+      ['LV-0050', 'Lojas Xiluva', 'BCI', '•• 2290', 54000, '29 out, 15:20', 72, 'sent'],
+      ['LV-0048', 'Txopela Rides', 'Millennium bim', '•• 7731', 98000, '28 out, 09:00', 72, 'paid'],
+      ['LV-0047', 'Kanimambo Store', 'BCI', '•• 1190', 61200, '27 out, 13:45', 72, 'paid']
+    ].map(([id, merchant, bank, acct, amt, req, el, st]) => ({ id, merchant, bank, acct, amt, req, el, st }));
+    this.state = { screen: p.start || 'overview', selApp: 0, appSt: {}, payTab: 'pending', picked: {}, mTab: 'all', toast: '' };
+  }
+  componentDidUpdate(pp) { if (pp.start !== this.props.start && this.props.start) this.setState({ screen: this.props.start }); }
+  componentWillUnmount() { clearTimeout(this.tt); }
+  say(t) { this.setState({ toast: t }); clearTimeout(this.tt); this.tt = setTimeout(() => this.setState({ toast: '' }), 2200); }
+  fmt(n, dec) { const [i, d] = Math.abs(n).toFixed(2).split('.'); const s = i.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0'); return dec === false ? s : s + ',' + d; }
+  ini(n) { return n.replace(/,.*$/, '').split(/\s+/).filter(w => /^[A-ZÀ-Ú]/.test(w)).slice(0, 2).map(w => w[0]).join(''); }
+
+  renderVals() {
+    const S = this.state, s = S.screen;
+    const is = {}, nav = {}, nb = {}, nf = {};
+    ['overview', 'approvals', 'payouts', 'merchants'].forEach(k => { is[k] = s === k; nav[k] = (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ screen: k }); }; nb[k] = s === k ? 'rgba(255,255,255,.1)' : 'transparent'; nf[k] = s === k ? '#FFFFFF' : '#B9C3BD'; });
+
+    const RK = { Baixo: ['#E2F3DE', '#0A6B05'], 'Médio': ['#FFF3C4', '#7A5A00'], Alto: ['#FFE3E1', '#C2080D'] };
+    const AS = { pending: null, approved: ['Aprovada', '#E2F3DE', '#0A6B05'], rejected: ['Rejeitada', '#FFE3E1', '#C2080D'], info: ['Docs pedidos', '#EDECE6', '#3E4742'] };
+    const apps = this.apps.map((a, i) => {
+      const st = S.appSt[i] || 'pending';
+      const pill = AS[st] || ['Risco ' + a.risk.toLowerCase(), RK[a.risk][0], RK[a.risk][1]];
+      return { ...a, i, st, ini: this.ini(a.name), pt: pill[0], pbg: pill[1], pfg: pill[2], rbg: RK[a.risk][0], rfg: RK[a.risk][1] };
+    });
+    const CK = { ok: ['✓', '#E2F3DE', '#0A6B05'], warn: ['!', '#FFF3C4', '#7A5A00'], bad: ['×', '#FFE3E1', '#C2080D'] };
+    const cur = apps[S.selApp] || apps[0];
+    const app = { ...cur, checks: cur.checks.map(c => ({ ...c, sym: CK[c.k][0], bg: CK[c.k][1], fg: CK[c.k][2] })), pt: cur.st === 'pending' ? 'Por rever' : cur.pt, pbg: cur.st === 'pending' ? '#FFF3C4' : cur.pbg, pfg: cur.st === 'pending' ? '#7A5A00' : cur.pfg };
+    const slug = cur.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '').slice(0, 14);
+    const docs = [['BI · frente', 'bi-frente.jpg'], ['BI · verso', 'bi-verso.jpg'], [cur.type.startsWith('Empresa') ? 'Certidão comercial' : 'Alvará', slug + '.pdf'], ['Comprovativo NIB', 'nib.pdf']].map(([l, file]) => ({ l, file }));
+    const pendingApps = apps.filter(a => a.st === 'pending').length;
+    const decideFn = (st, msg) => () => {
+      const appSt = { ...S.appSt, [cur.i]: st };
+      const next = apps.findIndex((a, j) => j !== cur.i && (appSt[j] || 'pending') === 'pending');
+      this.setState({ appSt, selApp: next >= 0 ? next : cur.i });
+      this.say(msg + ': ' + cur.name);
+    };
+    const appList = apps.map(a => ({ ...a, on: () => this.setState({ selApp: a.i }), bg: a.i === cur.i ? '#fff' : 'transparent', bd: a.i === cur.i ? '#E2E0D8' : 'transparent' }));
+
+    const PST = { new: ['Novo', '#EDECE6', '#3E4742'], review: ['Em análise', '#FFF3C4', '#7A5A00'], sent: ['Enviado ao banco', '#0B120E', '#FFFFFF'], paid: ['Pago', '#E2F3DE', '#0A6B05'], rejected: ['Rejeitado', '#FFE3E1', '#C2080D'] };
+    const pays = this.pays.map(p => ({ ...p, st: (S.picked.__st || {})[p.id] || p.st }));
+    const sla = (p) => {
+      const left = 72 - p.el, done = p.st === 'paid' || p.st === 'sent' || p.st === 'rejected';
+      const c = done ? '#8A938E' : left <= 8 ? '#FF0F15' : left <= 24 ? '#E0A800' : '#0A8205';
+      return { left: done ? (p.st === 'paid' ? 'Concluído' : p.st === 'sent' ? 'No banco' : '—') : left + ' h restantes', pct: Math.min(100, Math.round(p.el / 72 * 100)) + '%', slaC: c, slaFg: done ? '#5E6862' : left <= 8 ? '#C2080D' : left <= 24 ? '#7A5A00' : '#0A6B05' };
+    };
+    const pend = pays.filter(p => p.st === 'new' || p.st === 'review');
+    const pendingPayTotal = this.fmt(pend.reduce((a, p) => a + p.amt, 0), false);
+    const urgent = pend.filter(p => 72 - p.el <= 8);
+    const sentTotal = this.fmt(pays.filter(p => p.st === 'sent').reduce((a, p) => a + p.amt, 0), false);
+    const tab = S.payTab;
+    const inTab = (p) => tab === 'all' || (tab === 'pending' ? (p.st === 'new' || p.st === 'review') : p.st === tab);
+    const payTabs = [['pending', 'Pendentes'], ['sent', 'Enviados ao banco'], ['paid', 'Pagos'], ['all', 'Todos']].map(([k, l]) => ({ l, n: k === 'all' ? pays.length : pays.filter(p => k === 'pending' ? (p.st === 'new' || p.st === 'review') : p.st === k).length, on: () => this.setState({ payTab: k, picked: { __st: S.picked.__st } }), bd: tab === k ? '#0B120E' : 'transparent', fg: tab === k ? '#0B120E' : '#5E6862' }));
+    const setSt = (ids, st, msg) => { const m = { ...(S.picked.__st || {}) }; ids.forEach(id => m[id] = st); this.setState({ picked: { __st: m } }); this.say(msg); };
+    const rows = pays.filter(inTab);
+    const pickedIds = rows.filter(p => S.picked[p.id]).map(p => p.id);
+    const payRows = rows.map(p => {
+      const on = !!S.picked[p.id], ps = PST[p.st];
+      const pendingRow = p.st === 'new' || p.st === 'review';
+      return { ...p, ...sla(p), amtTxt: this.fmt(p.amt), st: ps[0], sbg: ps[1], sfg: ps[2], rowBg: on ? '#F6FAF4' : '#fff', cbg: on ? '#0A8205' : '#fff', cbd: on ? '#0A8205' : '#CFCDC4',
+        pick: () => this.setState({ picked: { ...S.picked, [p.id]: !on } }),
+        actTxt: pendingRow ? 'Aprovar' : p.st === 'sent' ? 'Marcar pago' : 'Comprovativo',
+        abg: pendingRow ? '#0A8205' : '#fff', afg: pendingRow ? '#fff' : '#0B120E', abd: pendingRow ? '#0A8205' : '#E2E0D8',
+        act: () => pendingRow ? setSt([p.id], 'sent', p.id + ' aprovado e enviado ao banco') : p.st === 'sent' ? setSt([p.id], 'paid', p.id + ' marcado como pago') : this.say('Comprovativo de ' + p.id + ' descarregado') };
+    });
+    const allOn = rows.length > 0 && pickedIds.length === rows.length;
+    const pickSum = rows.filter(p => S.picked[p.id]).reduce((a, p) => a + p.amt, 0);
+    const dueSoon = pend.slice().sort((a, b) => b.el - a.el).slice(0, 4).map(p => ({ ...p, ...sla(p), amtTxt: this.fmt(p.amt, false) }));
+
+    const MS = { active: ['Ativo', '#E2F3DE', '#0A6B05'], review: ['Em verificação', '#FFF3C4', '#7A5A00'], suspended: ['Suspenso', '#FFE3E1', '#C2080D'] };
+    const mer = [
+      ['Txopela Rides', 'Maputo', 'active', 1840300, 212400, 'M-Pesa', 'jan 2026', '#E2F3DE'], ['Kanimambo Store', 'Matola', 'active', 640200, 84500, 'Cartão', 'mar 2026', '#FFD21F'],
+      ['Mercado Online MZ', 'Maputo', 'active', 512800, 46200, 'Cartão', 'fev 2026', '#EDECE6'], ['Farmácia Polana', 'Maputo', 'active', 298400, 32000, 'M-Pesa', 'abr 2026', '#E2F3DE'],
+      ['Café Maputo', 'Maputo', 'active', 132480, 48320.5, 'M-Pesa', 'set 2026', '#FFD21F'], ['Mahala Eventos', 'Beira', 'active', 120900, 18500, 'e-Mola', 'jun 2026', '#FFF0D6'],
+      ['Ndzava Moda', 'Nampula', 'review', 0, 0, '—', 'nov 2026', '#FFE3E1'], ['Mercearia Tembe', 'Matola', 'review', 0, 0, '—', 'nov 2026', '#FFD21F'],
+      ['Lojas Xiluva', 'Inhambane', 'suspended', 88100, 0, 'M-Pesa', 'mai 2026', '#EDECE6']
+    ];
+    const mt = S.mTab;
+    const mTabs = [['all', 'Todos'], ['active', 'Ativos'], ['review', 'Em verificação'], ['suspended', 'Suspensos']].map(([k, l]) => ({ l, on: () => this.setState({ mTab: k }), bg: mt === k ? '#0B120E' : '#fff', fg: mt === k ? '#fff' : '#0B120E', bd: mt === k ? '#0B120E' : '#E2E0D8' }));
+    const mRows = mer.filter(r => mt === 'all' || r[2] === mt).map(([name, city, st, vol, bal, main, since, av]) => ({ name, city, ini: this.ini(name), av, st: MS[st][0], sbg: MS[st][1], sfg: MS[st][2], vol: vol ? this.fmt(vol, false) + ' MT' : '—', bal: this.fmt(bal), main, since }));
+
+    const v = [[52, 22, 14], [58, 24, 15], [61, 25, 18], [55, 21, 16], [70, 30, 20], [80, 34, 22], [48, 20, 12], [57, 23, 15], [63, 27, 17], [66, 26, 18], [59, 25, 16], [75, 32, 21], [84, 36, 24], [68, 28, 19]];
+    const stack = v.map(([m, e, c]) => ({ m: Math.round(m * 1.35) + 'px', e: Math.round(e * 1.35) + 'px', c: Math.round(c * 1.35) + 'px' }));
+
+    return {
+      is, nav, nb, nf, stack,
+      pendingApps, appList, app, docs, appQueueTop: apps.filter(a => a.st === 'pending').slice(0, 4),
+      decide: { approve: decideFn('approved', 'Conta aprovada'), reject: decideFn('rejected', 'Conta rejeitada'), info: decideFn('info', 'Pedido de documentos enviado') },
+      pendingPays: pend.length, pendingPayTotal, urgentCount: urgent.length, urgentTxt: urgent.length + (urgent.length === 1 ? ' vence' : ' vencem') + ' em menos de 8 h', sentTotal,
+      payTabs, payRows, dueSoon, hasPick: pickedIds.length > 0,
+      pickTxt: pickedIds.length + (pickedIds.length === 1 ? ' selecionado · ' : ' selecionados · ') + this.fmt(pickSum) + ' MT',
+      bulkMainTxt: tab === 'sent' ? 'Marcar como pagos' : 'Aprovar e enviar',
+      bulk: {
+        approve: () => setSt(pickedIds, tab === 'sent' ? 'paid' : 'sent', pickedIds.length + (tab === 'sent' ? ' marcados como pagos' : ' aprovados e enviados ao banco')),
+        reject: () => setSt(pickedIds, 'rejected', pickedIds.length + ' rejeitados. O saldo volta aos comerciantes.'),
+        export: () => this.say('Ficheiro bancário exportado (' + pickedIds.length + ' transferências)')
+      },
+      pickAll: () => { const m = { __st: S.picked.__st }; if (!allOn) rows.forEach(p => m[p.id] = true); this.setState({ picked: m }); },
+      allBg: allOn ? '#0A8205' : '#fff', allBd: allOn ? '#0A8205' : '#CFCDC4',
+      mTabs, mRows, hasToast: !!S.toast, toast: S.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

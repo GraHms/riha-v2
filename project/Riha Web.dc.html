@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#0A7A05;text-decoration:none}a:hover{color:#0B120E}button,input{font:inherit;color:inherit}input:focus{outline:none}</style>
+</helmet>
+<div style="width:100%;height:100%;font-family:Geist,system-ui,sans-serif;color:#0B120E;background:#F4F3EE;-webkit-font-smoothing:antialiased;position:relative">
+
+<!-- LANDING -->
+<sc-if value="{{ is.landing }}" hint-placeholder-val="{{ false }}">
+<div style="background:#F4F3EE">
+  <div style="background:#0B120E;color:#fff;position:relative;overflow:hidden">
+    <div style="position:absolute;top:-120px;right:330px;width:120px;height:1000px;background:#0A8205;transform:skewX(22deg)"></div>
+    <div style="position:absolute;top:-120px;right:180px;width:120px;height:1000px;background:#FF0F15;transform:skewX(22deg)"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(90deg,#0B120E 38%,rgba(11,18,14,.55) 70%,rgba(11,18,14,.2))"></div>
+    <div style="position:relative;max-width:1240px;margin:0 auto;padding:0 40px">
+      <div style="display:flex;align-items:center;height:84px;gap:40px">
+        <div style="display:flex;align-items:center;gap:10px"><img src="assets/riha-icon-light.png" alt="Riha" style="width:34px;height:34px;object-fit:contain"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:19px;letter-spacing:.2em">RIHA</span></div>
+        <div style="display:flex;gap:28px;font-size:14.5px;color:#C9D3CD"><span>Produto</span><span>Preços</span><span>Programadores</span><span>Ajuda</span></div>
+        <div style="flex:1"></div>
+        <button onClick="{{ nav.overview }}" style="height:42px;padding:0 18px;border-radius:12px;background:transparent;border:0;color:#fff;font-weight:600;font-size:14.5px;cursor:pointer">Entrar</button>
+        <button onClick="{{ nav.overview }}" style="height:42px;padding:0 18px;border-radius:12px;background:#fff;border:0;color:#0B120E;font-weight:600;font-size:14.5px;cursor:pointer">Criar conta</button>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:40px;align-items:center;padding:72px 0 96px">
+        <div>
+          <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:76px;line-height:.98;letter-spacing:-0.04em;text-wrap:balance">Receba de todo <span style="color:#8EE07F">Moçambique</span>. Num só lugar.</h1>
+          <p style="margin:22px 0 0;font-size:19px;line-height:1.55;color:#B9C3BD;max-width:520px;text-wrap:pretty">Crie links de pagamento em segundos ou integre a nossa API. O dinheiro entra no seu saldo Riha e segue para o seu banco em até 72 horas.</p>
+          <div style="display:flex;gap:12px;margin-top:32px">
+            <button onClick="{{ nav.overview }}" style="height:56px;padding:0 26px;border-radius:16px;background:#0A8205;border:0;color:#fff;font-weight:600;font-size:16.5px;cursor:pointer;box-shadow:0 14px 30px -12px rgba(10,130,5,.8)">Criar conta grátis</button>
+            <button onClick="{{ goApi }}" style="height:56px;padding:0 24px;border-radius:16px;background:transparent;border:1px solid rgba(255,255,255,.22);color:#fff;font-weight:600;font-size:16px;cursor:pointer;display:flex;align-items:center;gap:8px">Ver a API<svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12h14M13 5l7 7-7 7"></path></svg></button>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:20px;font-size:14px;color:#93A09A"><span>Sem mensalidade</span><span>·</span><span>Levantamentos em 72h</span><span>·</span><span>Taxa única de 3,5%</span></div>
+        </div>
+        <div style="position:relative;height:500px">
+          <div style="position:absolute;right:0;top:20px;width:470px;background:#F4F3EE;color:#0B120E;border-radius:24px;padding:20px;box-sizing:border-box;box-shadow:0 50px 100px -30px rgba(0,0,0,.8)">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:34px;height:34px;border-radius:10px;background:#FFD21F;display:grid;place-items:center;font-weight:700;font-size:13px">CM</div><div style="font-weight:600;font-size:14px">Café Maputo</div><div style="flex:1"></div><span style="font-size:11.5px;font-weight:600;color:#0A6B05;background:#E2F3DE;padding:4px 9px;border-radius:999px">Produção</span></div>
+            <div style="margin-top:14px;background:#0B120E;color:#fff;border-radius:18px;padding:18px;position:relative;overflow:hidden"><div style="position:absolute;top:-20px;right:40px;width:24px;height:160px;background:#0A8205;transform:skewX(22deg)"></div><div style="position:absolute;top:-20px;right:6px;width:24px;height:160px;background:#FF0F15;transform:skewX(22deg)"></div><div style="position:relative;font-size:12px;color:#A9B5AE">Saldo disponível</div><div style="position:relative;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:34px;letter-spacing:-0.04em;margin-top:4px">48 320,50 <span style="font-size:15px;color:#A9B5AE">MT</span></div></div>
+            <div style="display:flex;align-items:flex-end;gap:5px;height:92px;margin-top:14px;padding:12px;background:#fff;border-radius:16px">
+              <sc-for list="{{ bars14 }}" as="b" hint-placeholder-count="14"><div style="flex:1;height:{{ b.h }};border-radius:5px;background:{{ b.bg }}"></div></sc-for>
+            </div>
+          </div>
+          <div style="position:absolute;left:0;top:190px;width:268px;background:#fff;color:#0B120E;border-radius:24px;padding:18px;box-sizing:border-box;transform:rotate(-4deg);box-shadow:0 40px 80px -24px rgba(0,0,0,.75)">
+            <div style="font-size:11.5px;color:#5E6862">pay.riha.co.mz</div>
+            <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-0.03em;margin-top:4px">1 250,00 <span style="font-size:14px;color:#5E6862">MT</span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+              <div style="display:flex;align-items:center;gap:9px;height:40px;padding:0 10px;border-radius:12px;border:2px solid #0A8205;background:#F3FAF1;font-size:13px;font-weight:600"><span style="width:22px;height:22px;border-radius:7px;background:#FDE7E6;color:#C8102E;display:grid;place-items:center;font-size:11px;font-weight:800">M</span>M-Pesa<span style="margin-left:auto;width:16px;height:16px;border-radius:50%;background:#0A8205"></span></div>
+              <div style="display:flex;align-items:center;gap:9px;height:40px;padding:0 10px;border-radius:12px;border:1px solid #E4E2DA;font-size:13px;font-weight:500"><span style="width:22px;height:22px;border-radius:7px;background:#FFF0D6;color:#B45F00;display:grid;place-items:center;font-size:12px;font-weight:800">e</span>e-Mola</div>
+            </div>
+            <div style="margin-top:12px;height:42px;border-radius:12px;background:#0A8205;color:#fff;display:grid;place-items:center;font-weight:600;font-size:13.5px">Pagar 1 250,00 MT</div>
+          </div>
+          <div style="position:absolute;right:30px;bottom:6px;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:18px;background:rgba(28,40,33,.9);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(14px);box-shadow:0 24px 50px -20px rgba(0,0,0,.9)">
+            <div style="width:34px;height:34px;flex:none;border-radius:50%;background:#0A8205;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg></div>
+            <div><div style="font-size:12px;color:#AFC0B6">Pagamento recebido</div><div style="font-weight:600;font-size:14.5px">+1 250,00 MT · M-Pesa</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1240px;margin:0 auto;padding:88px 40px 0">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:48px;align-items:end">
+      <div><div style="font-size:14px;font-weight:600;color:#0A7A05">Métodos de pagamento</div><h2 style="margin:10px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:44px;line-height:1.02;letter-spacing:-0.035em;text-wrap:balance">Todos os métodos que os seus clientes já usam.</h2></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:18px"><div style="width:42px;height:42px;border-radius:12px;background:#FDE7E6;color:#C8102E;display:grid;place-items:center;font-weight:800;font-size:18px">M</div><div><div style="font-weight:600;font-size:15.5px">M-Pesa</div><div style="font-size:13px;color:#5E6862;margin-top:2px">Vodacom</div></div></div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:18px"><div style="width:42px;height:42px;border-radius:12px;background:#FFF0D6;color:#B45F00;display:grid;place-items:center;font-weight:800;font-size:19px">e</div><div><div style="font-weight:600;font-size:15.5px">e-Mola</div><div style="font-size:13px;color:#5E6862;margin-top:2px">Movitel</div></div></div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:18px"><div style="width:42px;height:42px;border-radius:12px;background:#0B120E;color:#fff;display:grid;place-items:center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><rect x="2" y="5" width="20" height="14" rx="2.5"></rect><path d="M2 10h20"></path></svg></div><div><div style="font-weight:600;font-size:15.5px">Visa</div><div style="font-size:13px;color:#5E6862;margin-top:2px">Débito e crédito</div></div></div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:18px"><div style="width:42px;height:42px;border-radius:12px;background:#0B120E;color:#fff;display:grid;place-items:center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><rect x="2" y="5" width="20" height="14" rx="2.5"></rect><path d="M2 10h20"></path></svg></div><div><div style="font-weight:600;font-size:15.5px">Mastercard</div><div style="font-size:13px;color:#5E6862;margin-top:2px">Débito e crédito</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1240px;margin:0 auto;padding:96px 40px 0">
+    <div style="font-size:14px;font-weight:600;color:#0A7A05">Como funciona</div>
+    <h2 style="margin:10px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:44px;letter-spacing:-0.035em">Três passos. Zero papelada.</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:32px">
+      <div style="background:#fff;border:1px solid #E8E6DF;border-radius:24px;padding:26px"><div style="font-family:'Geist Mono',monospace;font-size:13px;color:#5E6862">01</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em;margin-top:28px">Crie a conta</div><div style="font-size:15px;line-height:1.55;color:#5E6862;margin-top:8px">Registe o negócio com o NUIT e o BI. Comece a receber no mesmo dia.</div></div>
+      <div style="background:#fff;border:1px solid #E8E6DF;border-radius:24px;padding:26px"><div style="font-family:'Geist Mono',monospace;font-size:13px;color:#5E6862">02</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em;margin-top:28px">Crie um link ou ligue a API</div><div style="font-size:15px;line-height:1.55;color:#5E6862;margin-top:8px">Partilhe o link por WhatsApp ou SMS, ou envie os clientes da sua loja online para o checkout Riha.</div></div>
+      <div style="background:#0A8205;color:#fff;border-radius:24px;padding:26px"><div style="font-family:'Geist Mono',monospace;font-size:13px;color:#CDEBC7">03</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.02em;margin-top:28px">Receba e levante</div><div style="font-size:15px;line-height:1.55;color:#E3F4DF;margin-top:8px">Veja cada pagamento em tempo real e peça o levantamento para o seu banco. Chega em até 72 horas.</div></div>
+    </div>
+  </div>
+
+  <div style="max-width:1240px;margin:0 auto;padding:96px 40px 0;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px">
+    <div style="background:#0B120E;color:#fff;border-radius:28px;padding:34px;position:relative;overflow:hidden;grid-row:span 2">
+      <div style="position:absolute;top:-40px;right:60px;width:40px;height:300px;background:#0A8205;transform:skewX(22deg)"></div>
+      <div style="position:absolute;top:-40px;right:8px;width:40px;height:300px;background:#FF0F15;transform:skewX(22deg)"></div>
+      <div style="position:relative;font-size:14px;font-weight:600;color:#8EE07F">Programadores</div>
+      <div style="position:relative;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:36px;letter-spacing:-0.03em;margin-top:10px;max-width:420px;line-height:1.05">Uma chamada à API. O resto fica connosco.</div>
+      <div style="position:relative;font-size:15.5px;line-height:1.55;color:#B9C3BD;margin-top:12px;max-width:440px">Crie um checkout, envie o cliente para a Riha e receba-o de volta com o resultado. Webhooks avisam o seu servidor.</div>
+      <div style="position:relative;display:flex;align-items:center;gap:10px;margin-top:26px">
+        <div style="flex:1;padding:14px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12)"><div style="font-size:14px;font-weight:600">A sua loja</div><div style="font-size:12.5px;color:#93A09A;margin-top:3px">cria o checkout</div></div>
+        <svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#93A09A;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
+        <div style="flex:1;padding:14px;border-radius:14px;background:#0A8205"><div style="font-size:14px;font-weight:600">pay.riha.co.mz</div><div style="font-size:12.5px;color:#D4F0CE;margin-top:3px">o cliente paga</div></div>
+        <svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#93A09A;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
+        <div style="flex:1;padding:14px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12)"><div style="font-size:14px;font-weight:600">success_url</div><div style="font-size:12.5px;color:#93A09A;margin-top:3px">volta à loja</div></div>
+      </div>
+      <div style="position:relative;margin-top:16px;padding:20px;border-radius:16px;background:#151E19;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:13.5px;line-height:1.75;color:#C9D3CD;white-space:pre">curl https://api.riha.co.mz/v1/checkout \
+  -u <span style="color:#FFD21F">sk_live_…</span>: \
+  -d amount=125000 \
+  -d currency=MZN \
+  -d success_url=<span style="color:#8EE07F">https://loja.co.mz/ok</span></div>
+    </div>
+    <div style="background:#fff;border:1px solid #E8E6DF;border-radius:28px;padding:30px;display:flex;gap:22px;align-items:center">
+      <div style="flex:1"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:26px;letter-spacing:-0.025em">Links de pagamento</div><div style="font-size:15px;line-height:1.55;color:#5E6862;margin-top:8px">Sem site, sem código. Crie no telemóvel e partilhe por WhatsApp, SMS ou QR no balcão.</div></div>
+      <div style="width:120px;height:120px;flex:none;border-radius:20px;background:#F4F3EE;display:grid;place-items:center"><div style="display:grid;grid-template-columns:repeat(25,1fr);width:92px;height:92px"><sc-for list="{{ qr }}" as="c" hint-placeholder-count="0"><div style="background:{{ c }}"></div></sc-for></div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#fff;border:1px solid #E8E6DF;border-radius:28px;padding:26px"><div style="width:42px;height:42px;border-radius:12px;background:#E2F3DE;color:#0A6B05;display:grid;place-items:center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg></div><div style="font-weight:600;font-size:17px;margin-top:18px">Checkout seguro</div><div style="font-size:14px;line-height:1.5;color:#5E6862;margin-top:6px">O cliente confirma com o PIN no próprio telemóvel.</div></div>
+      <div style="background:#FFD21F;border-radius:28px;padding:26px"><div style="width:42px;height:42px;border-radius:12px;background:#0B120E;color:#FFD21F;display:grid;place-items:center"><svg width="20" height="20" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></div><div style="font-weight:600;font-size:17px;margin-top:18px">72h no banco</div><div style="font-size:14px;line-height:1.5;color:#3B3410;margin-top:6px">Peça o levantamento quando quiser, para qualquer banco.</div></div>
+    </div>
+  </div>
+
+  <div style="max-width:1240px;margin:0 auto;padding:96px 40px 0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;align-items:center">
+    <div><div style="font-size:14px;font-weight:600;color:#0A7A05">Preço</div><h2 style="margin:10px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:44px;line-height:1.02;letter-spacing:-0.035em">Uma taxa. Sem surpresas.</h2><p style="margin:14px 0 0;font-size:17px;line-height:1.55;color:#5E6862;max-width:440px">Paga apenas quando recebe. A mesma taxa em todos os métodos, para não ter de fazer contas.</p></div>
+    <div style="background:#fff;border:1px solid #E8E6DF;border-radius:28px;padding:32px;display:flex;gap:32px;align-items:center">
+      <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:96px;line-height:1;letter-spacing:-0.05em">3,5%</div><div style="font-size:15px;color:#5E6862;margin-top:6px">por transação concluída</div></div>
+      <div style="display:flex;flex-direction:column;gap:12px;font-size:15px;padding-left:28px;border-left:1px solid #EEECE5">
+        <div style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#0A8205;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none"><path d="M20 6 9 17l-5-5"></path></svg>M-Pesa, e-Mola e cartões</div>
+        <div style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#0A8205;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none"><path d="M20 6 9 17l-5-5"></path></svg>Sem mensalidade</div>
+        <div style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#0A8205;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none"><path d="M20 6 9 17l-5-5"></path></svg>Sem taxa de adesão</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1240px;margin:0 auto;padding:96px 40px 0">
+    <div style="background:#0B120E;color:#fff;border-radius:32px;padding:56px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:24px">
+      <div style="position:absolute;top:-60px;right:220px;width:70px;height:420px;background:#0A8205;transform:skewX(22deg)"></div>
+      <div style="position:absolute;top:-60px;right:130px;width:70px;height:420px;background:#FF0F15;transform:skewX(22deg)"></div>
+      <div style="position:relative"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:48px;letter-spacing:-0.035em;line-height:1">Comece a receber hoje.</div><div style="font-size:16px;color:#B9C3BD;margin-top:12px">Conta grátis. O primeiro link fica pronto em 2 minutos.</div></div>
+      <button onClick="{{ nav.overview }}" style="position:relative;height:56px;padding:0 26px;border-radius:16px;background:#fff;border:0;color:#0B120E;font-weight:600;font-size:16px;cursor:pointer;margin-right:340px">Criar conta grátis</button>
+    </div>
+  </div>
+  <div style="max-width:1240px;margin:0 auto;padding:56px 40px 40px;display:flex;align-items:flex-start;gap:64px">
+    <div style="display:flex;flex-direction:column;gap:14px;flex:1"><div style="display:flex;align-items:center;gap:9px"><img src="assets/riha-icon-dark.png" alt="Riha" style="width:30px;height:30px;object-fit:contain"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:17px;letter-spacing:.2em">RIHA</span></div><div style="font-size:13.5px;color:#5E6862">© 2026 Riha · Maputo, Moçambique</div></div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:14px"><div style="font-weight:600">Produto</div><a href="#" style="color:#5E6862">Links</a><a href="#" style="color:#5E6862">Checkout</a><a href="#" style="color:#5E6862">API</a></div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:14px"><div style="font-weight:600">Empresa</div><a href="#" style="color:#5E6862">Sobre</a><a href="#" style="color:#5E6862">Contacto</a><a href="#" style="color:#5E6862">Ajuda</a></div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:14px"><div style="font-weight:600">Legal</div><a href="#" style="color:#5E6862">Termos</a><a href="#" style="color:#5E6862">Privacidade</a></div>
+  </div>
+</div>
+</sc-if>
+
+<!-- CHECKOUT (desktop) -->
+<sc-if value="{{ is.checkout }}" hint-placeholder-val="{{ false }}">
+<div style="height:100%;display:grid;grid-template-columns:1fr 1fr">
+  <div style="background:#0B120E;color:#fff;position:relative;overflow:hidden;display:flex;justify-content:flex-end">
+    <div style="position:absolute;bottom:-80px;left:80px;width:70px;height:520px;background:#0A8205;transform:skewX(22deg)"></div>
+    <div style="position:absolute;bottom:-80px;left:170px;width:70px;height:520px;background:#FF0F15;transform:skewX(22deg)"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(11,18,14,.3),#0B120E 60%)"></div>
+    <div style="position:relative;width:420px;padding:56px 72px 40px 40px;display:flex;flex-direction:column">
+      <a href="#" onClick="{{ nav.overview }}" style="display:inline-flex;align-items:center;gap:8px;font-size:14px;color:#B9C3BD"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>Voltar a cafemaputo.co.mz</a>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:40px"><div style="width:44px;height:44px;border-radius:13px;background:#FFD21F;color:#0B120E;display:grid;place-items:center;font-weight:700;font-size:15px">CM</div><div><div style="font-weight:600;font-size:16px">Café Maputo</div><div style="font-size:13px;color:#93A09A">Encomenda #2094</div></div></div>
+      <div style="font-size:14px;color:#A9B5AE;margin-top:36px">Total a pagar</div>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:56px;letter-spacing:-0.045em;line-height:1.05">1 250,00 <span style="font-size:22px;color:#A9B5AE">MT</span></div>
+      <div style="margin-top:32px;display:flex;flex-direction:column;gap:12px;font-size:14.5px">
+        <div style="display:flex;justify-content:space-between"><span>Bolo de chocolate · 1 kg</span><span>1 250,00 MT</span></div>
+        <div style="display:flex;justify-content:space-between;color:#93A09A"><span>Entrega</span><span>Grátis</span></div>
+        <div style="height:1px;background:rgba(255,255,255,.12)"></div>
+        <div style="display:flex;justify-content:space-between;font-weight:600"><span>Total</span><span>1 250,00 MT</span></div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#93A09A">Pagamento seguro por<img src="assets/riha-icon-light.png" alt="" style="width:18px;height:18px;object-fit:contain"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:.18em;color:#fff">RIHA</span></div>
+    </div>
+  </div>
+  <div style="background:#F4F3EE;display:flex">
+    <div style="width:460px;padding:96px 40px 40px 72px">
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-0.03em">Como quer pagar?</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px">
+        <button onClick="{{ pick.mpesa }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:14px;border-radius:16px;border:2px solid {{ mc.mpesa }};background:{{ mbg.mpesa }};cursor:pointer;text-align:left"><span style="width:34px;height:34px;border-radius:10px;background:#FDE7E6;color:#C8102E;display:grid;place-items:center;font-weight:800;font-size:15px">M</span><span style="font-weight:600;font-size:14.5px">M-Pesa</span></button>
+        <button onClick="{{ pick.emola }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:14px;border-radius:16px;border:2px solid {{ mc.emola }};background:{{ mbg.emola }};cursor:pointer;text-align:left"><span style="width:34px;height:34px;border-radius:10px;background:#FFF0D6;color:#B45F00;display:grid;place-items:center;font-weight:800;font-size:16px">e</span><span style="font-weight:600;font-size:14.5px">e-Mola</span></button>
+        <button onClick="{{ pick.card }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:14px;border-radius:16px;border:2px solid {{ mc.card }};background:{{ mbg.card }};cursor:pointer;text-align:left"><span style="width:34px;height:34px;border-radius:10px;background:#0B120E;color:#fff;display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="2" y="5" width="20" height="14" rx="2.5"></rect><path d="M2 10h20"></path></svg></span><span style="font-weight:600;font-size:14.5px">Cartão</span></button>
+      </div>
+      <sc-if value="{{ isWallet }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-top:22px"><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:7px">Número {{ walletName }}</div><div style="height:54px;border-radius:14px;border:2px solid #0B120E;background:#fff;display:flex;align-items:center;font-size:16px;overflow:hidden"><div style="height:100%;display:flex;align-items:center;padding:0 14px;border-right:1px solid #E2E0D8;background:#FAFAF7;font-weight:500">+258</div><div style="padding:0 14px;letter-spacing:.02em">{{ walletPrefix }} 412 4231</div></div><div style="font-size:13px;color:#5E6862;margin-top:8px;line-height:1.45">Vai receber um pedido no telemóvel para confirmar com o seu PIN.</div></div>
+      </sc-if>
+      <sc-if value="{{ isCard }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:22px;display:flex;flex-direction:column;gap:10px"><div style="font-size:13px;font-weight:500;color:#3E4742">Dados do cartão</div><div style="height:54px;border-radius:14px;border:2px solid #0B120E;background:#fff;display:flex;align-items:center;padding:0 16px;font-size:16px;letter-spacing:.04em">4410 2398 0015 4410</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div style="height:54px;border-radius:14px;border:1px solid #E2E0D8;background:#fff;display:flex;align-items:center;padding:0 16px;color:#8A938E">MM / AA</div><div style="height:54px;border-radius:14px;border:1px solid #E2E0D8;background:#fff;display:flex;align-items:center;padding:0 16px;color:#8A938E">CVV</div></div></div>
+      </sc-if>
+      <button style="width:100%;margin-top:22px;height:56px;border-radius:16px;background:#0A8205;border:0;color:#fff;font-weight:600;font-size:16.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 14px 30px -14px rgba(10,130,5,.9)"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Pagar 1 250,00 MT</button>
+      <div style="font-size:12.5px;line-height:1.5;color:#5E6862;margin-top:14px">Depois de pagar, volta automaticamente para cafemaputo.co.mz.</div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- APP SHELL -->
+<sc-if value="{{ shell }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;height:100%">
+  <div style="width:248px;flex:none;height:100%;background:#fff;border-right:1px solid #E8E6DF;display:flex;flex-direction:column;padding:20px 14px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:9px;padding:0 8px"><img src="assets/riha-icon-dark.png" alt="Riha" style="width:28px;height:28px;object-fit:contain"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:16px;letter-spacing:.2em">RIHA</span></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:22px;padding:10px;border-radius:14px;background:#F4F3EE"><div style="width:34px;height:34px;border-radius:10px;background:#FFD21F;display:grid;place-items:center;font-weight:700;font-size:13px">CM</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">Café Maputo</div><div style="font-size:12px;color:#5E6862">Verificado</div></div><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:#8A938E;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg></div>
+    <div style="display:flex;flex-direction:column;gap:2px;margin-top:22px">
+      <button onClick="{{ nav.overview }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.overview }};color:{{ nf.overview }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Visão geral</button>
+      <button onClick="{{ nav.txns }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.txns }};color:{{ nf.txns }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"></path></svg>Transações</button>
+      <button onClick="{{ nav.links }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.links }};color:{{ nf.links }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"></path><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"></path></svg>Links de pagamento</button>
+      <button onClick="{{ nav.payouts }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.payouts }};color:{{ nf.payouts }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M3 10h18M16 15h1.5M7 6V4.5A1.5 1.5 0 0 1 8.5 3h7A1.5 1.5 0 0 1 17 4.5V6"></path></svg>Saldo e levantamentos</button>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <button onClick="{{ nav.settings }}" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;border:0;background:{{ nb.settings }};color:{{ nf.settings }};font-weight:600;font-size:14.5px;cursor:pointer;text-align:left"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>Definições</button>
+      <a href="#" style="display:flex;align-items:center;gap:11px;height:42px;padding:0 12px;border-radius:12px;color:#5E6862;font-weight:600;font-size:14.5px"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6"></path></svg>Documentação</a>
+    </div>
+  </div>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;height:100%">
+    <div style="height:68px;flex:none;display:flex;align-items:center;gap:12px;padding:0 32px;border-bottom:1px solid #E8E6DF;background:#F4F3EE">
+      <div style="display:flex;align-items:center;gap:10px;width:380px;height:42px;padding:0 14px;border-radius:12px;background:#fff;border:1px solid #E8E6DF;color:#8A938E;font-size:14px;box-sizing:border-box"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg><span style="flex:1">Pesquisar pagamentos, links, clientes</span><span style="font-family:'Geist Mono',monospace;font-size:11.5px;padding:2px 6px;border-radius:5px;background:#F4F3EE;color:#5E6862">⌘K</span></div>
+      <div style="flex:1"></div>
+      <button onClick="{{ toggleLive }}" style="display:flex;align-items:center;gap:8px;height:38px;padding:0 6px 0 12px;border-radius:999px;border:1px solid #E4E2DA;background:#fff;font-size:13px;font-weight:600;cursor:pointer">{{ modeTxt }}<span style="width:36px;height:22px;border-radius:999px;background:{{ liveBg }};padding:2px;box-sizing:border-box;display:flex;justify-content:{{ liveJ }}"><span style="width:18px;height:18px;border-radius:50%;background:#fff"></span></span></button>
+      <div style="width:42px;height:42px;border-radius:12px;background:#fff;border:1px solid #E8E6DF;display:grid;place-items:center;position:relative;box-sizing:border-box"><svg width="19" height="19" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21a2 2 0 0 0 4 0"></path></svg><span style="position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#FF0F15;border:2px solid #fff"></span></div>
+      <button onClick="{{ openDrawer }}" style="height:42px;padding:0 16px;border-radius:12px;background:#0A8205;border:0;color:#fff;font-weight:600;font-size:14.5px;cursor:pointer;display:flex;align-items:center;gap:7px"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M12 5v14M5 12h14"></path></svg>Criar link</button>
+    </div>
+    <sc-if value="{{ testMode }}" hint-placeholder-val="{{ false }}"><div style="flex:none;display:flex;align-items:center;justify-content:center;gap:8px;height:34px;background:#FFD21F;font-size:13px;font-weight:600;color:#3B3410">Modo de teste. Nenhum dinheiro real é movimentado.</div></sc-if>
+
+    <div style="flex:1;overflow:auto;position:relative">
+
+    <!-- OVERVIEW -->
+    <sc-if value="{{ is.overview }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:28px 32px 40px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between">
+        <div><div style="font-size:14px;color:#5E6862">Terça-feira, 3 de novembro</div><h1 style="margin:4px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Bom dia, Café Maputo</h1></div>
+        <div style="display:flex;gap:4px;padding:4px;border-radius:12px;background:#EAE8E1;font-size:13px;font-weight:600"><span style="padding:7px 12px;border-radius:9px">7 dias</span><span style="padding:7px 12px;border-radius:9px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1)">30 dias</span><span style="padding:7px 12px;border-radius:9px">12 meses</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;margin-top:22px">
+        <div style="background:#0B120E;color:#fff;border-radius:26px;padding:26px;position:relative;overflow:hidden;display:flex;flex-direction:column">
+          <div style="position:absolute;top:-40px;right:56px;width:44px;height:320px;background:#0A8205;transform:skewX(22deg)"></div>
+          <div style="position:absolute;top:-40px;right:0;width:44px;height:320px;background:#FF0F15;transform:skewX(22deg)"></div>
+          <div style="position:absolute;inset:0;background:linear-gradient(90deg,#0B120E 50%,rgba(11,18,14,.35))"></div>
+          <div style="position:relative;font-size:14px;color:#A9B5AE">Saldo disponível</div>
+          <div style="position:relative;display:flex;align-items:baseline;gap:8px;margin-top:8px"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:54px;letter-spacing:-0.045em;font-variant-numeric:tabular-nums">48 320,50</span><span style="font-size:20px;font-weight:600;color:#A9B5AE">MT</span></div>
+          <div style="position:relative;display:inline-flex;align-self:flex-start;align-items:center;gap:7px;margin-top:10px;font-size:13.5px;color:#D7DED9;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.08)"><svg width="14" height="14" viewBox="0 0 24 24" style="fill:none;stroke:#FFD21F;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>15 000,00 MT a caminho do BCI · chega até 4 nov</div>
+          <div style="flex:1;min-height:24px"></div>
+          <div style="position:relative;display:flex;gap:10px">
+            <button onClick="{{ nav.payouts }}" style="height:48px;padding:0 20px;border-radius:14px;background:#fff;border:0;color:#0B120E;font-weight:600;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 17 17 7M8 7h9v9"></path></svg>Levantar</button>
+            <button onClick="{{ openDrawer }}" style="height:48px;padding:0 20px;border-radius:14px;background:#0A8205;border:0;color:#fff;font-weight:600;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 5v14M5 12h14"></path></svg>Criar link</button>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:26px;padding:24px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div><div style="font-size:14px;color:#5E6862">Recebido nos últimos 30 dias</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.035em;margin-top:4px">132 480,00 <span style="font-size:15px;color:#5E6862">MT</span></div></div>
+            <div style="display:flex;gap:8px;align-items:center"><span style="font-size:13px;font-weight:600;color:#0A6B05;background:#E2F3DE;padding:5px 10px;border-radius:999px">+18% vs. setembro</span></div>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:5px;height:150px;margin-top:20px">
+            <sc-for list="{{ bars30 }}" as="b" hint-placeholder-count="30"><div style="flex:1;height:{{ b.h }};border-radius:5px;background:{{ b.bg }}"></div></sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#8A938E"><span>4 out</span><span>18 out</span><span>Hoje</span></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,8fr) minmax(0,4fr);gap:16px;margin-top:16px">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:24px;padding:8px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 22px 10px"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Atividade recente</div><a href="#" onClick="{{ nav.txns }}" style="font-size:14px;font-weight:600">Ver todas</a></div>
+          <sc-for list="{{ recent }}" as="t" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 150px 100px 120px;align-items:center;gap:12px;padding:11px 22px;border-top:1px solid #F0EEE8">
+              <div style="display:flex;align-items:center;gap:12px;min-width:0"><div style="width:36px;height:36px;flex:none;border-radius:11px;background:{{ t.ibg }};color:{{ t.ifg }};display:grid;place-items:center;font-weight:800;font-size:14px"><sc-if value="{{ t.letter }}" hint-placeholder-val="{{ true }}"><span>{{ t.it }}</span></sc-if><sc-if value="{{ t.isCard }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="2" y="5" width="20" height="14" rx="2.5"></rect><path d="M2 10h20"></path></svg></sc-if></div><div style="min-width:0"><div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</div><div style="font-size:12.5px;color:#5E6862">{{ t.origin }}</div></div></div>
+              <div style="font-size:13px;color:#5E6862">{{ t.sub }}</div>
+              <div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ t.pbg }};color:{{ t.pfg }}">{{ t.pt }}</span></div>
+              <div style="text-align:right;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;color:{{ t.ac }};text-decoration:{{ t.dec }}">{{ t.amt }} MT</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="background:#fff;border:1px solid #E8E6DF;border-radius:24px;padding:22px">
+            <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Por método</div>
+            <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px">
+              <div><div style="display:flex;justify-content:space-between;font-size:13.5px"><span style="font-weight:600">M-Pesa</span><span style="color:#5E6862">76 838,40 MT</span></div><div style="height:8px;border-radius:4px;background:#F0EEE8;margin-top:7px"><div style="width:58%;height:100%;border-radius:4px;background:#C8102E"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:13.5px"><span style="font-weight:600">e-Mola</span><span style="color:#5E6862">35 769,60 MT</span></div><div style="height:8px;border-radius:4px;background:#F0EEE8;margin-top:7px"><div style="width:27%;height:100%;border-radius:4px;background:#F39200"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:13.5px"><span style="font-weight:600">Cartão</span><span style="color:#5E6862">19 872,00 MT</span></div><div style="height:8px;border-radius:4px;background:#F0EEE8;margin-top:7px"><div style="width:15%;height:100%;border-radius:4px;background:#0B120E"></div></div></div>
+            </div>
+          </div>
+          <div style="background:#FFF6D1;border-radius:24px;padding:22px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:15px">Levantamento LV-0042</div><span style="font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:#FFE58A;color:#5B4600">Em análise</span></div>
+            <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:26px;letter-spacing:-0.03em;margin-top:8px">15 000,00 MT</div>
+            <div style="display:flex;gap:4px;margin-top:14px"><div style="flex:1;height:5px;border-radius:3px;background:#0B120E"></div><div style="flex:1;height:5px;border-radius:3px;background:#0B120E"></div><div style="flex:1;height:5px;border-radius:3px;background:#EAD78C"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#5B4600"><span>Pedido</span><span>Em análise</span><span>Até 4 nov</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- TRANSACTIONS -->
+    <sc-if value="{{ is.txns }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;min-height:100%">
+      <div style="flex:1;min-width:0;padding:28px 32px 40px">
+        <div style="display:flex;align-items:center;justify-content:space-between"><h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Transações</h1><div style="display:flex;gap:8px"><div style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #E2E0D8;background:#fff;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>1 out – 3 nov</div><div style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #E2E0D8;background:#fff;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>Exportar CSV</div></div></div>
+        <div style="display:flex;gap:24px;margin-top:20px;border-bottom:1px solid #E4E2DA">
+          <sc-for list="{{ txTabs }}" as="x" hint-placeholder-count="4"><button onClick="{{ x.on }}" style="height:40px;padding:0;border:0;background:none;border-bottom:2px solid {{ x.bd }};margin-bottom:-1px;color:{{ x.fg }};font-weight:600;font-size:14.5px;cursor:pointer;display:flex;align-items:center;gap:7px">{{ x.l }}<span style="font-size:12px;padding:1px 7px;border-radius:999px;background:#EAE8E1;color:#3E4742">{{ x.n }}</span></button></sc-for>
+        </div>
+        <div style="margin-top:16px;background:#fff;border:1px solid #E8E6DF;border-radius:22px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.1fr) 130px 110px 120px;gap:12px;padding:12px 20px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;background:#FAFAF7;border-bottom:1px solid #EEECE5;grid-template-columns:minmax(0,1.4fr) 70px minmax(0,1.1fr) 120px 100px 120px"><span>Cliente</span><span>Origem</span><span>Método</span><span>Data</span><span>Estado</span><span style="text-align:right">Valor</span></div>
+          <sc-for list="{{ txRows }}" as="t" hint-placeholder-count="8">
+            <div onClick="{{ t.on }}" style="display:grid;grid-template-columns:minmax(0,1.4fr) 70px minmax(0,1.1fr) 120px 100px 120px;gap:12px;align-items:center;padding:12px 20px;border-bottom:1px solid #F0EEE8;background:{{ t.rowBg }};cursor:pointer;box-shadow:{{ t.rowSh }}">
+              <div style="display:flex;align-items:center;gap:12px;min-width:0"><div style="width:34px;height:34px;flex:none;border-radius:10px;background:{{ t.ibg }};color:{{ t.ifg }};display:grid;place-items:center;font-weight:800;font-size:14px"><sc-if value="{{ t.letter }}" hint-placeholder-val="{{ true }}"><span>{{ t.it }}</span></sc-if><sc-if value="{{ t.isCard }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="2" y="5" width="20" height="14" rx="2.5"></rect><path d="M2 10h20"></path></svg></sc-if></div><div style="min-width:0"><div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</div><div style="font-size:12px;color:#5E6862;font-family:'Geist Mono',monospace">{{ t.ref }}</div></div></div>
+              <div><span style="font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 7px;border-radius:6px;background:{{ t.srcBg }};color:{{ t.srcFg }}">{{ t.srcT }}</span></div>
+              <div style="font-size:13.5px;color:#3E4742">{{ t.sub }}</div>
+              <div style="font-size:13.5px;color:#3E4742">{{ t.date }}</div>
+              <div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ t.pbg }};color:{{ t.pfg }}">{{ t.pt }}</span></div>
+              <div style="text-align:right;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;color:{{ t.ac }};text-decoration:{{ t.dec }}">{{ t.amt }} MT</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+      <div style="width:380px;flex:none;border-left:1px solid #E8E6DF;background:#fff;padding:24px;box-sizing:border-box">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:'Geist Mono',monospace;font-size:12.5px;color:#5E6862">{{ sel.ref }}</span><button onClick="{{ closeSel }}" style="width:34px;height:34px;border-radius:10px;border:1px solid #E4E2DA;background:#fff;display:grid;place-items:center;cursor:pointer;padding:0"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:38px;letter-spacing:-0.04em;margin-top:18px;color:{{ sel.ac }};text-decoration:{{ sel.dec }}">{{ sel.amt }} <span style="font-size:17px;color:#5E6862">MT</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span style="font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:{{ sel.pbg }};color:{{ sel.pfg }}">{{ sel.pt }}</span><span style="font-size:13.5px;color:#5E6862">{{ sel.name }}</span></div>
+        <sc-if value="{{ sel.isFailed }}" hint-placeholder-val="{{ false }}"><div style="margin-top:14px;padding:12px 14px;border-radius:12px;background:#FFE3E1;color:#8E0609;font-size:13px;line-height:1.45">PIN errado três vezes. O cliente pode tentar de novo com o mesmo link.</div></sc-if>
+        <div style="margin-top:22px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em">Cronologia</div>
+        <div style="display:flex;flex-direction:column;margin-top:12px">
+          <sc-for list="{{ sel.steps }}" as="st" hint-placeholder-count="4">
+            <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;align-items:center"><div style="width:12px;height:12px;border-radius:50%;background:{{ st.c }};margin-top:3px"></div><div style="flex:1;width:2px;background:#EEECE5;margin:4px 0;display:{{ st.line }}"></div></div><div style="padding-bottom:14px"><div style="font-weight:600;font-size:13.5px">{{ st.l }}</div><div style="font-size:12.5px;color:#5E6862">{{ st.t }}</div></div></div>
+          </sc-for>
+        </div>
+        <div style="margin-top:8px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em">Origem</div>
+        <div style="margin-top:10px;padding:14px;border-radius:14px;background:#F4F3EE">
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 7px;border-radius:6px;background:{{ sel.srcBg }};color:{{ sel.srcFg }}">{{ sel.srcT }}</span><span style="font-weight:600;font-size:13.5px">{{ sel.srcTitle }}</span></div>
+          <div style="margin-top:8px">
+            <sc-for list="{{ sel.srcRows }}" as="r" hint-placeholder-count="4"><div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #E8E6DF;font-size:12.5px"><span style="color:#5E6862;flex:none">{{ r.k }}</span><span style="font-family:{{ r.ff }};text-align:right;word-break:break-all;color:#0B120E">{{ r.v }}</span></div></sc-for>
+          </div>
+          <sc-if value="{{ sel.isApi }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#5E6862;margin-top:8px">metadata</div><div style="margin-top:6px;padding:10px 12px;border-radius:10px;background:#0B120E;color:#C9D3CD;font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.6;white-space:pre">{{ sel.meta }}</div></sc-if>
+        </div>
+        <div style="margin-top:18px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em">Detalhes</div>
+        <div style="margin-top:6px;font-size:13.5px">
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0EEE8"><span style="color:#5E6862">Método</span><span style="font-weight:500">{{ sel.sub }}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #F0EEE8"><span style="color:#5E6862">Taxa Riha (3,5%)</span><span style="font-weight:500;font-variant-numeric:tabular-nums">{{ sel.fee }} MT</span></div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0"><span style="color:#5E6862">Líquido</span><span style="font-weight:600;font-variant-numeric:tabular-nums">{{ sel.net }} MT</span></div>
+        </div>
+        <button style="width:100%;margin-top:14px;height:44px;border-radius:12px;border:1px solid #E2E0D8;background:#fff;font-weight:600;font-size:14px;cursor:pointer">Enviar recibo ao cliente</button>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <!-- LINKS -->
+    <sc-if value="{{ is.links }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:28px 32px 40px">
+      <div style="display:flex;align-items:center;justify-content:space-between"><div><h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Links de pagamento</h1><div style="font-size:14.5px;color:#5E6862;margin-top:4px">Partilhe por WhatsApp, SMS ou QR. Não precisa de site.</div></div><button onClick="{{ openDrawer }}" style="height:44px;padding:0 18px;border-radius:12px;background:#0B120E;border:0;color:#fff;font-weight:600;font-size:14.5px;cursor:pointer;display:flex;align-items:center;gap:7px"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M12 5v14M5 12h14"></path></svg>Novo link</button></div>
+      <div style="margin-top:22px;background:#fff;border:1px solid #E8E6DF;border-radius:22px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:minmax(0,1.6fr) 120px 110px 100px 140px 110px 90px;gap:12px;padding:12px 20px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;background:#FAFAF7;border-bottom:1px solid #EEECE5"><span>Link</span><span>Valor</span><span>Métodos</span><span>Pagamentos</span><span>Recebido</span><span>Estado</span><span></span></div>
+        <sc-for list="{{ linkRows }}" as="l" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:minmax(0,1.6fr) 120px 110px 100px 140px 110px 90px;gap:12px;align-items:center;padding:14px 20px;border-bottom:1px solid #F0EEE8">
+            <div style="min-width:0"><div style="font-weight:600;font-size:14.5px">{{ l.name }}</div><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#5E6862;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">riha.co.mz/p/cafe-maputo/{{ l.slug }}</div></div>
+            <div style="font-size:14px;font-weight:500;font-variant-numeric:tabular-nums">{{ l.amount }}</div>
+            <div style="display:flex;gap:4px"><span style="width:22px;height:22px;border-radius:7px;background:#FDE7E6;color:#C8102E;display:grid;place-items:center;font-size:10px;font-weight:800">M</span><span style="width:22px;height:22px;border-radius:7px;background:#FFF0D6;color:#B45F00;display:grid;place-items:center;font-size:11px;font-weight:800">e</span><span style="width:22px;height:22px;border-radius:7px;background:{{ l.cardBg }};color:#fff;display:grid;place-items:center;font-size:10px;font-weight:800">C</span></div>
+            <div style="font-size:14px;color:#3E4742">{{ l.count }}</div>
+            <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">{{ l.total }} MT</div>
+            <div><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ l.sbg }};color:{{ l.sfg }}">{{ l.st }}</span></div>
+            <div style="display:flex;justify-content:flex-end"><button onClick="{{ l.copy }}" style="height:32px;padding:0 12px;border-radius:9px;border:1px solid #E2E0D8;background:#fff;font-size:12.5px;font-weight:600;cursor:pointer">{{ l.copyTxt }}</button></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- PAYOUTS -->
+    <sc-if value="{{ is.payouts }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:28px 32px 40px">
+      <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Saldo e levantamentos</h1>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:22px">
+        <div style="background:#0B120E;color:#fff;border-radius:22px;padding:22px;position:relative;overflow:hidden"><div style="position:absolute;top:-30px;right:40px;width:28px;height:200px;background:#0A8205;transform:skewX(22deg)"></div><div style="position:absolute;top:-30px;right:4px;width:28px;height:200px;background:#FF0F15;transform:skewX(22deg)"></div><div style="position:relative;font-size:13.5px;color:#A9B5AE">Disponível</div><div style="position:relative;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:34px;letter-spacing:-0.04em;margin-top:6px">48 320,50 <span style="font-size:15px;color:#A9B5AE">MT</span></div></div>
+        <div style="background:#FFF6D1;border-radius:22px;padding:22px"><div style="font-size:13.5px;color:#5B4600">A caminho do banco</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:34px;letter-spacing:-0.04em;margin-top:6px">15 000,00 <span style="font-size:15px;color:#7A6A2A">MT</span></div><div style="font-size:13px;color:#5B4600;margin-top:4px">Chega até quarta, 4 nov</div></div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px"><div style="font-size:13.5px;color:#5E6862">Levantado em outubro</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:34px;letter-spacing:-0.04em;margin-top:6px">64 000,00 <span style="font-size:15px;color:#5E6862">MT</span></div><div style="font-size:13px;color:#5E6862;margin-top:4px">4 levantamentos</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;margin-top:16px;align-items:start">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;overflow:hidden">
+          <div style="padding:18px 20px 12px;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Histórico</div>
+          <div style="display:grid;grid-template-columns:100px minmax(0,1fr) 130px 110px 120px;gap:12px;padding:10px 20px;font-size:12px;font-weight:600;color:#5E6862;text-transform:uppercase;letter-spacing:.05em;background:#FAFAF7;border-top:1px solid #EEECE5;border-bottom:1px solid #EEECE5"><span>Ref.</span><span>Conta</span><span>Pedido</span><span>Estado</span><span style="text-align:right">Valor</span></div>
+          <sc-for list="{{ payRows }}" as="p" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:100px minmax(0,1fr) 130px 110px 120px;gap:12px;align-items:center;padding:13px 20px;border-bottom:1px solid #F0EEE8;font-size:13.5px">
+              <span style="font-family:'Geist Mono',monospace;font-size:12.5px">{{ p.id }}</span><span style="color:#3E4742">BCI · NIB •••• 4821 3</span><span style="color:#3E4742">{{ p.req }}</span><span><span style="font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;background:{{ p.bg }};color:{{ p.fg }}">{{ p.st }}</span></span><span style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">{{ p.amt }} MT</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px">
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.02em">Pedir levantamento</div>
+          <div style="margin-top:16px;padding:14px 16px;border-radius:16px;border:2px solid #0B120E">
+            <div style="font-size:12.5px;color:#5E6862">Valor</div>
+            <div style="display:flex;align-items:baseline;gap:6px"><input value="{{ wamount }}" onChange="{{ onWamount }}" inputmode="decimal" style="flex:1;min-width:0;border:0;background:transparent;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:34px;letter-spacing:-0.04em;padding:0;color:{{ wColor }}"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px;color:#8A938E">MT</span></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span style="font-size:12.5px;color:{{ wHintColor }}">{{ wHint }}</span><button onClick="{{ wMax }}" style="height:30px;padding:0 11px;border-radius:999px;border:0;background:#EAE8E1;font-size:12.5px;font-weight:600;cursor:pointer">Máximo</button></div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px 14px;border-radius:14px;background:#F4F3EE"><div style="width:38px;height:38px;flex:none;border-radius:11px;background:#fff;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M3 21h18M5 21V10M19 21V10M9 21V10M15 21V10M2 10l10-7 10 7z"></path></svg></div><div style="flex:1"><div style="font-weight:600;font-size:14px">BCI · Café Maputo, Lda</div><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#5E6862">NIB •••• 4821 3</div></div><a href="#" onClick="{{ goBank }}" style="font-size:13px;font-weight:600">Alterar</a></div>
+          <div style="display:flex;gap:10px;margin-top:14px;font-size:13px;line-height:1.45;color:#3E4742"><svg width="17" height="17" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Processado em até 72 horas. Se pedir hoje, chega até sexta-feira, 6 nov.</div>
+          <button style="width:100%;margin-top:16px;height:52px;border-radius:14px;background:{{ wBtnBg }};border:0;color:#fff;font-weight:600;font-size:15.5px;cursor:pointer">Levantar {{ wFmt }} MT</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- SETTINGS -->
+    <sc-if value="{{ is.settings }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:28px 32px 40px">
+      <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em">Definições</h1>
+      <div style="display:flex;gap:24px;margin-top:18px;border-bottom:1px solid #E4E2DA">
+        <sc-for list="{{ setTabs }}" as="x" hint-placeholder-count="4"><button onClick="{{ x.on }}" style="height:40px;padding:0;border:0;background:none;border-bottom:2px solid {{ x.bd }};margin-bottom:-1px;color:{{ x.fg }};font-weight:600;font-size:14.5px;cursor:pointer">{{ x.l }}</button></sc-for>
+      </div>
+
+      <sc-if value="{{ tab.biz }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;margin-top:22px;align-items:start">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:24px">
+          <div style="font-weight:600;font-size:16px">Perfil do negócio</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px">
+            <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Nome comercial</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-size:15px">Café Maputo</div></div>
+            <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Razão social</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-size:15px">Café Maputo, Lda</div></div>
+            <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">NUIT</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-size:15px;font-family:'Geist Mono',monospace">400 123 456</div></div>
+            <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Telemóvel</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-size:15px">+258 84 123 4567</div></div>
+            <div style="grid-column:span 2"><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Nome no extrato do cliente</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-size:15px;font-family:'Geist Mono',monospace">RIHA*CAFE MAPUTO</div></div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:16px">Verificação</div><span style="font-size:12px;font-weight:600;color:#0A6B05;background:#E2F3DE;padding:4px 9px;border-radius:999px">Aprovada</span></div>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px;font-size:14px">
+            <div style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#0A8205;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg>NUIT validado</div>
+            <div style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#0A8205;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg>Bilhete de Identidade</div>
+            <div style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#0A8205;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg>Certidão de registo comercial</div>
+            <div style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:#0A8205;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg>Conta bancária</div>
+          </div>
+          <div style="font-size:12.5px;color:#5E6862;margin-top:16px">Aprovada a 14 out 2026</div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ tab.bank }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:380px minmax(0,1fr);gap:16px;margin-top:22px;align-items:start">
+        <div style="height:220px;border-radius:24px;background:#0B120E;color:#fff;padding:24px;box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column">
+          <div style="position:absolute;top:-30px;left:170px;width:34px;height:320px;background:#0A8205;transform:skewX(22deg)"></div>
+          <div style="position:absolute;top:-30px;left:216px;width:34px;height:320px;background:#FF0F15;transform:skewX(22deg)"></div>
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,18,14,.2),rgba(11,18,14,.88) 70%)"></div>
+          <div style="position:relative;display:flex;justify-content:space-between;align-items:center"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:24px">BCI</span><span style="font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:rgba(142,224,127,.16);color:#8EE07F">Verificada</span></div>
+          <div style="flex:1"></div>
+          <div style="position:relative;font-family:'Geist Mono',monospace;font-size:16px;letter-spacing:.08em">0008 •••• •••• •••• 4821 3</div>
+          <div style="position:relative;display:flex;justify-content:space-between;margin-top:8px;font-size:13px;color:#A9B5AE"><span>Café Maputo, Lda</span><span>Conta principal</span></div>
+        </div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:24px">
+          <div style="font-weight:600;font-size:16px">Dados da conta para levantamentos</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px">
+            <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Banco</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:15px">BCI<svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:#8A938E;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+            <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Titular</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-size:15px">Café Maputo, Lda</div></div>
+            <div style="grid-column:span 2"><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">NIB (21 dígitos)</div><div style="height:48px;border-radius:12px;border:2px solid #0B120E;display:flex;align-items:center;padding:0 13px;font-size:15px;font-family:'Geist Mono',monospace;letter-spacing:.03em">0008 0000 4821 1301 0113 5</div></div>
+            <div style="grid-column:span 2;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:1.5px dashed #D6D4CB;background:#FAFAF7"><svg width="18" height="18" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6"></path></svg><div style="flex:1;font-size:14px"><b>declaracao-nib-bci.pdf</b> <span style="color:#5E6862">· 240 KB</span></div><span style="font-size:13px;font-weight:600;color:#0A7A05">Trocar</span></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span style="font-size:13px;color:#5E6862">O titular tem de ter o mesmo nome ou NUIT registado na Riha.</span><button style="height:44px;padding:0 18px;border-radius:12px;background:#0A8205;border:0;color:#fff;font-weight:600;font-size:14.5px;cursor:pointer">Guardar</button></div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ tab.api }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:22px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:16px">Chaves API</div><span style="font-size:12px;font-weight:600;padding:4px 9px;border-radius:999px;background:{{ modePillBg }};color:{{ modePillFg }}">{{ modeTxt }}</span></div>
+            <div style="font-size:13px;color:#5E6862;margin-top:4px">Use o interruptor no topo para alternar entre teste e produção.</div>
+            <div style="font-size:13px;font-weight:500;color:#3E4742;margin:18px 0 6px">Chave pública</div>
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 6px 6px 14px;border-radius:12px;background:#F4F3EE"><span style="flex:1;font-family:'Geist Mono',monospace;font-size:13px">{{ pk }}</span><button onClick="{{ copyOn.pk }}" style="height:34px;padding:0 12px;border-radius:9px;border:1px solid #E2E0D8;background:#fff;font-size:12.5px;font-weight:600;cursor:pointer">{{ copyTxt.pk }}</button></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 6px"><span style="font-size:13px;font-weight:500;color:#3E4742">Chave secreta</span><span style="font-size:12px;font-weight:600;color:#C2080D">Só no servidor</span></div>
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 6px 6px 14px;border-radius:12px;background:#0B120E;color:#fff"><span style="flex:1;font-family:'Geist Mono',monospace;font-size:13px">{{ sk }}</span><button onClick="{{ toggleReveal }}" style="height:34px;padding:0 12px;border-radius:9px;border:0;background:rgba(255,255,255,.1);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer">{{ revealTxt }}</button><button onClick="{{ copyOn.sk }}" style="height:34px;padding:0 12px;border-radius:9px;border:0;background:#fff;color:#0B120E;font-size:12.5px;font-weight:600;cursor:pointer">{{ copyTxt.sk }}</button></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span style="font-size:12.5px;color:#5E6862">Criada a 12 out 2026 · Último uso há 3 min</span><button onClick="{{ copyOn.roll }}" style="height:36px;padding:0 12px;border-radius:10px;border:1px solid #E2E0D8;background:#fff;font-size:13px;font-weight:600;cursor:pointer">{{ rollTxt }}</button></div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:8px 0">
+            <div style="padding:14px 22px 8px;font-weight:600;font-size:16px">Pedidos recentes</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 22px;border-top:1px solid #F0EEE8;font-family:'Geist Mono',monospace;font-size:12.5px"><span style="padding:2px 7px;border-radius:6px;background:#E2F3DE;color:#0A6B05">200</span><span style="font-weight:500">POST</span><span style="flex:1">/v1/checkout</span><span style="font-family:Geist,sans-serif;color:#5E6862">há 3 min</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 22px;border-top:1px solid #F0EEE8;font-family:'Geist Mono',monospace;font-size:12.5px"><span style="padding:2px 7px;border-radius:6px;background:#E2F3DE;color:#0A6B05">200</span><span style="font-weight:500">GET</span><span style="flex:1">/v1/checkout/ch_8K2D</span><span style="font-family:Geist,sans-serif;color:#5E6862">há 3 min</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 22px;border-top:1px solid #F0EEE8;font-family:'Geist Mono',monospace;font-size:12.5px"><span style="padding:2px 7px;border-radius:6px;background:#FFE3E1;color:#C2080D">422</span><span style="font-weight:500">POST</span><span style="flex:1">/v1/checkout</span><span style="font-family:Geist,sans-serif;color:#5E6862">ontem</span></div>
+          </div>
+        </div>
+        <div style="background:#0B120E;color:#fff;border-radius:22px;padding:22px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:16px">Criar um checkout</div><div style="display:flex;gap:4px;font-family:'Geist Mono',monospace;font-size:11.5px"><span style="padding:4px 9px;border-radius:7px;background:rgba(255,255,255,.14)">cURL</span><span style="padding:4px 9px;border-radius:7px;color:#93A09A">Node</span><span style="padding:4px 9px;border-radius:7px;color:#93A09A">PHP</span></div></div>
+          <div style="margin-top:16px;font-family:'Geist Mono',monospace;font-size:13px;line-height:1.8;color:#C9D3CD;white-space:pre">curl https://api.riha.co.mz/v1/checkout \
+  -u <span style="color:#FFD21F">{{ skShort }}</span>: \
+  -d amount=125000 \
+  -d currency=MZN \
+  -d description="Encomenda #2094" \
+  -d success_url=<span style="color:#8EE07F">https://loja.co.mz/ok</span> \
+  -d cancel_url=<span style="color:#8EE07F">https://loja.co.mz/carrinho</span></div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-family:'Geist Mono',monospace;font-size:13px;line-height:1.8;color:#C9D3CD;white-space:pre"><span style="color:#93A09A"># Resposta: redirecione o cliente para url</span>
+{
+  "id": "ch_8K2D4410",
+  "status": "open",
+  "url": "<span style="color:#8EE07F">https://pay.riha.co.mz/c/ch_8K2D</span>"
+}</div>
+          <a href="#" style="display:inline-flex;align-items:center;gap:6px;margin-top:16px;font-size:14px;font-weight:600;color:#8EE07F">Documentação completa<svg width="15" height="15" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 17 17 7M8 7h9v9"></path></svg></a>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ tab.hooks }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:22px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px">
+            <div style="font-weight:600;font-size:16px">URLs de redirecionamento</div>
+            <div style="font-size:13px;color:#5E6862;margin-top:4px">Para onde enviamos o cliente depois do checkout. Pode substituir por pedido na API.</div>
+            <div style="font-size:13px;font-weight:500;color:#3E4742;margin:16px 0 6px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#0A8205"></span>Sucesso</div>
+            <div style="height:46px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-family:'Geist Mono',monospace;font-size:13px">https://cafemaputo.co.mz/obrigado</div>
+            <div style="font-size:13px;font-weight:500;color:#3E4742;margin:12px 0 6px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#FF0F15"></span>Cancelado ou falhado</div>
+            <div style="height:46px;border-radius:12px;border:1px solid #E2E0D8;display:flex;align-items:center;padding:0 14px;font-family:'Geist Mono',monospace;font-size:13px">https://cafemaputo.co.mz/carrinho</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:16px">Callback por transação</div><span style="font-size:11.5px;font-weight:700;letter-spacing:.03em;padding:3px 8px;border-radius:6px;background:#0B120E;color:#fff">DINÂMICO</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5E6862;margin-top:4px">Envie <span style="font-family:'Geist Mono',monospace;color:#0B120E">callback_url</span> ao criar a sessão. A Riha envia o resultado dessa transação para esse endereço, além dos endpoints abaixo.</div>
+            <div style="margin-top:12px;padding:10px 14px;border-radius:12px;background:#0B120E;color:#C9D3CD;font-family:'Geist Mono',monospace;font-size:12.5px"><span style="color:#FFD21F">"callback_url"</span>: <span style="color:#8EE07F">"https://loja.cafemaputo.co.mz/pedidos/2094/riha"</span></div>
+            <div style="font-size:13px;font-weight:500;color:#3E4742;margin:14px 0 8px">Domínios autorizados</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px"><span style="display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:9px;background:#E2F3DE;color:#0A6B05;font-family:'Geist Mono',monospace;font-size:12px"><svg width="12" height="12" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg>cafemaputo.co.mz</span><span style="display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:9px;background:#E2F3DE;color:#0A6B05;font-family:'Geist Mono',monospace;font-size:12px"><svg width="12" height="12" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg>loja.cafemaputo.co.mz</span><span style="height:30px;padding:0 10px;border-radius:9px;border:1px dashed #D6D4CB;color:#5E6862;font-family:'Geist Mono',monospace;font-size:12px;display:flex;align-items:center">+ verificar domínio</span></div>
+            <div style="font-size:12.5px;color:#5E6862;margin-top:10px">Pedidos com callback_url fora destes domínios são recusados com o erro <span style="font-family:'Geist Mono',monospace">callback_url_not_allowed</span>.</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:22px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:16px">Endpoints de webhook</div><span style="font-size:12px;font-weight:600;color:#0A6B05;background:#E2F3DE;padding:4px 9px;border-radius:999px">Ativo</span></div>
+            <div style="font-size:13px;color:#5E6862;margin-top:4px">Fixos. Recebem os eventos escolhidos de toda a conta.</div>
+            <div style="margin-top:14px;height:46px;border-radius:12px;background:#F4F3EE;display:flex;align-items:center;padding:0 14px;font-family:'Geist Mono',monospace;font-size:13px">https://cafemaputo.co.mz/api/riha</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px"><span style="height:30px;padding:0 10px;border-radius:9px;background:#0B120E;color:#fff;font-family:'Geist Mono',monospace;font-size:12px;display:flex;align-items:center">payment.succeeded</span><span style="height:30px;padding:0 10px;border-radius:9px;background:#0B120E;color:#fff;font-family:'Geist Mono',monospace;font-size:12px;display:flex;align-items:center">payment.failed</span><span style="height:30px;padding:0 10px;border-radius:9px;background:#0B120E;color:#fff;font-family:'Geist Mono',monospace;font-size:12px;display:flex;align-items:center">payout.paid</span><span style="height:30px;padding:0 10px;border-radius:9px;border:1px dashed #D6D4CB;color:#5E6862;font-family:'Geist Mono',monospace;font-size:12px;display:flex;align-items:center">+ adicionar</span></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:6px 6px 6px 14px;border-radius:12px;background:#F4F3EE"><span style="font-size:12.5px;color:#5E6862">Segredo</span><span style="flex:1;font-family:'Geist Mono',monospace;font-size:13px">whsec_••••••••a71e</span><button onClick="{{ copyOn.wh }}" style="height:32px;padding:0 12px;border-radius:9px;border:1px solid #E2E0D8;background:#fff;font-size:12.5px;font-weight:600;cursor:pointer">{{ copyTxt.wh }}</button></div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:22px;padding:8px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 22px 8px"><div style="font-weight:600;font-size:16px">Entregas recentes</div><button style="height:34px;padding:0 12px;border-radius:10px;border:1px solid #E2E0D8;background:#fff;font-size:13px;font-weight:600;cursor:pointer">Enviar evento de teste</button></div>
+          <sc-for list="{{ deliveries }}" as="d" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 22px;border-top:1px solid #F0EEE8"><span style="font-family:'Geist Mono',monospace;font-size:12px;padding:2px 7px;border-radius:6px;background:{{ d.bg }};color:{{ d.fg }}">{{ d.code }}</span><span style="flex:1;font-family:'Geist Mono',monospace;font-size:13px">{{ d.ev }}</span><span style="font-size:12.5px;color:#5E6862">{{ d.t }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    </div>
+  </div>
+
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:20;display:flex;justify-content:flex-end">
+    <div onClick="{{ closeDrawer }}" style="position:absolute;inset:0;background:rgba(11,18,14,.45)"></div>
+    <div style="position:relative;width:460px;height:100%;background:#F4F3EE;display:flex;flex-direction:column;box-shadow:-30px 0 60px -20px rgba(0,0,0,.4)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:22px 26px;border-bottom:1px solid #E8E6DF"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.02em">{{ drawerTitle }}</div><button onClick="{{ closeDrawer }}" style="width:36px;height:36px;border-radius:10px;border:1px solid #E4E2DA;background:#fff;display:grid;place-items:center;cursor:pointer;padding:0"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></div>
+      <sc-if value="{{ drawerForm }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;overflow:auto;padding:24px 26px;display:flex;flex-direction:column;gap:16px">
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:18px;padding:18px;text-align:center"><div style="font-size:13px;color:#5E6862">Valor a cobrar</div><div style="display:flex;align-items:baseline;justify-content:center;gap:6px;margin-top:4px"><input value="{{ amount }}" onChange="{{ onAmount }}" inputmode="decimal" style="width:{{ amountW }};min-width:50px;border:0;background:transparent;text-align:right;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:48px;letter-spacing:-0.045em;padding:0;caret-color:#0A8205"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:22px;color:#8A938E">MT</span></div><div style="font-size:13px;color:#3E4742;margin-top:6px">Recebe <b>{{ netTxt }} MT</b> após taxa de 3,5%</div></div>
+        <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Descrição</div><div style="height:48px;border-radius:12px;border:1px solid #E2E0D8;background:#fff;display:flex;align-items:center;padding:0 14px;font-size:15px">Bolo de chocolate · 1 kg</div></div>
+        <div><div style="font-size:13px;font-weight:500;color:#3E4742;margin-bottom:6px">Métodos aceites</div><div style="display:flex;gap:8px"><div style="flex:1;height:44px;border-radius:12px;border:2px solid #0B120E;background:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:600">M-Pesa</div><div style="flex:1;height:44px;border-radius:12px;border:2px solid #0B120E;background:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:600">e-Mola</div><div style="flex:1;height:44px;border-radius:12px;border:2px solid #0B120E;background:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:14px;font-weight:600">Cartão</div></div></div>
+        <div style="background:#fff;border:1px solid #E8E6DF;border-radius:16px">
+          <div style="display:flex;align-items:center;gap:12px;padding:13px 16px"><div style="flex:1"><div style="font-weight:600;font-size:14px">Reutilizável</div><div style="font-size:12.5px;color:#5E6862">Vários clientes podem pagar o mesmo link</div></div><div style="width:44px;height:26px;border-radius:999px;background:#0A8205;padding:3px;box-sizing:border-box;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:50%;background:#fff"></div></div></div>
+          <div style="height:1px;background:#EEECE5;margin:0 16px"></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:13px 16px"><div style="flex:1"><div style="font-weight:600;font-size:14px">Cliente escolhe o valor</div><div style="font-size:12.5px;color:#5E6862">Para gorjetas e doações</div></div><div style="width:44px;height:26px;border-radius:999px;background:#DAD8D0;padding:3px;box-sizing:border-box;display:flex"><div style="width:20px;height:20px;border-radius:50%;background:#fff"></div></div></div>
+          <div style="height:1px;background:#EEECE5;margin:0 16px"></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:13px 16px"><div style="flex:1;font-weight:600;font-size:14px">Expira</div><span style="font-size:14px;color:#3E4742">Nunca</span></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;padding:18px 26px;border-top:1px solid #E8E6DF"><button onClick="{{ closeDrawer }}" style="flex:1;height:50px;border-radius:14px;border:1px solid #E2E0D8;background:#fff;font-weight:600;font-size:15px;cursor:pointer">Cancelar</button><button onClick="{{ createLink }}" style="flex:2;height:50px;border-radius:14px;background:#0A8205;border:0;color:#fff;font-weight:600;font-size:15px;cursor:pointer">Criar link</button></div>
+      </sc-if>
+      <sc-if value="{{ drawerDone }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;overflow:auto;padding:28px 26px;display:flex;flex-direction:column;align-items:center;text-align:center">
+        <div style="width:52px;height:52px;border-radius:50%;background:#0A8205;display:grid;place-items:center;box-shadow:0 0 0 8px #E2F3DE"><svg width="24" height="24" viewBox="0 0 24 24" style="fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round"><path d="M20 6 9 17l-5-5"></path></svg></div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;letter-spacing:-0.025em;margin-top:18px">Link pronto a partilhar</div>
+        <div style="font-size:14px;color:#5E6862;margin-top:4px">Bolo de chocolate · 1 kg · {{ amountFmt }} MT</div>
+        <div style="margin-top:20px;width:180px;height:180px;padding:12px;box-sizing:border-box;border-radius:18px;background:#fff;border:1px solid #E8E6DF;position:relative"><div style="display:grid;grid-template-columns:repeat(25,1fr);width:100%;height:100%"><sc-for list="{{ qr }}" as="c" hint-placeholder-count="0"><div style="background:{{ c }}"></div></sc-for></div><div style="position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:11px;background:#0B120E;display:grid;place-items:center;box-shadow:0 0 0 4px #fff"><img src="assets/riha-icon-light.png" alt="" style="width:24px;height:24px;object-fit:contain"></div></div>
+        <div style="width:100%;display:flex;align-items:center;gap:8px;margin-top:20px;padding:6px 6px 6px 14px;box-sizing:border-box;border-radius:12px;background:#fff;border:1px solid #E8E6DF"><span style="flex:1;text-align:left;font-family:'Geist Mono',monospace;font-size:13px">riha.co.mz/p/cafe-maputo/bolo</span><button onClick="{{ copyOn.link }}" style="height:36px;padding:0 14px;border-radius:9px;border:0;background:#0B120E;color:#fff;font-size:13px;font-weight:600;cursor:pointer">{{ copyTxt.link }}</button></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;margin-top:10px"><div style="height:46px;border-radius:12px;background:#25D366;color:#fff;display:grid;place-items:center;font-weight:600;font-size:14px">Enviar por WhatsApp</div><div style="height:46px;border-radius:12px;border:1px solid #E2E0D8;background:#fff;display:grid;place-items:center;font-weight:600;font-size:14px">Descarregar QR</div></div>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;start&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;overview&quot;,&quot;options&quot;:[&quot;landing&quot;,&quot;checkout&quot;,&quot;overview&quot;,&quot;txns&quot;,&quot;txns-api&quot;,&quot;links&quot;,&quot;links-new&quot;,&quot;payouts&quot;,&quot;settings-biz&quot;,&quot;settings-bank&quot;,&quot;settings-api&quot;,&quot;settings-hooks&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    const [s, t] = String(p.start || 'overview').split('-');
+    this.state = { screen: s, tab: s === 'settings' ? (t || 'api') : 'api', drawer: t === 'new' ? 'form' : '', sel: t === 'api' ? 1 : 0, txTab: 'all', method: 'mpesa', live: true, reveal: false, copied: '', amount: '1250', wamount: '20000' };
+    const N = 25; let seed = 11;
+    const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const fin = (r, c, R, C) => { const y = r - R, x = c - C; if (y < -1 || x < -1 || y > 7 || x > 7) return null; if (y < 0 || x < 0 || y > 6 || x > 6) return false; return y === 0 || y === 6 || x === 0 || x === 6 || (y >= 2 && y <= 4 && x >= 2 && x <= 4); };
+    this.qr = [];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      let v = fin(r, c, 0, 0); if (v === null) v = fin(r, c, 0, N - 7); if (v === null) v = fin(r, c, N - 7, 0);
+      if (v === null) v = (r >= 9 && r <= 15 && c >= 9 && c <= 15) ? false : rnd() > 0.5;
+      this.qr.push(v ? '#0B120E' : 'transparent');
+    }
+    let sd = 5; const r2 = () => (sd = (sd * 9301 + 49297) % 233280) / 233280;
+    this.v30 = Array.from({ length: 30 }, (_, i) => 0.3 + r2() * 0.55 + (i % 7 === 5 ? 0.15 : 0) + i * 0.006);
+  }
+  componentDidUpdate(pp) {
+    if (pp.start !== this.props.start && this.props.start) {
+      const [s, t] = String(this.props.start).split('-');
+      this.setState({ screen: s, tab: s === 'settings' ? (t || 'api') : this.state.tab, drawer: t === 'new' ? 'form' : '' });
+    }
+  }
+  componentWillUnmount() { clearTimeout(this.ct); }
+  src(origin, ref, name, st) {
+    const tail = ref.slice(3).replace('-', '');
+    const R = (rows) => rows.map(([k, v, mono]) => ({ k, v, ff: mono ? "'Geist Mono',monospace" : 'Geist,sans-serif' }));
+    if (origin.startsWith('API')) {
+      const ord = (name.match(/\d+/) || ['2094'])[0];
+      return { srcT: 'API', srcBg: '#0B120E', srcFg: '#FFFFFF', srcTitle: 'Checkout Session via API', isApi: true,
+        srcRows: R([['Sessão', 'cs_live_' + tail, true], ['Domínio de origem', 'loja.cafemaputo.co.mz', true], ['Chave API', 'sk_live_…3f9a', true], ['client_reference_id', 'pedido_' + ord, true], ['IP do pedido', '41.220.12.88', true], ['callback_url', 'loja.cafemaputo.co.mz/webhooks/riha', true], ['Resposta do callback', st === 'failed' ? '200 OK · payment.failed' : '200 OK · 182 ms', false]]),
+        meta: '{\n  "order_id": "' + ord + '",\n  "canal": "loja_online",\n  "entrega": "cidade_maputo"\n}' };
+    }
+    if (origin.startsWith('QR')) return { srcT: 'QR', srcBg: '#FFF3C4', srcFg: '#7A5A00', srcTitle: 'QR estático no balcão', isApi: false, meta: '',
+      srcRows: R([['Link', 'plink_balcao01', true], ['Tipo', 'Valor livre · reutilizável', false], ['Local', 'Loja da Sommerschield', false], ['Dispositivo', 'Android · Chrome', false]]) };
+    return { srcT: 'Link', srcBg: '#E2F3DE', srcFg: '#0A6B05', srcTitle: 'Link · ' + origin.replace('Link · ', ''), isApi: false, meta: '',
+      srcRows: R([['Link', 'plink_' + tail.toLowerCase(), true], ['Criado por', 'Ana Mabota · painel', false], ['Tipo', 'Valor fixo · reutilizável', false], ['Canal', 'WhatsApp', false], ['Dispositivo', 'Android · Chrome', false]]) };
+  }
+  go(s, extra) { this.setState({ screen: s, drawer: '', ...(extra || {}) }); }
+  copy(k) { this.setState({ copied: k }); clearTimeout(this.ct); this.ct = setTimeout(() => this.setState({ copied: '' }), 1500); }
+  num(v) { const n = parseFloat(String(v).replace(/[\s\u00A0]/g, '').replace(',', '.')); return isFinite(n) ? n : 0; }
+  fmt(n) { const [i, d] = Math.abs(n).toFixed(2).split('.'); return (n < 0 ? '−' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0') + ',' + d; }
+
+  renderVals() {
+    const S = this.state, s = S.screen;
+    const list = ['landing', 'checkout', 'overview', 'txns', 'links', 'payouts', 'settings'];
+    const is = {}, nav = {}, nb = {}, nf = {};
+    list.forEach(k => { is[k] = s === k; nav[k] = (e) => { if (e && e.preventDefault) e.preventDefault(); this.go(k); }; nb[k] = s === k ? '#F0EEE8' : 'transparent'; nf[k] = s === k ? '#0B120E' : '#5E6862'; });
+    const shell = !['landing', 'checkout'].includes(s);
+
+    const m = S.method, mc = {}, mbg = {}, pick = {};
+    ['mpesa', 'emola', 'card'].forEach(k => { mc[k] = m === k ? '#0A8205' : '#E4E2DA'; mbg[k] = m === k ? '#F3FAF1' : '#FFFFFF'; pick[k] = () => this.setState({ method: k }); });
+
+    const M = { mpesa: { ibg: '#FDE7E6', ifg: '#C8102E', it: 'M', letter: true, isCard: false }, emola: { ibg: '#FFF0D6', ifg: '#B45F00', it: 'e', letter: true, isCard: false }, card: { ibg: '#0B120E', ifg: '#FFFFFF', it: '', letter: false, isCard: true } };
+    const P = { paid: { pbg: '#E2F3DE', pfg: '#0A6B05', pt: 'Pago' }, pending: { pbg: '#FFF3C4', pfg: '#7A5A00', pt: 'Pendente' }, failed: { pbg: '#FFE3E1', pfg: '#C2080D', pt: 'Falhado' } };
+    const raw = [
+      ['Ana Machava', 'mpesa', 'M-Pesa · 84 ••• 4231', 'RH-8K2D-4410', 'Hoje, 10:42', 'paid', 1250, 'Link · Bolo de chocolate'],
+      ['Encomenda #2093', 'card', 'Visa · •• 4410', 'RH-7Q1A-2093', 'Hoje, 09:15', 'paid', 3480, 'API · loja online'],
+      ['Carlos Nhantumbo', 'emola', 'e-Mola · 86 ••• 0907', 'RH-6T9C-0907', 'Hoje, 08:58', 'pending', 780, 'Link · Cabaz de café'],
+      ['Fátima Cossa', 'mpesa', 'M-Pesa · 85 ••• 1180', 'RH-5M3E-1180', 'Ontem, 18:20', 'paid', 2100, 'Link · Workshop de barista'],
+      ['Júlio Sitoe', 'mpesa', 'M-Pesa · 84 ••• 7765', 'RH-4L8B-7765', 'Ontem, 11:37', 'failed', 450, 'Link · Gorjeta'],
+      ['Encomenda #2088', 'card', 'Mastercard · •• 0192', 'RH-3J2F-2088', '31 out, 16:05', 'paid', 5900, 'API · loja online'],
+      ['Rosa Langa', 'emola', 'e-Mola · 87 ••• 3310', 'RH-2H7K-3310', '31 out, 12:48', 'paid', 1600, 'Link · Cabaz de café'],
+      ['Tomás Muianga', 'mpesa', 'M-Pesa · 84 ••• 5521', 'RH-1G4N-5521', '31 out, 09:30', 'paid', 890, 'QR · Balcão'],
+      ['Encomenda #2085', 'card', 'Visa · •• 7781', 'RH-0F6P-2085', '30 out, 19:12', 'paid', 2750, 'API · loja online'],
+      ['Helena Tembe', 'mpesa', 'M-Pesa · 85 ••• 6604', 'RH-9Z5R-6604', '30 out, 14:22', 'pending', 1250, 'Link · Bolo de chocolate']
+    ];
+    const tx = raw.map(([name, mt, sub, ref, date, st, v, origin], i) => ({
+      i, name, mt, sub, ref, date, st, origin, amt: this.fmt(v), fee: this.fmt(v * 0.035), net: this.fmt(v * 0.965),
+      ac: st === 'failed' ? '#8A938E' : '#0B120E', dec: st === 'failed' ? 'line-through' : 'none', isFailed: st === 'failed', ...M[mt], ...P[st], ...this.src(origin, ref, name, st)
+    }));
+    const tt = S.txTab;
+    const txTabs = [['all', 'Todas'], ['paid', 'Pagas'], ['pending', 'Pendentes'], ['failed', 'Falhadas']].map(([k, l]) => ({ l, n: k === 'all' ? tx.length : tx.filter(t => t.st === k).length, on: () => this.setState({ txTab: k, sel: -1 }), bd: tt === k ? '#0B120E' : 'transparent', fg: tt === k ? '#0B120E' : '#5E6862' }));
+    const txRows = tx.filter(t => tt === 'all' || t.st === t.st && t.st === tt).map(t => ({ ...t, on: () => this.setState({ sel: t.i }), rowBg: S.sel === t.i ? '#F6FAF4' : '#fff', rowSh: S.sel === t.i ? 'inset 3px 0 0 #0A8205' : 'none' }));
+    const st0 = tx[S.sel];
+    let sel = null;
+    if (st0) {
+      const g = '#0A8205', y = '#E0A800', r = '#FF0F15', n = '#D6D4CB';
+      const wallet = st0.mt === 'card' ? 'Pedido enviado ao banco emissor' : 'Pedido de PIN enviado ao telemóvel';
+      const steps = st0.st === 'paid' ? [[st0.isApi ? 'Sessão criada via API' : 'Link aberto pelo cliente', st0.date, g], [wallet, st0.date, g], ['Confirmado pelo cliente', st0.date, g], ...(st0.isApi ? [['callback_url notificado · 200 OK', st0.date, g], ['Cliente redirecionado para success_url', st0.date, g]] : []), ['Creditado no saldo', st0.date, g]]
+        : st0.st === 'pending' ? [['Checkout criado', st0.date, g], [wallet, st0.date, g], ['A aguardar o cliente', 'Expira em 10 min', y], ['Creditado no saldo', '—', n]]
+        : [['Checkout criado', st0.date, g], [wallet, st0.date, g], ['Falhou: PIN errado', st0.date, r]];
+      sel = { ...st0, steps: steps.map(([l, t, c], i) => ({ l, t, c, line: i === steps.length - 1 ? 'none' : 'block' })) };
+    }
+
+    const bars30 = this.v30.map((v, i) => ({ h: Math.round(v * 150) + 'px', bg: i === 29 ? '#0A8205' : (i > 22 ? '#BFD8B8' : '#E4E8E1') }));
+    const bars14 = this.v30.slice(16).map((v, i) => ({ h: Math.round(v * 68) + 'px', bg: i === 13 ? '#0A8205' : '#E4E8E1' }));
+
+    const copyTxt = {}, copyOn = {};
+    ['link', 'pk', 'sk', 'wh', 'roll', 'l0', 'l1', 'l2', 'l3', 'l4', 'l5'].forEach(k => { copyTxt[k] = S.copied === k ? 'Copiado' : 'Copiar'; copyOn[k] = () => this.copy(k); });
+    const links = [
+      ['Bolo de chocolate · 1 kg', 'bolo', '1 250,00', true, 23, 28750, 'on'],
+      ['Cabaz de café moído', 'cabaz', '890,00', true, 41, 36490, 'on'],
+      ['Workshop de barista · 18 nov', 'workshop', '2 500,00', true, 9, 22500, 'on'],
+      ['Gorjeta', 'gorjeta', 'Livre', false, 12, 3200, 'on'],
+      ['Encomenda de Natal', 'natal', '4 500,00', true, 0, 0, 'sched'],
+      ['Promoção de outubro', 'outubro', '600,00', true, 57, 34200, 'off']
+    ];
+    const LS = { on: ['Ativo', '#E2F3DE', '#0A6B05'], sched: ['Até 24 dez', '#FFF3C4', '#7A5A00'], off: ['Expirado', '#EDECE6', '#3E4742'] };
+    const linkRows = links.map(([name, slug, amount, card, count, total, st], i) => ({ name, slug, amount, count, total: this.fmt(total), cardBg: card ? '#0B120E' : '#D6D4CB', st: LS[st][0], sbg: LS[st][1], sfg: LS[st][2], copy: copyOn['l' + i], copyTxt: copyTxt['l' + i] }));
+
+    const PS = { review: ['Em análise', '#FFF3C4', '#7A5A00'], paid: ['Transferido', '#E2F3DE', '#0A6B05'] };
+    const payRows = [['LV-0042', '1 nov, 14:02', 'review', 15000], ['LV-0039', '27 out, 09:40', 'paid', 20000], ['LV-0035', '20 out, 16:15', 'paid', 18000], ['LV-0031', '13 out, 11:02', 'paid', 14000], ['LV-0027', '6 out, 10:30', 'paid', 12000]].map(([id, req, st, a]) => ({ id, req, amt: this.fmt(a), st: PS[st][0], bg: PS[st][1], fg: PS[st][2] }));
+
+    const del = [['200', 'payment.succeeded', 'há 2 min'], ['200', 'payment.succeeded', 'há 1 h'], ['200', 'payout.paid', 'ontem, 14:05'], ['500', 'payment.failed', 'ontem, 11:37'], ['200', 'payment.failed', 'ontem, 11:42'], ['200', 'payment.succeeded', '31 out']];
+    const deliveries = del.map(([code, ev, t]) => ({ code, ev, t, bg: code === '200' ? '#E2F3DE' : '#FFE3E1', fg: code === '200' ? '#0A6B05' : '#C2080D' }));
+
+    const tb = S.tab;
+    const setTabs = [['biz', 'Negócio'], ['bank', 'Conta bancária'], ['api', 'Chaves API'], ['hooks', 'Webhooks e URLs']].map(([k, l]) => ({ l, on: () => this.setState({ tab: k }), bd: tb === k ? '#0B120E' : 'transparent', fg: tb === k ? '#0B120E' : '#5E6862' }));
+
+    const amt = this.num(S.amount), bal = 48320.5, w = this.num(S.wamount), over = w > bal, live = S.live;
+    return {
+      is, nav, nb, nf, shell, qr: this.qr, bars30, bars14,
+      goApi: () => this.go('settings', { tab: 'api' }), goBank: (e) => { e && e.preventDefault && e.preventDefault(); this.go('settings', { tab: 'bank' }); },
+      mc, mbg, pick, isWallet: m !== 'card', isCard: m === 'card', walletName: m === 'emola' ? 'e-Mola' : 'M-Pesa', walletPrefix: m === 'emola' ? '86' : '84',
+      recent: tx.slice(0, 5), txTabs, txRows, hasSel: !!sel, sel: sel || {}, closeSel: () => this.setState({ sel: -1 }),
+      linkRows, payRows, deliveries, setTabs, tab: { biz: tb === 'biz', bank: tb === 'bank', api: tb === 'api', hooks: tb === 'hooks' },
+      copyTxt, copyOn,
+      openDrawer: () => this.setState({ screen: s === 'overview' || s === 'links' ? s : 'links', drawer: 'form' }), closeDrawer: () => this.setState({ drawer: '' }), createLink: () => this.setState({ drawer: 'done' }),
+      drawerOpen: shell && !!S.drawer, drawerForm: S.drawer === 'form', drawerDone: S.drawer === 'done', drawerTitle: S.drawer === 'done' ? 'Link criado' : 'Novo link de pagamento',
+      amount: S.amount, amountW: Math.max(1, S.amount.length) * 0.62 + 'em', onAmount: (e) => this.setState({ amount: e.target.value.replace(/[^\d.,]/g, '').slice(0, 7) }),
+      netTxt: this.fmt(amt * 0.965), amountFmt: this.fmt(amt),
+      wamount: S.wamount, onWamount: (e) => this.setState({ wamount: e.target.value.replace(/[^\d.,]/g, '').slice(0, 9) }), wMax: () => this.setState({ wamount: '48320,50' }),
+      wColor: over ? '#C2080D' : '#0B120E', wHint: over ? 'Acima do saldo disponível' : 'Disponível: 48 320,50 MT', wHintColor: over ? '#C2080D' : '#5E6862', wFmt: this.fmt(w), wBtnBg: over || !w ? '#A9B0AB' : '#0A8205',
+      toggleLive: () => this.setState({ live: !live, reveal: false }), modeTxt: live ? 'Produção' : 'Teste', liveBg: live ? '#0A8205' : '#E0A800', liveJ: live ? 'flex-end' : 'flex-start', testMode: !live,
+      modePillBg: live ? '#E2F3DE' : '#FFF3C4', modePillFg: live ? '#0A6B05' : '#7A5A00',
+      pk: live ? 'pk_live_51RhA9cK2mZ7Xq2' : 'pk_test_51RhA9cK2mT4Lw8',
+      sk: S.reveal ? (live ? 'sk_live_51RhA9cK2m8dJ3f9a' : 'sk_test_51RhA9cK2m0pV71c') : (live ? 'sk_live_••••••••••••3f9a' : 'sk_test_••••••••••••V71c'),
+      skShort: live ? 'sk_live_…3f9a' : 'sk_test_…V71c', toggleReveal: () => this.setState({ reveal: !S.reveal }), revealTxt: S.reveal ? 'Ocultar' : 'Mostrar',
+      rollTxt: S.copied === 'roll' ? 'Nova chave gerada' : 'Gerar nova chave'
+    };
+  }
+}
+</script>
+</body>
+</html>
