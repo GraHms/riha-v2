@@ -4,7 +4,6 @@ import { Icon, QR } from '../../components/ui'
 import { api } from '../../lib/api'
 import { bpsLabel } from '../../lib/format'
 
-// Decorative bar heights for the hero mini dashboard (same LCG as the design prototype).
 const BARS14 = (() => {
   let sd = 5
   const r = () => (sd = (sd * 9301 + 49297) % 233280) / 233280
@@ -215,15 +214,12 @@ export default function Landing() {
     <div className="lp">
       <style>{css}</style>
 
-      {/* ------------------------------------------------------------ HERO */}
       <div style={{ background: '#0B120E', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-        {/* desktop background */}
         <div className="lp-d" style={{ position: 'absolute', inset: 0 }}>
           <div style={stripe({ top: -120, right: 330, width: 120, height: 1000 }, false)} />
           <div style={stripe({ top: -120, right: 180, width: 120, height: 1000 }, true)} />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg,#0B120E 38%,rgba(11,18,14,.55) 70%,rgba(11,18,14,.2))' }} />
         </div>
-        {/* mobile background */}
         <div className="lp-m" style={{ position: 'absolute', inset: 0 }}>
           <div style={stripe({ top: -80, right: 62, width: 58, height: 560, opacity: 0.95 }, false)} />
           <div style={stripe({ top: -80, right: -8, width: 58, height: 560, opacity: 0.95 }, true)} />
@@ -232,7 +228,6 @@ export default function Landing() {
         </div>
 
         <div className="lp-wrap" style={{ position: 'relative' }}>
-          {/* desktop nav */}
           <div className="lp-d lp-topnav">
             <Brand dark size={34} text={19} />
             <nav>
@@ -245,7 +240,6 @@ export default function Landing() {
             <Link to="/entrar" className="lp-btn-top lp-plain" style={{ color: '#fff' }}>Entrar</Link>
             <Link to="/registo" className="lp-btn-top" style={{ background: '#fff', color: '#0B120E' }}>Criar conta</Link>
           </div>
-          {/* mobile nav */}
           <div className="lp-m">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 'max(14px, env(safe-area-inset-top))' }}>
               <Brand dark size={30} text={17} />
@@ -267,7 +261,6 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* desktop hero visual */}
             <div className="lp-d lp-hero-vis">
               <div style={{ position: 'absolute', right: 0, top: 20, width: 470, maxWidth: '100%', background: '#F4F3EE', color: '#0B120E', borderRadius: 24, padding: 20, boxShadow: '0 50px 100px -30px rgba(0,0,0,.8)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -294,7 +287,6 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* mobile hero visual */}
         <div className="lp-m" style={{ position: 'relative', paddingBottom: 36 }}>
           <div style={{ position: 'relative', height: 330, maxWidth: 480, margin: '34px auto 0' }}>
             <div style={{ position: 'absolute', left: 22, top: 18, width: 252, background: '#fff', color: '#0B120E', borderRadius: 24, padding: 18, transform: 'rotate(-4deg)', boxShadow: '0 40px 80px -30px rgba(0,0,0,.8)' }}>
@@ -308,7 +300,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------ METHODS */}
       <div id="produto" className="lp-wrap lp-sec lp-sec-first">
         <div className="lp-methods">
           <div>
@@ -329,7 +320,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------ HOW IT WORKS */}
       <div className="lp-wrap lp-sec">
         <div className="lp-eyebrow">Como funciona</div>
         <h2 className="lp-h2">Três passos. Zero papelada.</h2>
@@ -364,7 +354,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------ FEATURES (desktop) */}
       <div id="programadores" className="lp-wrap lp-sec">
         <div className="lp-d lp-features">
           <div className="lp-dev" style={{ background: '#0B120E', color: '#fff', borderRadius: 28, padding: 34, position: 'relative', overflow: 'hidden', minWidth: 0 }}>
@@ -408,7 +397,6 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* ---------------------------------------------------------- FEATURES (mobile) */}
         <div className="lp-m">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ background: '#fff', border: '1px solid #E8E6DF', borderRadius: 26, padding: 22, overflow: 'hidden' }}>
@@ -459,7 +447,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------ PRICING */}
       <div id="precos" className="lp-wrap lp-sec">
         <div className="lp-d lp-pricing">
           <div>
@@ -493,7 +480,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------ CTA */}
       <div className="lp-wrap lp-sec">
         <div className="lp-d">
           <div className="lp-cta-band" style={{ background: '#0B120E', color: '#fff', borderRadius: 32, padding: 56, position: 'relative', overflow: 'hidden' }}>
@@ -517,7 +503,6 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------ FOOTER */}
       <div className="lp-wrap">
         <div className="lp-d" style={{ padding: '56px 0 40px', display: 'flex', alignItems: 'flex-start', gap: 64 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>

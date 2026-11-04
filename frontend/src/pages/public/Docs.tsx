@@ -64,11 +64,9 @@ const css = `
 }
 `
 
-// ------------------------------------------------------------------ tiny syntax colouring
 const COL: Record<string, string> = { y: '#FFD21F', g: '#8EE07F', b: '#7FB2FF', m: '#93A09A', r: '#FF8A8D' }
 const TOKEN = /("(?:[^"\\\n]|\\.)*")|((?<=^|\s)(?:\/\/|#)[^\n]*)|\b(const|let|await|if|return|import|true|false|null)\b/gm
 
-/** Colours strings, keys, comments and keywords. `«y…»` forces a colour. In json mode only keys and URLs are coloured. */
 function highlight(src: string, json: boolean): ReactNode[] {
   const out: ReactNode[] = []
   let k = 0
@@ -113,7 +111,6 @@ function CodeCard({ title, right, rightColor = '#93A09A', code, json, deep, tabs
   )
 }
 
-// ------------------------------------------------------------------ small building blocks
 const C = ({ children, s = 13.5 }: { children: ReactNode; s?: number }) => <span style={{ fontFamily: MONO, fontSize: s }}>{children}</span>
 const Chip = ({ children }: { children: ReactNode }) => <span style={{ fontFamily: MONO, fontSize: 14, padding: '1px 6px', borderRadius: 5, background: '#F4F3EE' }}>{children}</span>
 const H2 = ({ children, mt = 0 }: { children: ReactNode; mt?: number }) => <h2 className="docs-h2" style={{ margin: `${mt}px 0 0`, fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, letterSpacing: '-0.03em' }}>{children}</h2>
@@ -166,7 +163,6 @@ const ENDPOINTS: [string, string][][] = [
   [['GET', '/v1/webhook_endpoints'], ['POST', '/v1/webhook_endpoints'], ['DELETE', '/v1/webhook_endpoints/:id'], ['GET', '/v1/events/:id']],
 ]
 
-// ------------------------------------------------------------------ code samples
 const SESSION_CODE: Record<string, string> = {
   cURL: String.raw`curl https://api.riha.co.mz/v1/checkout/sessions \
   -H "Authorization: Bearer sk_test_…" \
@@ -429,7 +425,6 @@ const ERROR_RES = `{
   }
 }`
 
-// ------------------------------------------------------------------ navigation
 const NAV: { h: string; items: [string, string][] }[] = [
   { h: 'Começar', items: [['Introdução', 'intro'], ['Modo de teste', 'teste'], ['Fluxo de pagamento', 'fluxo'], ['Autenticação', 'auth'], ['Idempotência', 'idempotencia'], ['Erros', 'erros']] },
   { h: 'Pagamentos', items: [['Checkout Sessions', 'sessao'], ['Payments', 'payment'], ['Payment Links', 'links'], ['Refunds', 'refunds']] },
@@ -501,7 +496,6 @@ export default function Docs() {
   const go = (id: string) => {
     setMenu(false)
     setActive(id)
-    // Wait for the mobile menu to close (body scroll unlocked) before scrolling.
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     history.replaceState(history.state, '', '#' + id)
   }
@@ -517,7 +511,6 @@ export default function Docs() {
     <div className="docs">
       <style>{css}</style>
 
-      {/* ------------------------------------------------------------ top bar */}
       <header className="docs-top">
         <button className="docs-menu-btn" aria-label={menu ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menu} onClick={() => setMenu(m => !m)}>
           {menu ? <Icon name="close" size={17} stroke={2} /> : (
@@ -540,7 +533,6 @@ export default function Docs() {
       </header>
 
       <div className="docs-layout">
-        {/* ---------------------------------------------------------- left nav */}
         <nav className={'docs-nav' + (menu ? ' open' : '')} aria-label="Secções">
           {NAV.map(g => (
             <div key={g.h} className="docs-nav-group">
@@ -553,7 +545,6 @@ export default function Docs() {
         </nav>
 
         <main className="docs-main">
-          {/* -------------------------------------------------------- intro */}
           <section id="intro" className="docs-sec">
             <div>
               <h1 className="docs-h1" style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 700, fontSize: 44, letterSpacing: '-0.035em', lineHeight: 1.02 }}>Referência da API</h1>
@@ -579,7 +570,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- test mode */}
           <section id="teste" className="docs-sec">
             <div>
               <H2>Modo de teste</H2>
@@ -611,7 +601,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- flow */}
           <section id="fluxo" className="docs-sec single">
             <H2>Fluxo de pagamento</H2>
             <P style={{ maxWidth: 720 }}>O servidor da loja cria uma sessão e envia o cliente para o checkout da Riha. Depois do pagamento, a Riha avisa o servidor e devolve o cliente à loja. Os dois passos são independentes.</P>
@@ -630,7 +619,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- auth */}
           <section id="auth" className="docs-sec">
             <div>
               <H2>Autenticação e idempotência</H2>
@@ -647,7 +635,6 @@ export default function Docs() {
             <CodeCard title="Pedido autenticado" code={AUTH_CODE} style={{ alignSelf: 'start' }} />
           </section>
 
-          {/* -------------------------------------------------------- checkout session */}
           <section id="sessao" className="docs-sec">
             <div>
               <Endpoint method="POST" path="/v1/checkout/sessions" />
@@ -674,7 +661,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- payment */}
           <section id="payment" className="docs-sec">
             <div>
               <H2>O objeto Payment</H2>
@@ -703,7 +689,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- payment links */}
           <section id="links" className="docs-sec">
             <div>
               <Endpoint method="POST" path="/v1/payment_links" />
@@ -723,7 +708,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- refunds */}
           <section id="refunds" className="docs-sec">
             <div>
               <Endpoint method="POST" path="/v1/refunds" />
@@ -740,7 +724,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- balance + payouts */}
           <section id="balance" className="docs-sec">
             <div>
               <Endpoint method="GET" path="/v1/balance" />
@@ -759,7 +742,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- webhooks */}
           <section id="webhooks" className="docs-sec">
             <div>
               <H2>Webhooks</H2>
@@ -796,7 +778,6 @@ export default function Docs() {
             </div>
           </section>
 
-          {/* -------------------------------------------------------- errors */}
           <section id="erros" className="docs-sec last">
             <div>
               <H2>Erros</H2>

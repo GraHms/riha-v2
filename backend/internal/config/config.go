@@ -6,16 +6,14 @@ import (
 )
 
 type Config struct {
-	Addr         string
-	DatabaseURL  string
-	PublicURL    string // where the frontend is served (checkout links)
-	APIURL       string // public base URL of the REST API
-	StaticDir    string // built frontend (optional)
-	UploadDir    string
-	CookieSecure bool
-	Seed         bool
-	// SimulatorDelayMs controls how long the mock wallet waits before the
-	// "customer" confirms the PIN on their phone.
+	Addr             string
+	DatabaseURL      string
+	PublicURL        string
+	APIURL           string
+	StaticDir        string
+	UploadDir        string
+	CookieSecure     bool
+	Seed             bool
 	SimulatorDelayMs int
 }
 

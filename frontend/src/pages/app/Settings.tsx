@@ -18,7 +18,6 @@ export default function Settings() {
   const t = tab || 'negocio'
   return (
     <div className="page">
-      {/* Mobile menu (2n) when no tab is chosen */}
       {!tab && (
         <div className="only-mobile">
           <h1 className="h1">Definições</h1>
@@ -77,7 +76,6 @@ function Card({ children, style }: { children: ReactNode; style?: React.CSSPrope
   return <div className="card" style={{ padding: 22, ...style }}>{children}</div>
 }
 
-// ------------------------------------------------------------------ business
 function Business() {
   const { me, refresh, toast } = useSession()
   const m = me!.merchant!
@@ -125,7 +123,6 @@ function Business() {
   )
 }
 
-// ------------------------------------------------------------------ bank
 function Bank() {
   const { me, toast } = useSession()
   const m = me!.merchant!
@@ -170,7 +167,6 @@ function Bank() {
   )
 }
 
-// ------------------------------------------------------------------ API keys
 function Keys() {
   const { live, toast } = useSession()
   const { merchant } = useShell()
@@ -254,7 +250,6 @@ function Keys() {
   )
 }
 
-// ------------------------------------------------------------------ webhooks
 function Hooks() {
   const { live, toast } = useSession()
   const { data, setData } = useData<any>('/developers/settings', [live])
@@ -360,7 +355,6 @@ function Hooks() {
   )
 }
 
-// ------------------------------------------------------------------ account
 function Account() {
   const { me, logout, toast } = useSession()
   const nav = useNavigate()

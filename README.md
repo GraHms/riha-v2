@@ -6,9 +6,31 @@ This is the first working version, built from the Claude Design handoff in `proj
 
 | Layer | Stack |
 |---|---|
-| API | Go 1.24, gin, GORM, PostgreSQL 16 (`backend/`) |
+| API | Go 1.24, gin, GORM, PostgreSQL 16 (`backend/`), ports and adapters |
 | Web | React 19, TypeScript, Vite, react-router (`frontend/`), responsive mobile and desktop |
-| Payment rails | **Mocked** (`backend/internal/providers`). M-Pesa and e-Mola simulate the PIN prompt on the phone; cards authorise synchronously. |
+| Payment rails | **Mocked** (`backend/internal/adapters/rails`). M-Pesa and e-Mola simulate the PIN prompt on the phone; cards authorise synchronously. |
+
+## Backend architecture (ports and adapters)
+
+```
+backend/
+  cmd/server/            composition root: builds adapters and injects them into the core
+  internal/core/
+    domain/              entities, rules, money, payout state machine, API resources, webhook signing (no I/O)
+    ports/               interfaces the core needs: repositories, Tx, Rail, WebhookSender, FileStore, PasswordHasher, Reports
+    app/                 use cases: signup, KYC, checkout, payments, links, payouts, refunds, keys, webhooks, admin, reports
+  internal/adapters/
+    httpapi/             driving adapter: gin handlers for /api (dashboard, checkout, admin) and /v1 (public REST API)
+    postgres/            GORM records, mappers and repositories; transactions through context
+    rails/               mock M-Pesa, e-Mola and card rail (implements ports.Rail)
+    webhooks/            HTTP webhook sender
+    filestore/           local disk storage for KYC documents
+    crypto/              bcrypt password hasher
+  internal/seed/         demo data, written through the application layer
+  internal/integration/  end-to-end tests: core + Postgres adapter + mock rail
+```
+
+The core imports nothing from `adapters`, gin or GORM. A real M-Pesa or e-Mola integration is a new adapter implementing `ports.Rail`; S3 storage is a new `ports.FileStore`.
 
 ## Running it
 
@@ -29,7 +51,7 @@ Demo accounts (created by the seed):
 
 Configuration (environment variables): `DATABASE_URL`, `RIHA_ADDR` (`:8080`), `RIHA_PUBLIC_URL` (base URL for checkout links, `http://localhost:5173`), `RIHA_STATIC_DIR` (serve a built frontend), `RIHA_UPLOAD_DIR` (KYC documents, `./data/uploads`), `RIHA_COOKIE_SECURE` (`true` behind HTTPS), `RIHA_SEED` (`true`), `RIHA_SIM_DELAY_MS` (mock PIN confirmation delay, `4000`).
 
-Tests: `make test`. The service integration tests (fees, ledger, payouts, refunds, session validation) need a throwaway database: `RIHA_TEST_DATABASE_URL=postgres://riha:riha@localhost:5432/riha_test?sslmode=disable`.
+Tests: `make test`. Domain tests are pure. The integration tests (fees, ledger, payouts, refunds, session validation, webhook delivery) need a throwaway database: `RIHA_TEST_DATABASE_URL=postgres://riha:riha@localhost:5432/riha_test?sslmode=disable`.
 
 ## What is in v1
 
@@ -108,7 +130,7 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 
 ## Not done yet (production gaps)
 
-- Real M-Pesa (Vodacom OpenAPI), e-Mola and card acquirer integrations, and daily reconciliation against them. The `providers.Provider` interface is where they plug in.
+- Real M-Pesa (Vodacom OpenAPI), e-Mola and card acquirer integrations, and daily reconciliation against them. They plug in as adapters implementing `ports.Rail`.
 - 2FA, password reset by email/SMS, team members and roles, restricted keys (`rk_`).
 - Chargebacks and disputes. Payout holds after a NIB change. Two-admin approval above a threshold. Risk rules and alerts (the admin "Risco e alertas" item is a placeholder).
 - Real SMS/email receipts (currently mocked). Object storage for KYC documents (currently the local disk).

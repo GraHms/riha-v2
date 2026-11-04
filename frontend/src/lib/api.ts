@@ -1,4 +1,3 @@
-// Thin client for the Riha dashboard API (cookie session + X-Riha-Mode).
 export type ApiError = { type?: string; code: string; message: string; param?: string; request_id?: string; status: number }
 
 let mode: 'live' | 'test' = (localStorage.getItem('riha_mode') as 'live' | 'test') || 'live'

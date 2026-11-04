@@ -6,7 +6,6 @@ import { Avatar, Icon, Spinner } from '../../components/ui'
 
 type Link = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; merchant: { name: string; initials: string; avatar_color: string } }
 
-/** Public payment link: opens a checkout session (asking for the amount when the payer chooses it). */
 export default function LinkLanding() {
   const { merchant, slug } = useParams()
   const [sp] = useSearchParams()

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, errMsg } from './api'
 
-/** Fetch JSON from the dashboard API; re-fetches when deps change. */
 export function useData<T = any>(path: string | null, deps: unknown[] = [], pollMs = 0) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)

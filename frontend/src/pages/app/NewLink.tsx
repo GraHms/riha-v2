@@ -8,7 +8,6 @@ export type LinkObj = { id: string; name: string; slug: string; amount: number |
 
 const EXPIRY: [string, number][] = [['Nunca', 0], ['24 horas', 1], ['7 dias', 7], ['30 dias', 30]]
 
-/** Shared form for creating a payment link (desktop drawer and mobile page). */
 export function useLinkForm(onCreated: (l: LinkObj) => void) {
   const { me, toast } = useSession()
   const bps = me?.merchant?.fee_bps ?? 600

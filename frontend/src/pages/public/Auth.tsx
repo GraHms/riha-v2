@@ -4,7 +4,6 @@ import { api, errMsg, type ApiError } from '../../lib/api'
 import { useSession, type Me } from '../../lib/session'
 import { Icon, Logo, Spinner, Stripes } from '../../components/ui'
 
-/** Split layout: brand panel on desktop, single column on phones. */
 export function AuthLayout({ children, step, back }: { children: ReactNode; step?: [number, number]; back?: () => void }) {
   return (
     <div className="auth">

@@ -23,7 +23,6 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
-      // API payloads are loosely typed in v1; tighten with generated types later.
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },

@@ -1,0 +1,204 @@
+package httpapi
+
+import (
+	"context"
+	"errors"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"riha/internal/core/app"
+	"riha/internal/core/domain"
+)
+
+type Config struct {
+	StaticDir    string
+	CookieSecure bool
+}
+
+type Server struct {
+	A       *app.App
+	cfg     Config
+	limiter *rateLimiter
+}
+
+const cookieName = "riha_session"
+
+func New(a *app.App, cfg Config) *gin.Engine {
+	srv := &Server{A: a, cfg: cfg, limiter: newRateLimiter(100)}
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery(), requestID(), accessLog())
+	r.MaxMultipartMemory = 8 << 20
+	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
+	srv.dashboardRoutes(r.Group("/api", csrf()))
+	srv.v1Routes(r.Group("/v1", srv.apiKeyAuth(), srv.apiLog(), srv.idempotency()))
+	r.NoRoute(srv.noRoute)
+	return r
+}
+
+func (srv *Server) noRoute(c *gin.Context) {
+	p := c.Request.URL.Path
+	switch {
+	case strings.HasPrefix(p, "/v1"):
+		fail(c, &domain.Error{Status: 404, Type: "invalid_request_error", Code: "route_not_found", Message: "Rota desconhecida: " + c.Request.Method + " " + p})
+	case strings.HasPrefix(p, "/api"):
+		c.JSON(404, gin.H{"error": gin.H{"code": "route_not_found", "message": "Rota desconhecida."}})
+	case srv.cfg.StaticDir == "":
+		c.String(404, "Riha API. O frontend corre em "+srv.A.PublicURL)
+	default:
+		f := filepath.Join(srv.cfg.StaticDir, filepath.Clean("/"+p))
+		if st, err := os.Stat(f); err == nil && !st.IsDir() {
+			c.File(f)
+			return
+		}
+		c.File(filepath.Join(srv.cfg.StaticDir, "index.html"))
+	}
+}
+
+func requestID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := "req_" + domain.Token("", 10)
+		c.Set("request_id", id)
+		c.Header("Request-Id", id)
+		c.Next()
+	}
+}
+
+func accessLog() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		p := c.Request.URL.Path
+		if strings.HasPrefix(p, "/api") || strings.HasPrefix(p, "/v1") {
+			log.Printf("%s %s %d %s", c.Request.Method, p, c.Writer.Status(), time.Since(start).Round(time.Millisecond))
+		}
+	}
+}
+
+func csrf() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead && c.GetHeader("X-Requested-With") != "riha" {
+			c.AbortWithStatusJSON(403, gin.H{"error": gin.H{"code": "csrf", "message": "Pedido recusado."}})
+			return
+		}
+		c.Next()
+	}
+}
+
+func fail(c *gin.Context, err error) {
+	var e *domain.Error
+	if errors.As(err, &e) {
+		body := gin.H{"type": e.Type, "code": e.Code, "message": e.Message, "request_id": c.GetString("request_id")}
+		if e.Param != "" {
+			body["param"] = e.Param
+		}
+		if strings.HasPrefix(c.Request.URL.Path, "/v1") {
+			body["doc_url"] = "https://docs.riha.co.mz/erros#" + e.Code
+		}
+		c.AbortWithStatusJSON(e.Status, gin.H{"error": body})
+		return
+	}
+	if errors.Is(err, domain.ErrNotFound) {
+		c.AbortWithStatusJSON(404, gin.H{"error": gin.H{"type": "invalid_request_error", "code": "resource_missing", "message": "Recurso não encontrado.", "request_id": c.GetString("request_id")}})
+		return
+	}
+	log.Printf("internal error %s: %v", c.GetString("request_id"), err)
+	c.AbortWithStatusJSON(500, gin.H{"error": gin.H{"type": "api_error", "code": "internal_error", "message": "Erro interno da Riha. Repita com a mesma Idempotency-Key.", "request_id": c.GetString("request_id")}})
+}
+
+func bad(c *gin.Context, msg string) { fail(c, domain.Invalid("parameter_invalid", "", msg)) }
+
+func ctx(c *gin.Context) context.Context { return c.Request.Context() }
+
+func (srv *Server) auth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tok, err := c.Cookie(cookieName)
+		if err != nil || tok == "" {
+			c.AbortWithStatusJSON(401, gin.H{"error": gin.H{"code": "unauthenticated", "message": "Inicie sessão."}})
+			return
+		}
+		u, err := srv.A.UserForSession(ctx(c), tok)
+		if err != nil {
+			c.AbortWithStatusJSON(401, gin.H{"error": gin.H{"code": "unauthenticated", "message": "Sessão expirada. Inicie sessão de novo."}})
+			return
+		}
+		c.Set("user", u)
+		c.Next()
+	}
+}
+
+func (srv *Server) merchantOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		m, err := srv.A.MerchantForUser(ctx(c), user(c))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		c.Set("merchant", m)
+		c.Next()
+	}
+}
+
+func adminOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if user(c).Role != domain.RoleAdmin {
+			c.AbortWithStatusJSON(403, gin.H{"error": gin.H{"code": "forbidden", "message": "Só administradores."}})
+			return
+		}
+		c.Next()
+	}
+}
+
+func user(c *gin.Context) *domain.User         { return c.MustGet("user").(*domain.User) }
+func merchant(c *gin.Context) *domain.Merchant { return c.MustGet("merchant").(*domain.Merchant) }
+
+func actor(c *gin.Context) app.Actor {
+	u := user(c)
+	return app.Actor{ID: u.ID, Role: u.Role, IP: c.ClientIP()}
+}
+
+func live(c *gin.Context) bool {
+	if v, ok := c.Get("livemode"); ok {
+		return v.(bool)
+	}
+	return c.GetHeader("X-Riha-Mode") != "test"
+}
+
+func qInt(c *gin.Context, k string, def int) int {
+	if v, err := strconv.Atoi(c.Query(k)); err == nil {
+		return v
+	}
+	return def
+}
+
+func iso(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+func isoT(t time.Time) string { return t.UTC().Format(time.RFC3339) }
+
+func csvSafe(s string) string {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		return "'" + s
+	}
+	return s
+}
+
+func centsCSV(v int64) string { return strconv.FormatInt(v/100, 10) + "." + pad2(v%100) }
+
+func pad2(v int64) string {
+	if v < 10 {
+		return "0" + strconv.FormatInt(v, 10)
+	}
+	return strconv.FormatInt(v, 10)
+}

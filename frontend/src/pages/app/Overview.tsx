@@ -76,7 +76,6 @@ export default function Overview() {
 
   return (
     <>
-      {/* ------------------------------------------------ desktop */}
       <div className="page only-desktop">
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
           <div><div style={{ fontSize: 14, color: 'var(--muted)' }}>{longToday()}</div><h1 className="h1" style={{ marginTop: 4 }}>{greeting()}, {merchant.name}</h1></div>
@@ -123,7 +122,6 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* ------------------------------------------------ mobile (1d) */}
       <div className="page only-mobile">
         {balanceCard(true)}
         <div className="card" style={{ marginTop: 12, borderRadius: 24, padding: 18 }}>

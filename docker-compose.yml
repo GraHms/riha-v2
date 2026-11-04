@@ -1,4 +1,3 @@
-# Local Postgres for development: docker compose up -d
 services:
   db:
     image: postgres:16

@@ -1,4 +1,3 @@
-// Formatting helpers. Amounts are integers in centavos of metical.
 const NB = '\u00A0'
 
 export function fmt(c: number | null | undefined, decimals = true): string {
@@ -8,7 +7,6 @@ export function fmt(c: number | null | undefined, decimals = true): string {
   return (c || 0) < 0 ? '−' + s : s
 }
 
-/** Parse "1 250,50" / "1250.5" typed by the user into centavos. */
 export function parseMT(v: string): number {
   const n = parseFloat(String(v).replace(/[\s\u00A0]/g, '').replace(',', '.'))
   return isFinite(n) ? Math.round(n * 100) : 0
@@ -29,7 +27,6 @@ export const longToday = () => { const d = new Date(); return `${WEEKDAYS[d.getD
 export const monthName = (i: number) => MONTHS_LONG[i]
 export const weekday = (d: string | number | Date) => WEEKDAYS[toDate(d).getDay()]
 
-/** "Hoje, 10:42", "Ontem, 18:20" or "31 out, 16:05". */
 export function relDate(d: string | number | Date): string {
   const x = toDate(d)
   const now = new Date()

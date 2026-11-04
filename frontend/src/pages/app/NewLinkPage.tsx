@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Icon, Spinner } from '../../components/ui'
 import { SharePanel, useLinkForm, type LinkObj } from './NewLink'
 
-/** Mobile full-screen "create link" flow (design 1e → 1f). */
 export default function NewLinkPage() {
   const nav = useNavigate()
   const [done, setDone] = useState<LinkObj | null>(null)

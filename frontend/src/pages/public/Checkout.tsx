@@ -52,7 +52,6 @@ export default function Checkout() {
     })
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll while the customer confirms on their phone.
   useEffect(() => {
     if (view !== 'confirm') return
     const t = setInterval(async () => {
@@ -65,7 +64,6 @@ export default function Checkout() {
     return () => clearInterval(t)
   }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Countdown back to the store.
   useEffect(() => {
     if (view !== 'done' || !s?.success_url) return
     if (redirectIn <= 0) { window.location.href = s.success_url; return }

@@ -1,7 +1,6 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 
-// ------------------------------------------------------------------ icons
 const P: Record<string, ReactNode> = {
   home: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
   txns: <path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" />,
@@ -53,7 +52,6 @@ export function Icon({ name, size = 19, stroke = 1.9, color = 'currentColor', st
   )
 }
 
-// ------------------------------------------------------------------ brand
 export function Logo({ dark = false, size = 28, text = 16 }: { dark?: boolean; size?: number; text?: number }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
@@ -63,7 +61,6 @@ export function Logo({ dark = false, size = 28, text = 16 }: { dark?: boolean; s
   )
 }
 
-/** The pair of skewed green/red stripes used on dark cards. */
 export function Stripes({ top = -40, right = 0, w = 44, h = 320, gap = 12, fade }: { top?: number; right?: number; w?: number; h?: number; gap?: number; fade?: string }) {
   return (
     <>
@@ -96,7 +93,6 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
 
 export function Spinner({ dark }: { dark?: boolean }) { return <span className={'spinner' + (dark ? ' dark' : '')} /> }
 
-// ------------------------------------------------------------------ overlays
 export function Drawer({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -132,7 +128,6 @@ export function Modal({ onClose, children, width }: { onClose: () => void; child
   )
 }
 
-// ------------------------------------------------------------------ data viz
 export function QR({ value, size = 156, logo = true }: { value: string; size?: number; logo?: boolean }) {
   const l = Math.round(size * 0.24)
   return (
