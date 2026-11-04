@@ -264,9 +264,9 @@ type WebhookSender interface {
 }
 
 type FileStore interface {
-	Save(ctx context.Context, dir, name string, r io.Reader) (path string, err error)
-	Read(path string) ([]byte, error)
-	Remove(path string) error
+	Save(ctx context.Context, dir, name, contentType string, r io.Reader) (path string, err error)
+	Read(ctx context.Context, path string) ([]byte, error)
+	Remove(ctx context.Context, path string) error
 }
 
 type Renderer interface {
@@ -281,4 +281,119 @@ type Mailer interface {
 type PasswordHasher interface {
 	Hash(password string) (string, error)
 	Matches(hash, password string) bool
+}
+
+type MemberQuery struct {
+	MerchantID string
+	Live       bool
+	PlanID     string
+	Statuses   []string
+	Search     string
+	FieldKey   string
+	FieldValue string
+	IDs        []string
+	Limit      int
+	Offset     int
+}
+
+type ChargeQuery struct {
+	MerchantID      string
+	Live            *bool
+	MemberID        string
+	SubscriptionIDs []string
+	Statuses        []string
+	SessionID       string
+	IDs             []string
+	DueFrom, DueTo  *time.Time
+	PaidFrom        *time.Time
+	PaidTo          *time.Time
+	ExcludeInvites  bool
+	OrderBy         string
+	Limit           int
+}
+
+type ChargeSum struct {
+	Status string
+	Count  int64
+	Total  int64
+}
+
+type Plans interface {
+	Create(ctx context.Context, p *domain.Plan) error
+	Save(ctx context.Context, p *domain.Plan) error
+	ByID(ctx context.Context, merchantID, id string) (*domain.Plan, error)
+	Get(ctx context.Context, id string) (*domain.Plan, error)
+	BySlug(ctx context.Context, merchantID, slug string) (*domain.Plan, error)
+	SlugTaken(ctx context.Context, merchantID, slug string) (bool, error)
+	List(ctx context.Context, merchantID string, live bool) ([]domain.Plan, error)
+	AddVersion(ctx context.Context, v *domain.PlanVersion) error
+	Versions(ctx context.Context, planID string) ([]domain.PlanVersion, error)
+}
+
+type Members interface {
+	Create(ctx context.Context, m *domain.Member) error
+	Save(ctx context.Context, m *domain.Member) error
+	ByID(ctx context.Context, merchantID, id string) (*domain.Member, error)
+	Get(ctx context.Context, id string) (*domain.Member, error)
+	Lock(ctx context.Context, id string) (*domain.Member, error)
+	Identity(ctx context.Context, merchantID string, live bool, phone, nameKey string) (*domain.Member, error)
+	Find(ctx context.Context, q MemberQuery) ([]domain.Member, error)
+	Count(ctx context.Context, q MemberQuery) (int64, error)
+	CountByStatus(ctx context.Context, merchantID string, live bool) (map[string]int64, error)
+	FieldValues(ctx context.Context, merchantID string, live bool, key string) ([]string, error)
+}
+
+type Subscriptions interface {
+	Create(ctx context.Context, s *domain.Subscription) error
+	Save(ctx context.Context, s *domain.Subscription) error
+	Get(ctx context.Context, id string) (*domain.Subscription, error)
+	Lock(ctx context.Context, id string) (*domain.Subscription, error)
+	ByMember(ctx context.Context, memberID string) ([]domain.Subscription, error)
+	ByPlan(ctx context.Context, planID string, statuses []string) ([]domain.Subscription, error)
+	Live(ctx context.Context, merchantID string, live bool) ([]domain.Subscription, error)
+	List(ctx context.Context, merchantID string, live bool, memberID string, statuses []string, limit int) ([]domain.Subscription, error)
+	CountByPlan(ctx context.Context, merchantID string, live bool) (map[string]map[string]int64, error)
+	DueForIssue(ctx context.Context, before time.Time, limit int) ([]domain.Subscription, error)
+	StaleIncomplete(ctx context.Context, before time.Time, limit int) ([]domain.Subscription, error)
+	PausedUntil(ctx context.Context, before time.Time, limit int) ([]domain.Subscription, error)
+}
+
+type Charges interface {
+	Create(ctx context.Context, c *domain.Charge) error
+	Save(ctx context.Context, c *domain.Charge) error
+	Lock(ctx context.Context, id string) (*domain.Charge, error)
+	ByToken(ctx context.Context, token string) (*domain.Charge, error)
+	Find(ctx context.Context, q ChargeQuery) ([]domain.Charge, error)
+	Sums(ctx context.Context, q ChargeQuery) ([]ChargeSum, error)
+	Exists(ctx context.Context, subscriptionID, period string) (bool, error)
+	Active(ctx context.Context, before time.Time, limit int) ([]domain.Charge, error)
+}
+
+type Messages interface {
+	Create(ctx context.Context, m *domain.Message) error
+	Save(ctx context.Context, m *domain.Message) error
+	ByMember(ctx context.Context, memberID string, limit int) ([]domain.Message, error)
+	Queued(ctx context.Context, limit int) ([]domain.Message, error)
+	Failed(ctx context.Context, merchantID string, live bool, since time.Time, limit int) ([]domain.Message, error)
+	CountRecent(ctx context.Context, memberID, kind string, since time.Time) (int64, error)
+}
+
+type SubscriptionSettingsRepo interface {
+	Get(ctx context.Context, merchantID string) (*domain.SubscriptionSettings, error)
+	Save(ctx context.Context, s *domain.SubscriptionSettings) error
+}
+
+type OutboundMessage struct {
+	Channel string
+	To      string
+	Sender  string
+	Body    string
+}
+
+type Messenger interface {
+	Send(ctx context.Context, m OutboundMessage) error
+}
+
+type Sheet interface {
+	Rows(name string, data []byte) ([][]string, error)
 }

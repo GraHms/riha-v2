@@ -10,9 +10,11 @@ import (
 
 	"riha/internal/adapters/crypto"
 	"riha/internal/adapters/filestore"
+	"riha/internal/adapters/messaging"
 	"riha/internal/adapters/pdf"
 	"riha/internal/adapters/postgres"
 	"riha/internal/adapters/rails"
+	"riha/internal/adapters/sheets"
 	"riha/internal/core/app"
 	"riha/internal/core/domain"
 )
@@ -55,6 +57,8 @@ func setup(t *testing.T) (*app.App, context.Context) {
 		Keys: r.Keys, Links: r.Links, Sessions: r.Sessions, Payments: r.Payments, Refunds: r.Refunds, Ledger: r.Ledger,
 		Payouts: r.Payouts, Endpoints: r.Endpoints, Domains: r.Domains, Events: r.Events, Deliveries: r.Deliveries,
 		RequestLogs: r.RequestLogs, Idempotency: r.Idempotency, Audit: r.Audit, Settings: r.Settings, Reports: r.Reports,
+		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings,
+		Messenger: &messaging.Outbox{}, Sheets: sheets.Reader{},
 		Rail: mock, Sender: nullSender{}, Files: filestore.Local{Root: t.TempDir()}, Hasher: crypto.Bcrypt{},
 		Renderer: pdf.New(), Mailer: mails, Emails: r.Emails, Resets: r.Resets,
 	}, "http://localhost:5173")

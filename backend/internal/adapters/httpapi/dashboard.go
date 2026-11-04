@@ -63,6 +63,8 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	m.POST("/developers/test-event", srv.testEvent)
 	m.GET("/developers/secret", func(c *gin.Context) { c.JSON(200, gin.H{"secret": merchant(c).SigningSecret(live(c))}) })
 
+	srv.subscriptionRoutes(m)
+
 	srv.adminRoutes(api.Group("/admin", srv.auth(), adminOnly()))
 }
 

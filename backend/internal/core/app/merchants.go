@@ -119,14 +119,14 @@ func (a *App) UploadDocument(ctx context.Context, m *domain.Merchant, up Upload)
 		return nil, domain.Invalid("parameter_invalid", "file", "O conteúdo do ficheiro não corresponde à extensão.")
 	}
 	id := domain.NewID("doc")
-	path, err := a.Files.Save(ctx, m.ID, id+ext, up.Body)
+	path, err := a.Files.Save(ctx, m.ID, id+ext, ct, up.Body)
 	if err != nil {
 		return nil, err
 	}
 	old, _ := a.Documents.RemoveKind(ctx, m.ID, up.Kind)
 	for _, o := range old {
 		if o.StoredPath != "" {
-			_ = a.Files.Remove(o.StoredPath)
+			_ = a.Files.Remove(ctx, o.StoredPath)
 		}
 	}
 	d := &domain.Document{ID: id, MerchantID: m.ID, Kind: up.Kind, FileName: domain.Trim(filepath.Base(up.FileName), 200), StoredPath: path, Size: up.Size, ContentType: ct, CreatedAt: a.Now()}
@@ -276,4 +276,12 @@ func (a *App) SetMerchantFee(ctx context.Context, merchantID string, bps *int, a
 	m.FeeBps = bps
 	a.Record(ctx, m.ID, actor, "fee.changed", m.ID, old+" → "+domain.FormatBps(a.FeeBpsFor(ctx, m)))
 	return nil
+}
+
+func (a *App) DocumentContent(ctx context.Context, d *domain.Document) ([]byte, error) {
+	data, err := a.Files.Read(ctx, d.StoredPath)
+	if err != nil {
+		return nil, domain.NotFound("O documento")
+	}
+	return data, nil
 }

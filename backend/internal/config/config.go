@@ -33,6 +33,13 @@ type Config struct {
 	SMTPAddr             string
 	SMTPUser             string
 	SMTPPassword         string
+	Storage              string
+	R2AccountID          string
+	R2AccessKey          string
+	R2SecretKey          string
+	R2Bucket             string
+	R2Prefix             string
+	R2Endpoint           string
 }
 
 func env(k, def string) string {
@@ -87,5 +94,22 @@ func Load() Config {
 		SMTPAddr:             env("RIHA_SMTP_ADDR", ""),
 		SMTPUser:             env("RIHA_SMTP_USER", ""),
 		SMTPPassword:         env("RIHA_SMTP_PASSWORD", ""),
+		Storage:              storage(dev),
+		R2AccountID:          env("RIHA_R2_ACCOUNT_ID", ""),
+		R2AccessKey:          env("RIHA_R2_ACCESS_KEY_ID", ""),
+		R2SecretKey:          env("RIHA_R2_SECRET_ACCESS_KEY", ""),
+		R2Bucket:             env("RIHA_R2_BUCKET", ""),
+		R2Prefix:             env("RIHA_R2_PREFIX", ""),
+		R2Endpoint:           env("RIHA_R2_ENDPOINT", ""),
 	}
+}
+
+func storage(dev bool) string {
+	if v := strings.ToLower(env("RIHA_STORAGE", "")); v == "r2" || v == "local" {
+		return v
+	}
+	if os.Getenv("RIHA_R2_BUCKET") != "" || !dev {
+		return "r2"
+	}
+	return "local"
 }

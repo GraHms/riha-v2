@@ -399,10 +399,10 @@ type passwordResetRecord struct {
 func (passwordResetRecord) TableName() string { return "password_resets" }
 
 func allRecords() []any {
-	return []any{
+	return append([]any{
 		&userRecord{}, &sessionRecord{}, &merchantRecord{}, &documentRecord{}, &bankRecord{}, &keyRecord{},
 		&linkRecord{}, &sessionCheckoutRecord{}, &paymentRecord{}, &refundRecord{}, &ledgerRecord{}, &payoutRecord{},
 		&endpointRecord{}, &domainRecord{}, &eventRecord{}, &deliveryRecord{}, &requestLogRecord{}, &idempotencyRecord{},
 		&auditRecord{}, &settingRecord{}, &emailRecord{}, &passwordResetRecord{},
-	}
+	}, subscriptionRecords()...)
 }

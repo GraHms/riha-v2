@@ -347,6 +347,11 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			if err := a.Sessions.Save(ctx, cs); err != nil {
 				return err
 			}
+			if cs.SourceType == domain.SourceSubscription {
+				if err := a.settleCharges(ctx, cs, p); err != nil {
+					return err
+				}
+			}
 			if err := a.emit(ctx, p.MerchantID, p.Livemode, "payment.succeeded", p.ID, domain.PaymentResource(p), cs.CallbackURL); err != nil {
 				return err
 			}
@@ -359,6 +364,11 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 		p.FailureMessage = domain.FailureMessages[o.FailureCode]
 		if err := a.Payments.Save(ctx, p); err != nil {
 			return err
+		}
+		if cs.SourceType == domain.SourceSubscription {
+			if err := a.chargesFailed(ctx, cs, p); err != nil {
+				return err
+			}
 		}
 		return a.emit(ctx, p.MerchantID, p.Livemode, "payment.failed", p.ID, domain.PaymentResource(p), cs.CallbackURL)
 	})

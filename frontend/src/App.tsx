@@ -6,6 +6,15 @@ import { Login, Signup, ForgotPassword, ResetPassword } from './pages/public/Aut
 import Checkout from './pages/public/Checkout'
 import LinkLanding from './pages/public/LinkLanding'
 import { Spinner } from './components/ui'
+import SubsShell from './pages/app/subs/SubsShell'
+import Summary from './pages/app/subs/Summary'
+import { PlanDetail, PlanForm, PlansList } from './pages/app/subs/Plans'
+import Members from './pages/app/subs/Members'
+import Member from './pages/app/subs/Member'
+import Catalog from './pages/app/subs/Catalog'
+import SubsSettings from './pages/app/subs/SubsSettings'
+import { CatalogPage, PlanPage } from './pages/public/subs/Subscribe'
+import Invoice from './pages/public/subs/Invoice'
 
 const Kyc = lazy(() => import('./pages/public/Kyc'))
 const AppShell = lazy(() => import('./pages/app/AppShell'))
@@ -79,6 +88,9 @@ export default function App() {
       <Route path="/verificacao" element={<RequireMerchant><Kyc /></RequireMerchant>} />
       <Route path="/c/:id" element={<Checkout />} />
       <Route path="/p/:merchant/:slug" element={<LinkLanding />} />
+      <Route path="/s/:merchant/:slug" element={<PlanPage />} />
+      <Route path="/a/:merchant" element={<CatalogPage />} />
+      <Route path="/i/:token" element={<Invoice />} />
 
       <Route path="/painel" element={<RequireMerchant><AppShell /></RequireMerchant>}>
         <Route index element={<Overview />} />
@@ -89,6 +101,17 @@ export default function App() {
         <Route path="saldo" element={<Payouts />} />
         <Route path="definicoes" element={<Settings />} />
         <Route path="definicoes/:tab" element={<Settings />} />
+        <Route path="assinaturas" element={<SubsShell />}>
+          <Route index element={<Summary />} />
+          <Route path="planos" element={<PlansList />} />
+          <Route path="planos/novo" element={<PlanForm />} />
+          <Route path="planos/:id" element={<PlanDetail />} />
+          <Route path="planos/:id/editar" element={<PlanForm />} />
+          <Route path="membros" element={<Members />} />
+          <Route path="membros/:id" element={<Member />} />
+          <Route path="catalogo" element={<Catalog />} />
+          <Route path="definicoes" element={<SubsSettings />} />
+        </Route>
       </Route>
 
       <Route path="/admin" element={<RequireAdmin><AdminShell /></RequireAdmin>}>

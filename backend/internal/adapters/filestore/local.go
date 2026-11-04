@@ -11,7 +11,7 @@ import (
 
 type Local struct{ Root string }
 
-func (l Local) Save(_ context.Context, dir, name string, r io.Reader) (string, error) {
+func (l Local) Save(_ context.Context, dir, name, _ string, r io.Reader) (string, error) {
 	folder := filepath.Join(l.Root, filepath.Base(dir))
 	if err := os.MkdirAll(folder, 0o750); err != nil {
 		return "", err
@@ -37,14 +37,14 @@ func (l Local) inside(path string) bool {
 	return err == nil && strings.HasPrefix(abs, root+string(os.PathSeparator))
 }
 
-func (l Local) Read(path string) ([]byte, error) {
+func (l Local) Read(_ context.Context, path string) ([]byte, error) {
 	if !l.inside(path) {
 		return nil, errors.New("path outside store")
 	}
 	return os.ReadFile(path)
 }
 
-func (l Local) Remove(path string) error {
+func (l Local) Remove(_ context.Context, path string) error {
 	if !l.inside(path) {
 		return errors.New("path outside store")
 	}

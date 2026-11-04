@@ -42,6 +42,14 @@ type Deps struct {
 	Mailer       ports.Mailer
 	Emails       ports.Emails
 	Resets       ports.PasswordResets
+	Plans        ports.Plans
+	Members      ports.Members
+	Subs         ports.Subscriptions
+	Charges      ports.Charges
+	Messages     ports.Messages
+	SubSettings  ports.SubscriptionSettingsRepo
+	Messenger    ports.Messenger
+	Sheets       ports.Sheet
 }
 
 type App struct {

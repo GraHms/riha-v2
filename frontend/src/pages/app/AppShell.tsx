@@ -35,6 +35,7 @@ export default function AppShell() {
   const loc = useLocation()
   const nav = useNavigate()
   const [drawer, setDrawer] = useState(false)
+  const [sheet, setSheet] = useState(false)
   const [q, setQ] = useState('')
   const [version, setVersion] = useState(0)
   const m = me!.merchant!
@@ -64,6 +65,8 @@ export default function AppShell() {
         </div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 22 }}>
           {NAV.map(([p, ic, l]) => <button key={p} className={'nav-btn' + (isOn(p) ? ' on' : '')} onClick={() => nav(p)}><Icon name={ic} />{l}</button>)}
+          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', color: 'var(--muted)', padding: '18px 12px 6px' }}>SERVIÇOS</div>
+          <button className={'nav-btn' + (isOn('/painel/assinaturas') ? ' on' : '')} onClick={() => nav('/painel/assinaturas')}><Icon name="repeat" />Assinaturas</button>
         </nav>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -95,11 +98,29 @@ export default function AppShell() {
         <nav className="tabbar">
           <button className={isOn('/painel') ? 'on' : ''} onClick={() => nav('/painel')}><Icon name="home" size={22} />Início</button>
           <button className={isOn('/painel/transacoes') ? 'on' : ''} onClick={() => nav('/painel/transacoes')}><Icon name="txns" size={22} />Transações</button>
-          <button className="fab" onClick={openNewLink} aria-label="Criar link"><Icon name="plus" size={24} stroke={2.4} /></button>
+          <button className="fab" onClick={() => setSheet(true)} aria-label="Criar"><Icon name="plus" size={24} stroke={2.4} /></button>
           <button className={isOn('/painel/saldo') ? 'on' : ''} onClick={() => nav('/painel/saldo')}><Icon name="wallet" size={22} />Saldo</button>
           <button className={isOn('/painel/definicoes') || isOn('/painel/links') ? 'on' : ''} onClick={() => nav('/painel/definicoes')}><Icon name="settings" size={22} />Definições</button>
         </nav>
       </div>
+      {sheet && (
+        <div className="drawer-wrap" style={{ alignItems: 'flex-end' }} onClick={() => setSheet(false)}>
+          <div className="drawer-bg" />
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: '100%', background: 'var(--paper)', borderRadius: '26px 26px 0 0', padding: '10px 18px calc(22px + env(safe-area-inset-bottom))' }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: '#D6D4CB', margin: '0 auto 14px' }} />
+            <button onClick={() => { setSheet(false); openNewLink() }} style={{ width: '100%', display: 'flex', gap: 14, alignItems: 'center', padding: 16, borderRadius: 18, border: 0, background: 'var(--green)', color: '#fff', textAlign: 'left' }}>
+              <span style={{ width: 42, height: 42, borderRadius: 13, background: 'rgba(255,255,255,.16)', display: 'grid', placeItems: 'center' }}><Icon name="link" size={20} /></span>
+              <span><b style={{ display: 'block', fontSize: 16 }}>Novo link de pagamento</b><span style={{ fontSize: 13, opacity: .85 }}>Um valor, pago uma vez.</span></span>
+            </button>
+            <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', color: 'var(--muted)', margin: '18px 4px 8px' }}>SERVIÇOS</div>
+            <button onClick={() => { setSheet(false); nav('/painel/assinaturas') }} className="card" style={{ width: '100%', display: 'flex', gap: 14, alignItems: 'center', padding: 16, borderRadius: 18, textAlign: 'left', border: '1px solid var(--line)' }}>
+              <span style={{ width: 42, height: 42, borderRadius: 13, background: 'var(--green-bg)', color: 'var(--green)', display: 'grid', placeItems: 'center' }}><Icon name="repeat" size={20} /></span>
+              <span style={{ flex: 1 }}><b style={{ display: 'block', fontSize: 16 }}>Assinaturas</b><span style={{ fontSize: 13, color: 'var(--muted)' }}>Planos, membros e catálogo</span></span>
+              <Icon name="chevronRight" size={16} />
+            </button>
+          </div>
+        </div>
+      )}
       {drawer && <NewLinkDrawer onClose={() => { setDrawer(false); setVersion(v => v + 1) }} />}
     </div>
   )

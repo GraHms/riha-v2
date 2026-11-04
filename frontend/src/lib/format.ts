@@ -77,6 +77,7 @@ export const SOURCE: Record<string, { t: string; bg: string; fg: string }> = {
   payment_link: { t: 'Link', bg: '#E2F3DE', fg: '#0A6B05' },
   qr: { t: 'QR', bg: '#FFF3C4', fg: '#7A5A00' },
   dashboard: { t: 'Painel', bg: '#EDECE6', fg: '#3E4742' },
+  subscription: { t: 'Assinatura', bg: '#E6ECFB', fg: '#2A4AA8' },
 }
 
 export const PAYOUT_STATUS: Record<string, { t: string; bg: string; fg: string }> = {
