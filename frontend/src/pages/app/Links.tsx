@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { api, errMsg } from '../../lib/api'
-import { useData } from '../../lib/useData'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useQuery } from '../../core/useQuery'
 import { copy, fmt, shortDate } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Drawer, Icon, MethodIcon, Pill, Skeleton, Toggle } from '../../components/ui'
@@ -19,13 +20,14 @@ function linkState(l: LinkObj) {
 export default function Links() {
   const { openNewLink, version } = useShell()
   const { toast } = useSession()
-  const { data, reload } = useData<{ data: LinkObj[] }>('/links', [version])
+  const g = useGateway()
+  const { data, reload } = useQuery(g => g.links.list(), [version])
   const [copied, setCopied] = useState('')
   const [share, setShare] = useState<LinkObj | null>(null)
   const links = data?.data || []
   const doCopy = async (l: LinkObj) => { await copy(l.url); setCopied(l.id); setTimeout(() => setCopied(''), 1500) }
   const setActive = async (l: LinkObj, active: boolean) => {
-    try { await api('/links/' + l.id, { method: 'PATCH', body: { active } }); toast(active ? 'Link ativado' : 'Link desativado'); reload() } catch (e) { toast(errMsg(e), true) }
+    try { await g.links.update(l.id, { active }); toast(active ? 'Link ativado' : 'Link desativado'); reload() } catch (e) { toast(errMsg(e), true) }
   }
   const methods = (l: LinkObj) => (
     <div style={{ display: 'flex', gap: 4 }}>{['mpesa', 'emola', 'card'].map(m => <span key={m} style={{ opacity: l.payment_method_types.includes(m) ? 1 : 0.25 }}><MethodIcon method={m} size={22} radius={7} /></span>)}</div>

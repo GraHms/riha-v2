@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, errMsg } from '../../lib/api'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
 import { useSession } from '../../lib/session'
-import { useData } from '../../lib/useData'
+import { useQuery } from '../../core/useQuery'
 import { Icon, Spinner } from '../../components/ui'
 import { AuthLayout } from './Auth'
 
@@ -18,13 +19,13 @@ const VOLUMES = ['Até 50 mil MT/mês', '50 – 150 mil MT/mês', '150 – 300 m
 export const fileSize = (n: number) => (n > 1e6 ? (n / 1e6).toFixed(1).replace('.', ',') + ' MB' : Math.round(n / 1000) + ' KB')
 
 export function DocRow({ kind, title, hint, doc, onUploaded, last }: { kind: string; title: string; hint: string; doc?: Doc; onUploaded: () => void; last?: boolean }) {
+  const g = useGateway()
   const ref = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const upload = async (f: File) => {
-    const fd = new FormData(); fd.append('kind', kind); fd.append('file', f)
-    setBusy(true); setErr('')
-    try { await api('/merchant/kyc/documents', { form: fd }); onUploaded() } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+        setBusy(true); setErr('')
+    try { await g.merchant.uploadDocument(kind, f); onUploaded() } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   return (
     <>
@@ -47,10 +48,11 @@ export function DocRow({ kind, title, hint, doc, onUploaded, last }: { kind: str
 }
 
 export default function Kyc() {
+  const g = useGateway()
   const nav = useNavigate()
   const { refresh, toast } = useSession()
-  const kyc = useData<any>('/merchant/kyc')
-  const bank = useData<any>('/bank-account')
+  const kyc = useQuery(g => g.merchant.kyc())
+  const bank = useQuery(g => g.merchant.bankAccount())
   const [f, setF] = useState({ business_type: 'individual', nuit: '', legal_name: '', city: '', expected_volume: VOLUMES[0] })
   const [b, setB] = useState({ bank_name: 'BCI', holder: '', nib: '' })
   const [err, setErr] = useState('')
@@ -74,9 +76,9 @@ export default function Kyc() {
   const submit = async () => {
     setBusy(true); setErr('')
     try {
-      await api('/merchant/kyc', { body: { ...f, nuit: nuitDigits } })
-      if (b.nib.replace(/\D/g, '')) await api('/bank-account', { method: 'PUT', body: { ...b, nib: b.nib.replace(/\D/g, '') } })
-      await api('/merchant/kyc/submit', { method: 'POST' })
+      await g.merchant.saveKyc({ ...f, nuit: nuitDigits })
+      if (b.nib.replace(/\D/g, '')) await g.merchant.saveBankAccount({ ...b, nib: b.nib.replace(/\D/g, '') })
+      await g.merchant.submitKyc()
       await refresh()
       toast('Verificação submetida. Avisamos por SMS.')
       nav('/painel')

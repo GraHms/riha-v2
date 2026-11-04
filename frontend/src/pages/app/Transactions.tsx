@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, errMsg } from '../../lib/api'
-import { useData } from '../../lib/useData'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useQuery } from '../../core/useQuery'
 import { bpsLabel, fmt, fullDate, methodLine, parseMT, relDate, SOURCE, STATUS } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Icon, MethodIcon, Modal, Pill, Skeleton, Spinner } from '../../components/ui'
@@ -12,6 +13,7 @@ const TABS: [string, string][] = [['all', 'Todas'], ['paid', 'Pagas'], ['pending
 const GRID = 'minmax(0,1.4fr) 70px minmax(0,1.1fr) 120px 110px 120px'
 
 export default function Transactions() {
+  const g = useGateway()
   const { id } = useParams()
   const [sp, setSp] = useSearchParams()
   const nav = useNavigate()
@@ -20,8 +22,9 @@ export default function Transactions() {
   const q = sp.get('q') || ''
   const [search, setSearch] = useState(q)
   useEffect(() => setSearch(q), [q])
+  const filter = { status: tab, q, limit: 100 }
   const qs = new URLSearchParams({ status: tab === 'all' ? '' : tab, q, limit: '100' }).toString()
-  const { data, loading, reload } = useData<any>('/payments?' + qs, [version], 8000)
+  const { data, loading, reload } = useQuery(g => g.payments.list(filter), [qs, version], 8000)
   const rows: any[] = data?.data || []
   const setParam = (k: string, v: string) => { const n = new URLSearchParams(sp); if (v) n.set(k, v); else n.delete(k); setSp(n) }
   const open = (pid: string) => nav('/painel/transacoes/' + pid + (sp.toString() ? '?' + sp : ''))
@@ -36,7 +39,7 @@ export default function Transactions() {
             <form className="only-desktop" onSubmit={e => { e.preventDefault(); setParam('q', search) }}>
               <input className="input" style={{ height: 40, width: 220 }} placeholder="Nome, referência, pedido" value={search} onChange={e => setSearch(e.target.value)} />
             </form>
-            <a className="btn btn-outline only-desktop" style={{ height: 40, fontWeight: 500, fontSize: 14 }} href={'/api/payments/export.csv?' + qs} download><Icon name="download" size={16} stroke={2} />Exportar CSV</a>
+            <a className="btn btn-outline only-desktop" style={{ height: 40, fontWeight: 500, fontSize: 14 }} href={g.payments.exportUrl(filter)} download><Icon name="download" size={16} stroke={2} />Exportar CSV</a>
           </div>
         </div>
         <form className="only-mobile" style={{ marginTop: 14 }} onSubmit={e => { e.preventDefault(); setParam('q', search) }}>
@@ -78,27 +81,28 @@ export default function Transactions() {
 }
 
 function Detail({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+  const g = useGateway()
   const { toast } = useSession()
-  const { data: p, reload } = useData<any>('/payments/' + id, [id], 5000)
+  const { data: p, reload } = useQuery(g => g.payments.get(id), [id], 5000)
   const [refund, setRefund] = useState(false)
   useEffect(() => { const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h) }, [onClose])
 
   const body = !p ? <div style={{ padding: 24 }}><Skeleton h={40} w="60%" /><Skeleton h={18} style={{ marginTop: 16 }} /><Skeleton h={200} style={{ marginTop: 16 }} /></div> : (() => {
     const st = STATUS[p.status] || STATUS.processing, src = SOURCE[p.source.type] || SOURCE.payment_link
     const failed = p.status === 'failed', api_ = p.source.type === 'api_checkout'
-    const g = 'var(--green)', y = '#E0A800', r = 'var(--red)', n = '#D6D4CB'
+    const ok = 'var(--green)', y = '#E0A800', r = 'var(--red)', n = '#D6D4CB'
     const created = relDate(p.created_at), done = p.succeeded_at ? relDate(p.succeeded_at) : created
     const push = p.method === 'card' ? 'Pedido enviado ao banco emissor' : 'Pedido de PIN enviado ao telemóvel'
     const cb = (p.deliveries || []).filter((d: any) => d.target === 'callback_url')
     const cbDone = cb.find((d: any) => d.status === 'succeeded')
     let steps: [string, string, string][]
-    if (p.status === 'processing') steps = [[api_ ? 'Sessão criada via API' : 'Checkout aberto pelo cliente', created, g], [push, created, g], ['A aguardar o cliente', 'Expira em poucos minutos', y], ['Creditado no saldo', '—', n]]
-    else if (failed) steps = [[api_ ? 'Sessão criada via API' : 'Checkout aberto pelo cliente', created, g], [push, created, g], ['Falhou: ' + (p.failure_code || '').replace(/_/g, ' '), p.failed_at ? relDate(p.failed_at) : created, r]]
+    if (p.status === 'processing') steps = [[api_ ? 'Sessão criada via API' : 'Checkout aberto pelo cliente', created, ok], [push, created, ok], ['A aguardar o cliente', 'Expira em poucos minutos', y], ['Creditado no saldo', '—', n]]
+    else if (failed) steps = [[api_ ? 'Sessão criada via API' : 'Checkout aberto pelo cliente', created, ok], [push, created, ok], ['Falhou: ' + (p.failure_code || '').replace(/_/g, ' '), p.failed_at ? relDate(p.failed_at) : created, r]]
     else {
-      steps = [[api_ ? 'Sessão criada via API' : p.source.type === 'qr' ? 'QR digitalizado pelo cliente' : 'Link aberto pelo cliente', created, g], [push, created, g], ['Confirmado pelo cliente', done, g]]
-      if (p.session?.callback_url) steps.push([cbDone ? `callback_url notificado · ${cbDone.last_status_code} OK` : cb.length ? `callback_url · ${cb[0].status === 'failed' ? 'falhou' : 'a tentar'}` : 'callback_url por notificar', cbDone ? relDate(cbDone.updated_at) : '—', cbDone ? g : y])
-      if (p.session?.success_url) steps.push(['Cliente redirecionado para success_url', done, g])
-      steps.push(['Creditado no saldo', done, g])
+      steps = [[api_ ? 'Sessão criada via API' : p.source.type === 'qr' ? 'QR digitalizado pelo cliente' : 'Link aberto pelo cliente', created, ok], [push, created, ok], ['Confirmado pelo cliente', done, ok]]
+      if (p.session?.callback_url) steps.push([cbDone ? `callback_url notificado · ${cbDone.last_status_code} OK` : cb.length ? `callback_url · ${cb[0].status === 'failed' ? 'falhou' : 'a tentar'}` : 'callback_url por notificar', cbDone ? relDate(cbDone.updated_at) : '—', cbDone ? ok : y])
+      if (p.session?.success_url) steps.push(['Cliente redirecionado para success_url', done, ok])
+      steps.push(['Creditado no saldo', done, ok])
       for (const rf of p.refunds || []) steps.push([`Reembolso de ${fmt(rf.amount)} MT`, relDate(rf.created * 1000), n])
     }
     const mono = "'Geist Mono',monospace"
@@ -146,7 +150,7 @@ function Detail({ id, onClose, onChanged }: { id: string; onClose: () => void; o
           <div className="between" style={{ padding: '10px 0' }}><span className="muted">Líquido</span><span className="tnum" style={{ fontWeight: 600 }}>{failed ? '—' : fmt(p.net - p.amount_refunded) + ' MT'}</span></div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <button className="btn btn-outline" style={{ flex: 1 }} disabled={p.status !== 'succeeded'} onClick={async () => { const r = await api<any>(`/payments/${p.id}/receipt`, { method: 'POST' }); toast(r.message) }}>Enviar recibo</button>
+          <button className="btn btn-outline" style={{ flex: 1 }} disabled={p.status !== 'succeeded'} onClick={async () => { const r = await g.payments.sendReceipt(p.id); toast(r.message) }}>Enviar recibo</button>
           {refundable && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setRefund(true)}>Reembolsar</button>}
         </div>
         {refund && <RefundModal p={p} onClose={() => setRefund(false)} onDone={() => { setRefund(false); reload(); onChanged() }} />}
@@ -169,6 +173,7 @@ function uaShort(ua: string) {
 }
 
 function RefundModal({ p, onClose, onDone }: { p: any; onClose: () => void; onDone: () => void }) {
+  const g = useGateway()
   const { toast } = useSession()
   const max = p.amount - p.amount_refunded
   const [amount, setAmount] = useState(fmt(max).replace(/\u00A0/g, ''))
@@ -177,7 +182,7 @@ function RefundModal({ p, onClose, onDone }: { p: any; onClose: () => void; onDo
   const [busy, setBusy] = useState(false)
   const go = async () => {
     setBusy(true); setErr('')
-    try { await api(`/payments/${p.id}/refund`, { body: { amount: parseMT(amount), reason } }); toast('Reembolso concluído'); onDone() }
+    try { await g.payments.refund(p.id, parseMT(amount), reason); toast('Reembolso concluído'); onDone() }
     catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   return (

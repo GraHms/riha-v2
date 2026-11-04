@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useData } from '../../lib/useData'
+import { useQuery } from '../../core/useQuery'
 import { bpsLabel, fmt, METHOD_NAME, MERCHANT_STATUS, monthName } from '../../lib/format'
 import { Avatar, Pill } from '../../components/ui'
 
@@ -12,7 +12,7 @@ export default function Merchants() {
   const [sp] = useSearchParams()
   const [tab, setTab] = useState('')
   const q = sp.get('q') || ''
-  const { data } = useData<any>(`/admin/merchants?status=${tab}&q=${encodeURIComponent(q)}`, [tab, q])
+  const { data } = useQuery(g => g.admin.merchants(tab, q), [tab, q])
   const rows: any[] = data?.data || []
   return (
     <div className="page">

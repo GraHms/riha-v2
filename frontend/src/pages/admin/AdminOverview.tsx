@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useData } from '../../lib/useData'
+import { useQuery } from '../../core/useQuery'
 import { fmt, shortDate } from '../../lib/format'
 import { Avatar, Icon, MethodIcon, Pill, Skeleton, Stripes } from '../../components/ui'
 import { RiskPill, SlaBar, submittedAgo } from './common'
@@ -8,7 +8,7 @@ const HEALTH: Record<string, [string, string, string]> = { operational: ['Operac
 
 export default function AdminOverview() {
   const nav = useNavigate()
-  const { data: d } = useData<any>('/admin/overview', [], 15000)
+  const { data: d } = useQuery(g => g.admin.overview(), [], 15000)
   if (!d) return <div className="page"><Skeleton h={40} w={300} /><Skeleton h={120} style={{ marginTop: 22 }} /></div>
   const growth = d.volume_week_ago > 0 ? Math.round(((d.volume_today - d.volume_week_ago) / d.volume_week_ago) * 100) : null
   const rate = d.tx_today ? ((d.tx_ok_today / d.tx_today) * 100).toFixed(1).replace('.', ',') : '—'

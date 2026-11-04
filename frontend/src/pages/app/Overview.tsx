@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useData } from '../../lib/useData'
+import { useQuery } from '../../core/useQuery'
 import { fmt, greeting, longToday, methodLine, monthName, PAYOUT_STATUS, shortDate, SOURCE, STATUS, weekday } from '../../lib/format'
 import { Bars, Icon, MethodIcon, Pill, Skeleton, Stripes } from '../../components/ui'
 import { useShell } from './AppShell'
@@ -45,8 +45,8 @@ export default function Overview() {
   const { openNewLink, merchant, version } = useShell()
   const nav = useNavigate()
   const [days, setDays] = useState(30)
-  const { data: d } = useData<any>(`/overview?days=${days}`, [version], 15000)
-  const mobile = useData<any>(`/overview?days=7`, [version], 15000).data
+  const { data: d } = useQuery(g => g.payments.overview(days), [days, version], 15000)
+  const mobile = useQuery(g => g.payments.overview(7), [version], 15000).data
 
   const change = (o: any) => (o && o.previous > 0 ? Math.round(((o.received - o.previous) / o.previous) * 100) : null)
   const ch = change(d)

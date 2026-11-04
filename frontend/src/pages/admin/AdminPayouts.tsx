@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { api, errMsg } from '../../lib/api'
-import { useData } from '../../lib/useData'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useQuery } from '../../core/useQuery'
 import { fmt, PAYOUT_STATUS, relDate } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Icon, Modal, Pill, Spinner } from '../../components/ui'
@@ -12,12 +13,13 @@ const ST = { ...PAYOUT_STATUS, paid: { t: 'Pago', bg: '#E2F3DE', fg: '#0A6B05' }
 
 export default function AdminPayouts() {
   const { toast } = useSession()
+  const g = useGateway()
   const [tab, setTab] = useState('pending')
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState(false)
   const [reject, setReject] = useState<{ ids: string[]; action: 'reject' | 'fail' } | null>(null)
   const [reason, setReason] = useState('')
-  const { data, reload } = useData<any>('/admin/payouts?tab=' + tab, [tab], 15000)
+  const { data, reload } = useQuery(g => g.admin.payouts(tab), [tab], 15000)
   const rows: any[] = data?.data || []
   const st = data?.stats
   const ids = rows.filter(p => picked[p.id]).map(p => p.id)
@@ -27,13 +29,13 @@ export default function AdminPayouts() {
   const act = async (list: string[], action: string, why = '') => {
     setBusy(true)
     try {
-      const r = await api<any>('/admin/payouts/action', { body: { ids: list, action, reason: why } })
+      const r = await g.admin.payoutAction(list, action, why)
       const verb: Record<string, string> = { approve: 'aprovados e enviados ao banco', paid: 'marcados como pagos', reject: 'rejeitados. O saldo volta aos comerciantes.', fail: 'marcados como falhados. O saldo volta aos comerciantes.' }
       toast(r.failed.length ? `${r.done.length} concluídos, ${r.failed.length} com erro: ${r.failed[0].error}` : r.done.length === 1 ? `${r.done[0]} ${verb[action].replace(/os\b/g, 'o').replace('marcados', 'marcado').replace('rejeitados', 'rejeitado')}` : `${r.done.length} ${verb[action]}`, r.failed.length > 0)
       setPicked({}); reload()
     } catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
   }
-  const exportFile = (list: string[]) => { window.location.href = '/api/admin/payouts/export.csv' + (list.length ? '?ids=' + list.join(',') : ''); toast(`Ficheiro bancário exportado (${list.length || 'todas as'} transferências)`) }
+  const exportFile = (list: string[]) => { window.location.href = g.admin.payoutExportUrl(list); toast(`Ficheiro bancário exportado (${list.length || 'todas as'} transferências)`) }
   const box = (on: boolean, onClick: () => void) => <button onClick={onClick} aria-pressed={on} style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${on ? 'var(--green)' : '#CFCDC4'}`, background: on ? 'var(--green)' : '#fff', padding: 0, display: 'grid', placeItems: 'center' }}>{on && <Icon name="check" size={11} stroke={3.4} color="#fff" />}</button>
 
   return (

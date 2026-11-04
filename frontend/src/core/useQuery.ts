@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, errMsg } from './api'
+import { errMsg } from './model'
+import type { Gateway } from './ports'
+import { useGateway } from './gateway'
 
-export function useData<T = any>(path: string | null, deps: unknown[] = [], pollMs = 0) {
+export function useQuery<T>(fetcher: ((g: Gateway) => Promise<T>) | null, deps: unknown[] = [], pollMs = 0) {
+  const g = useGateway()
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const seq = useRef(0)
+  const fn = useRef(fetcher)
+  fn.current = fetcher
   const load = useCallback(async (quiet = false) => {
-    if (!path) return
+    if (!fn.current) return
     const n = ++seq.current
     if (!quiet) setLoading(true)
-    try { const d = await api<T>(path); if (n === seq.current) { setData(d); setError(null) } }
+    try { const d = await fn.current(g); if (n === seq.current) { setData(d); setError(null) } }
     catch (e) { if (n === seq.current) setError(errMsg(e)) }
     finally { if (n === seq.current) setLoading(false) }
-  }, [path]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [g])
   useEffect(() => { load() }, [load, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!pollMs) return

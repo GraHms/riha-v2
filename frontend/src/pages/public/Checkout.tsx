@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { api, errMsg, type ApiError } from '../../lib/api'
+import { errMsg, type ApiError } from '../../core/model'
+import { useGateway } from '../../core/gateway'
 import { fmt, fullDate, METHOD_NAME } from '../../lib/format'
 import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 
@@ -22,6 +23,7 @@ function fmtCard(v: string) { return v.replace(/\D/g, '').slice(0, 19).replace(/
 function fmtExp(v: string) { const d = v.replace(/\D/g, '').slice(0, 4); return d.length > 2 ? d.slice(0, 2) + ' / ' + d.slice(2) : d }
 
 export default function Checkout() {
+  const g = useGateway()
   const { id } = useParams()
   const [s, setS] = useState<Session | null>(null)
   const [loadErr, setLoadErr] = useState('')
@@ -37,7 +39,7 @@ export default function Checkout() {
 
   const load = async () => {
     try {
-      const d = await api<Session>('/public/checkout/' + id)
+      const d = await g.checkout.session(id!)
       setS(d)
       return d
     } catch (e) { setLoadErr(errMsg(e)); return null }
@@ -78,7 +80,7 @@ export default function Checkout() {
       const body = method === 'card'
         ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name }
         : { method, phone: phone.replace(/\D/g, '') }
-      const d = await api<Session>(`/public/checkout/${s.id}/pay`, { body })
+      const d = await g.checkout.pay(s.id, body)
       setS(d)
       if (d.status === 'complete') setView('done')
       else if (d.payment?.status === 'processing') { startRef.current = Date.now(); setTick(0); setView('confirm') }

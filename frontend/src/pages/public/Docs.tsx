@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../../components/ui'
-import { api } from '../../lib/api'
+import { useGateway } from '../../core/gateway'
 import { bpsLabel } from '../../lib/format'
 
 const DISPLAY = "'Bricolage Grotesque', sans-serif"
@@ -475,6 +475,7 @@ const EVENTS = ['checkout.session.completed', 'checkout.session.expired', 'payme
 const RETRIES = ['0', '5 min', '30 min', '2 h', '5 h', '10 h', '24 h', '72 h']
 
 export default function Docs() {
+  const g = useGateway()
   const [lang, setLang] = useState('cURL')
   const [menu, setMenu] = useState(false)
   const [active, setActive] = useScrollSpy()
@@ -482,7 +483,7 @@ export default function Docs() {
 
   useEffect(() => {
     let alive = true
-    api<{ default_fee_bps: number }>('/public/pricing')
+    g.checkout.pricing()
       .then(d => { if (alive && typeof d?.default_fee_bps === 'number') setBps(d.default_fee_bps) })
       .catch(() => {})
     return () => { alive = false }

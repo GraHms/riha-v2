@@ -1,13 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { api, getMode, setModeHeader } from './api'
+import { useGateway } from '../core/gateway'
+import type { Me } from '../core/model'
 
-export type Merchant = {
-  id: string; slug: string; name: string; legal_name: string; business_type: string; nuit: string; phone: string; email: string
-  city: string; owner_name: string; status: string; fee_bps: number; fee_negotiated: boolean; fee_label: string
-  statement_descriptor: string; avatar_color: string; success_url: string; cancel_url: string; sms_notifications: boolean
-  approved_at: string | null; kyc_submitted_at: string | null; review_note: string; expected_volume: string; created_at: string
-}
-export type Me = { user: { id: string; email: string; name: string; role: string; title: string }; merchant?: Merchant; default_fee_bps: number }
+export type { Me, Merchant } from '../core/model'
 
 type Ctx = {
   me: Me | null; loading: boolean; refresh: () => Promise<Me | null>; setMe: (m: Me | null) => void
@@ -18,24 +13,21 @@ const C = createContext<Ctx>(null as unknown as Ctx)
 export const useSession = () => useContext(C)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const g = useGateway()
   const [me, setMe] = useState<Me | null>(null)
   const [loading, setLoading] = useState(true)
-  const [live, setLiveState] = useState(getMode() === 'live')
+  const [live, setLiveState] = useState(g.mode.get() === 'live')
   const [t, setT] = useState<{ msg: string; err?: boolean } | null>(null)
 
   const refresh = useCallback(async () => {
-    try { const m = await api<Me>('/auth/me'); setMe(m); return m } catch { setMe(null); return null } finally { setLoading(false) }
-  }, [])
+    try { const m = await g.auth.me(); setMe(m); return m } catch { setMe(null); return null } finally { setLoading(false) }
+  }, [g])
   useEffect(() => { refresh() }, [refresh])
-  useEffect(() => {
-    const h = () => setMe(null)
-    window.addEventListener('riha:unauthorized', h)
-    return () => window.removeEventListener('riha:unauthorized', h)
-  }, [])
+  useEffect(() => g.onUnauthorized(() => setMe(null)), [g])
   useEffect(() => { if (!t) return; const id = setTimeout(() => setT(null), 2600); return () => clearTimeout(id) }, [t])
 
-  const setLive = (v: boolean) => { setModeHeader(v ? 'live' : 'test'); setLiveState(v) }
-  const logout = async () => { try { await api('/auth/logout', { method: 'POST' }) } finally { setMe(null) } }
+  const setLive = (v: boolean) => { g.mode.set(v ? 'live' : 'test'); setLiveState(v) }
+  const logout = async () => { try { await g.auth.logout() } finally { setMe(null) } }
   const toast = (msg: string, err?: boolean) => setT({ msg, err })
 
   return (

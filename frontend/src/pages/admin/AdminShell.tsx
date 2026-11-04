@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../../lib/session'
-import { useData } from '../../lib/useData'
+import { useQuery } from '../../core/useQuery'
 import { Avatar, Icon, Logo } from '../../components/ui'
 import { initials } from '../../lib/format'
 
@@ -8,7 +8,7 @@ export default function AdminShell() {
   const { me, logout } = useSession()
   const nav = useNavigate()
   const path = useLocation().pathname
-  const { data } = useData<any>('/admin/overview', [path], 30000)
+  const { data } = useQuery(g => g.admin.overview(), [path], 30000)
   const on = (p: string) => (p === '/admin' ? path === '/admin' : path.startsWith(p))
   const items: [string, string, string, number | undefined][] = [
     ['/admin', 'chart', 'Visão geral', undefined],

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, errMsg } from '../../lib/api'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
 import { fmt, parseMT } from '../../lib/format'
 import { Avatar, Icon, Spinner } from '../../components/ui'
 
 type Link = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; merchant: { name: string; initials: string; avatar_color: string } }
 
 export default function LinkLanding() {
+  const g = useGateway()
   const { merchant, slug } = useParams()
   const [sp] = useSearchParams()
   const nav = useNavigate()
@@ -19,13 +21,13 @@ export default function LinkLanding() {
   const open = async (centavos: number) => {
     setBusy(true); setErr('')
     try {
-      const r = await api<{ id: string }>(`/public/links/${merchant}/${slug}/sessions`, { body: { amount: centavos, channel } })
+      const r = await g.checkout.openLink(merchant!, slug!, centavos, channel)
       nav('/c/' + r.id, { replace: true })
     } catch (e) { setErr(errMsg(e)); setBusy(false) }
   }
 
   useEffect(() => {
-    api<Link>(`/public/links/${merchant}/${slug}`).then(l => {
+    g.checkout.link(merchant!, slug!).then(l => {
       setLink(l)
       if (l.active && !l.custom_amount) open(l.amount)
     }).catch(e => setErr(errMsg(e)))

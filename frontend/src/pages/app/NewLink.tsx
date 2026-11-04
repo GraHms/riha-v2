@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { api, errMsg } from '../../lib/api'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
 import { copy, fmt, METHOD_NAME, parseMT } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Icon, MethodIcon, QR, Spinner, Toggle } from '../../components/ui'
@@ -10,6 +11,7 @@ const EXPIRY: [string, number][] = [['Nunca', 0], ['24 horas', 1], ['7 dias', 7]
 
 export function useLinkForm(onCreated: (l: LinkObj) => void) {
   const { me, toast } = useSession()
+  const g = useGateway()
   const bps = me?.merchant?.fee_bps ?? 600
   const [amount, setAmount] = useState('1250')
   const [name, setName] = useState('')
@@ -28,7 +30,7 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
       const body: Record<string, unknown> = { name, custom_amount: custom, reusable, payment_method_types: methods, type: kind }
       if (!custom) body.amount = c
       if (exp) body.expires_at = Math.floor(Date.now() / 1000) + exp * 86400
-      const l = await api<LinkObj>('/links', { body })
+      const l = await g.links.create(body)
       toast('Link criado')
       onCreated(l)
     } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }

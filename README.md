@@ -32,6 +32,21 @@ backend/
 
 The core imports nothing from `adapters`, gin or GORM. A real M-Pesa or e-Mola integration is a new adapter implementing `ports.Rail`; S3 storage is a new `ports.FileStore`.
 
+## Frontend architecture
+
+```
+frontend/src/
+  core/model.ts          shared types (Merchant, PaymentLink, CheckoutSession, ApiError)
+  core/ports.ts          Gateway interface: auth, merchant, payments, links, payouts, developers, checkout, admin
+  core/gateway.tsx       React context that provides the Gateway
+  core/useQuery.ts       data hook that calls the Gateway (polling, reload)
+  adapters/http/         Transport (fetch, cookie session, X-Riha-Mode, CSRF header) and httpGateway implementing the ports
+  lib/                   session state and pure formatting helpers
+  pages/, components/    UI; pages talk only to the Gateway, never to URLs
+```
+
+`main.tsx` injects `httpGateway()`. A mock gateway for Storybook or tests is a drop-in replacement.
+
 ## Running it
 
 ```bash

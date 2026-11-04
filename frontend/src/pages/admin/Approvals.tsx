@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { api, errMsg } from '../../lib/api'
-import { useData } from '../../lib/useData'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useQuery } from '../../core/useQuery'
 import { useSession } from '../../lib/session'
 import { Avatar, Icon, Pill, Spinner } from '../../components/ui'
 import { fileSize } from '../public/Kyc'
@@ -12,8 +13,9 @@ const CK: Record<string, [string, string, string]> = { ok: ['✓', '#E2F3DE', '#
 
 export default function Approvals() {
   const { toast } = useSession()
+  const g = useGateway()
   const [sp, setSp] = useSearchParams()
-  const { data, reload } = useData<any>('/admin/approvals')
+  const { data, reload } = useQuery(g => g.admin.approvals())
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState('')
   const list: any[] = data?.data || []
@@ -26,7 +28,7 @@ export default function Approvals() {
     if (decision === 'reject' && !note.trim()) { toast('Escreva o motivo na nota interna antes de rejeitar.', true); return }
     setBusy(decision)
     try {
-      await api(`/admin/merchants/${app.id}/decision`, { body: { decision, note } })
+      await g.admin.decide(app.id, decision, note)
       toast(`${msg}: ${app.name}`)
       const next = list.find(a => a.id !== app.id && a.status === 'in_review')
       setSp(next ? { id: next.id } : {})
@@ -80,7 +82,7 @@ export default function Approvals() {
             <div className="eyebrow" style={{ margin: '24px 0 10px' }}>Documentos</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12 }}>
               {app.documents.map((d: any) => (
-                <a key={d.id} href={`/api/admin/documents/${d.id}`} target="_blank" rel="noreferrer" className="card" style={{ borderRadius: 16, overflow: 'hidden', color: 'var(--ink)' }}>
+                <a key={d.id} href={g.admin.documentUrl(d.id)} target="_blank" rel="noreferrer" className="card" style={{ borderRadius: 16, overflow: 'hidden', color: 'var(--ink)' }}>
                   <div className="mono" style={{ height: 110, background: 'repeating-linear-gradient(135deg,#F0EEE8 0 10px,#F7F6F2 10px 20px)', display: 'grid', placeItems: 'center', fontSize: 11.5, color: 'var(--muted-2)', padding: 8, textAlign: 'center', wordBreak: 'break-all' }}>{d.file_name}<br />{fileSize(d.size)}</div>
                   <div className="between" style={{ padding: '10px 12px' }}><span style={{ fontWeight: 600, fontSize: 13 }}>{DOC_LABEL[d.kind] || d.kind}</span><span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green-text)' }}>Abrir</span></div>
                 </a>

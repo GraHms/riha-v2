@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, errMsg } from '../../lib/api'
-import { useData } from '../../lib/useData'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useQuery } from '../../core/useQuery'
 import { fmt, monthName, parseMT, PAYOUT_STATUS, relDate, shortDate, weekday } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Icon, Pill, Spinner, Stripes } from '../../components/ui'
@@ -12,10 +13,11 @@ const GRID = '100px minmax(0,1fr) 130px 130px 120px'
 export default function Payouts() {
   const { version, bump, merchant, live } = useShell()
   const { toast } = useSession()
+  const g = useGateway()
   const nav = useNavigate()
-  const bal = useData<any>('/balance', [version], 10000)
-  const list = useData<any>('/payouts', [version], 10000)
-  const bank = useData<any>('/bank-account', [version])
+  const bal = useQuery(g => g.payouts.balance(), [version], 10000)
+  const list = useQuery(g => g.payouts.list(), [version], 10000)
+  const bank = useQuery(g => g.merchant.bankAccount(), [version])
   const [w, setW] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -30,7 +32,7 @@ export default function Payouts() {
 
   const request = async () => {
     setBusy(true); setErr('')
-    try { const p = await api<any>('/payouts', { body: { amount: amt } }); toast(`Levantamento ${p.reference} pedido`); setW(''); bump() }
+    try { const p = await g.payouts.request(amt); toast(`Levantamento ${p.reference} pedido`); setW(''); bump() }
     catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   const now = new Date()

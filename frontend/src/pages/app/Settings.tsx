@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, errMsg } from '../../lib/api'
-import { useData } from '../../lib/useData'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useQuery } from '../../core/useQuery'
 import { ago, copy, fullDate, initials, shortDate } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Avatar, Check, Icon, Modal, Spinner, Stripes, Toggle } from '../../components/ui'
@@ -77,14 +78,15 @@ function Card({ children, style }: { children: ReactNode; style?: React.CSSPrope
 }
 
 function Business() {
+  const g = useGateway()
   const { me, refresh, toast } = useSession()
   const m = me!.merchant!
-  const kyc = useData<any>('/merchant/kyc')
+  const kyc = useQuery(g => g.merchant.kyc())
   const [f, setF] = useState({ name: m.name, legal_name: m.legal_name, phone: m.phone, city: m.city, statement_descriptor: m.statement_descriptor, sms_notifications: m.sms_notifications })
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
-    try { await api('/merchant', { method: 'PATCH', body: f }); await refresh(); toast('Perfil guardado') } catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
+    try { await g.merchant.updateProfile(f); await refresh(); toast('Perfil guardado') } catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
   }
   const docs: any[] = kyc.data?.documents || []
   const has = (k: string) => docs.some(d => d.kind === k)
@@ -124,10 +126,11 @@ function Business() {
 }
 
 function Bank() {
+  const g = useGateway()
   const { me, toast } = useSession()
   const m = me!.merchant!
-  const { data, setData } = useData<any>('/bank-account')
-  const kyc = useData<any>('/merchant/kyc')
+  const { data, setData } = useQuery(g => g.merchant.bankAccount())
+  const kyc = useQuery(g => g.merchant.kyc())
   const [f, setF] = useState({ bank_name: 'BCI', holder: m.legal_name || m.name, nib: '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -136,7 +139,7 @@ function Bank() {
   const nib = f.nib.replace(/\D/g, '')
   const save = async () => {
     setBusy(true); setErr('')
-    try { const r = await api<any>('/bank-account', { method: 'PUT', body: { ...f, nib } }); setData(r); toast('Conta bancária guardada') } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+    try { const r = await g.merchant.saveBankAccount({ ...f, nib }); setData(r); toast('Conta bancária guardada') } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   const proof = (kyc.data?.documents || []).find((d: any) => d.kind === 'nib_proof')
   return (
@@ -168,10 +171,11 @@ function Bank() {
 }
 
 function Keys() {
+  const g = useGateway()
   const { live, toast } = useSession()
   const { merchant } = useShell()
-  const { data, reload } = useData<any>('/keys', [live])
-  const logs = useData<any>('/api-logs', [live], 10000)
+  const { data, reload } = useQuery(g => g.developers.keys(), [live])
+  const logs = useQuery(g => g.developers.requestLogs(), [live], 10000)
   const [fresh, setFresh] = useState<string | null>(null)
   const [reveal, setReveal] = useState(false)
   const [copied, setCopied] = useState('')
@@ -181,7 +185,7 @@ function Keys() {
   const doCopy = async (k: string, v: string) => { await copy(v); setCopied(k); setTimeout(() => setCopied(''), 1500) }
   const roll = async () => {
     setBusy(true)
-    try { const r = await api<any>('/keys/roll', { method: 'POST' }); setFresh(r.secret_key); setReveal(true); setConfirm(false); reload(); toast('Nova chave gerada. Copie-a agora.') }
+    try { const r = await g.developers.rollSecretKey(); setFresh(r.secret_key); setReveal(true); setConfirm(false); reload(); toast('Nova chave gerada. Copie-a agora.') }
     catch (e) { toast(errMsg(e), true); setConfirm(false) } finally { setBusy(false) }
   }
   const sk = data?.secret
@@ -251,9 +255,10 @@ function Keys() {
 }
 
 function Hooks() {
+  const g = useGateway()
   const { live, toast } = useSession()
-  const { data, setData } = useData<any>('/developers/settings', [live])
-  const dels = useData<any>('/developers/deliveries', [live], 5000)
+  const { data, setData } = useQuery(g => g.developers.settings(), [live])
+  const dels = useQuery(g => g.developers.deliveries(), [live], 5000)
   const [redir, setRedir] = useState({ success_url: '', cancel_url: '' })
   const [domain, setDomain] = useState('')
   const [addDomain, setAddDomain] = useState(false)
@@ -263,12 +268,12 @@ function Hooks() {
   const [err, setErr] = useState('')
   useEffect(() => { if (data) setRedir({ success_url: data.success_url, cancel_url: data.cancel_url }) }, [data?.success_url, data?.cancel_url]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setSecret(''), [live])
-  const call = async (path: string, method: string, body?: unknown, msg?: string) => {
+  const call = async (run: () => Promise<unknown>, msg?: string) => {
     setErr('')
-    try { const r = await api<any>(path, { method, body }); setData(r); if (msg) toast(msg); return true } catch (e) { setErr(errMsg(e)); toast(errMsg(e), true); return false }
+    try { const r = await run(); setData(r); if (msg) toast(msg); return true } catch (e) { setErr(errMsg(e)); toast(errMsg(e), true); return false }
   }
-  const revealSecret = async () => { const r = await api<any>('/developers/secret'); setSecret(r.secret) }
-  const copySecret = async () => { const s = secret || (await api<any>('/developers/secret')).secret; await copy(s); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+  const revealSecret = async () => { setSecret(await g.developers.signingSecret()) }
+  const copySecret = async () => { const s = secret || (await g.developers.signingSecret()); await copy(s); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   if (!data) return <Spinner dark />
   const mono = { fontFamily: 'var(--mono)', fontSize: 13 }
   return (
@@ -281,7 +286,7 @@ function Hooks() {
           <input className="input" style={mono} value={redir.success_url} onChange={e => setRedir({ ...redir, success_url: e.target.value })} placeholder="https://a-sua-loja.co.mz/obrigado" />
           <span className="label row" style={{ margin: '12px 0 6px', gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)' }} />Cancelado ou falhado</span>
           <input className="input" style={mono} value={redir.cancel_url} onChange={e => setRedir({ ...redir, cancel_url: e.target.value })} placeholder="https://a-sua-loja.co.mz/carrinho" />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button className="btn btn-outline" style={{ height: 38 }} onClick={() => call('/developers/redirects', 'PUT', redir, 'URLs guardados')}>Guardar</button></div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button className="btn btn-outline" style={{ height: 38 }} onClick={() => call(() => g.developers.saveRedirects(redir.success_url, redir.cancel_url), 'URLs guardados')}>Guardar</button></div>
         </Card>
         <Card>
           <div className="between"><div style={{ fontWeight: 600, fontSize: 16 }}>Callback por transação</div><span className="tag" style={{ background: 'var(--ink)', color: '#fff', fontSize: 11.5, padding: '3px 8px' }}>DINÂMICO</span></div>
@@ -289,9 +294,9 @@ function Hooks() {
           <div className="mono" style={{ marginTop: 12, padding: '10px 14px', borderRadius: 12, background: 'var(--ink)', color: '#C9D3CD', fontSize: 12.5, overflowX: 'auto', whiteSpace: 'nowrap' }}><span style={{ color: 'var(--sun)' }}>"callback_url"</span>: <span style={{ color: 'var(--lime)' }}>"https://{data.domains[0]?.domain || 'loja.co.mz'}/pedidos/2094/riha"</span></div>
           <span className="label" style={{ margin: '14px 0 8px' }}>Domínios autorizados</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {data.domains.map((d: any) => <span key={d.id} className="chip" style={{ background: 'var(--green-bg)', color: 'var(--green-dark)' }}><Icon name="check" size={12} stroke={3} />{d.domain}<button aria-label="Remover" onClick={() => call('/developers/domains/' + d.id, 'DELETE', undefined, 'Domínio removido')} style={{ border: 0, background: 'none', padding: 0, color: 'inherit', display: 'grid' }}><Icon name="close" size={12} stroke={2.4} /></button></span>)}
+            {data.domains.map((d: any) => <span key={d.id} className="chip" style={{ background: 'var(--green-bg)', color: 'var(--green-dark)' }}><Icon name="check" size={12} stroke={3} />{d.domain}<button aria-label="Remover" onClick={() => call(() => g.developers.removeDomain(d.id), 'Domínio removido')} style={{ border: 0, background: 'none', padding: 0, color: 'inherit', display: 'grid' }}><Icon name="close" size={12} stroke={2.4} /></button></span>)}
             {addDomain ? (
-              <form onSubmit={async e => { e.preventDefault(); if (await call('/developers/domains', 'POST', { domain }, 'Domínio verificado')) { setDomain(''); setAddDomain(false) } }} className="row" style={{ gap: 6 }}>
+              <form onSubmit={async e => { e.preventDefault(); if (await call(() => g.developers.addDomain(domain), 'Domínio verificado')) { setDomain(''); setAddDomain(false) } }} className="row" style={{ gap: 6 }}>
                 <input autoFocus className="input mono" style={{ height: 30, width: 200, fontSize: 12, borderRadius: 9 }} value={domain} onChange={e => setDomain(e.target.value)} placeholder="loja.co.mz" />
                 <button className="btn btn-ink btn-sm" style={{ height: 30 }}>Adicionar</button>
               </form>
@@ -306,8 +311,8 @@ function Hooks() {
             <div key={e.id} style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line-3)' }}>
               <div className="row" style={{ gap: 8 }}>
                 <div className="mono" style={{ flex: 1, minWidth: 0, height: 46, borderRadius: 12, background: 'var(--paper)', display: 'flex', alignItems: 'center', padding: '0 14px', fontSize: 13, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{e.url}</div>
-                <Toggle on={e.status === 'enabled'} onChange={v => call('/developers/endpoints/' + e.id, 'PATCH', { active: v }, v ? 'Endpoint ativado' : 'Endpoint desativado')} label="Ativo" />
-                <button className="icon-btn" aria-label="Apagar" onClick={() => call('/developers/endpoints/' + e.id, 'DELETE', undefined, 'Endpoint apagado')}><Icon name="trash" size={15} /></button>
+                <Toggle on={e.status === 'enabled'} onChange={v => call(() => g.developers.updateEndpoint(e.id, { active: v }), v ? 'Endpoint ativado' : 'Endpoint desativado')} label="Ativo" />
+                <button className="icon-btn" aria-label="Apagar" onClick={() => call(() => g.developers.deleteEndpoint(e.id), 'Endpoint apagado')}><Icon name="trash" size={15} /></button>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>{e.enabled_events.map((x: string) => <span key={x} className="chip" style={{ background: 'var(--ink)', color: '#fff' }}>{x}</span>)}</div>
             </div>
@@ -323,7 +328,7 @@ function Hooks() {
         </Card>
       </div>
       <div className="card" style={{ padding: '8px 0' }}>
-        <div className="between" style={{ padding: '14px 22px 8px' }}><div style={{ fontWeight: 600, fontSize: 16 }}>Entregas recentes</div><button className="btn btn-outline" style={{ height: 34, fontSize: 13 }} onClick={async () => { try { await api('/developers/test-event', { method: 'POST' }); toast('Evento de teste enviado'); dels.reload() } catch (e) { toast(errMsg(e), true) } }}>Enviar evento de teste</button></div>
+        <div className="between" style={{ padding: '14px 22px 8px' }}><div style={{ fontWeight: 600, fontSize: 16 }}>Entregas recentes</div><button className="btn btn-outline" style={{ height: 34, fontSize: 13 }} onClick={async () => { try { await g.developers.sendTestEvent(); toast('Evento de teste enviado'); dels.reload() } catch (e) { toast(errMsg(e), true) } }}>Enviar evento de teste</button></div>
         {(dels.data?.data || []).map((d: any) => {
           const ok = d.status === 'succeeded', pend = d.status === 'pending'
           return (
@@ -333,7 +338,7 @@ function Hooks() {
                 <div className="mono" style={{ fontSize: 13 }}>{d.event_type}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={d.last_error}>{d.target === 'callback_url' ? 'callback_url · ' : ''}{d.url.replace(/^https?:\/\//, '')}{d.attempts > 1 ? ` · ${d.attempts} tentativas` : ''}{pend && d.next_attempt_at && d.attempts > 0 ? ` · próxima ${fullDate(d.next_attempt_at)}` : ''}</div>
               </div>
-              {!ok ? <button className="btn btn-ghost btn-sm" style={{ color: 'var(--green-text)' }} onClick={async () => { await api(`/developers/deliveries/${d.id}/resend`, { method: 'POST' }); toast('Reenvio agendado'); dels.reload() }}>Reenviar</button> : <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{ago(d.updated_at)}</span>}
+              {!ok ? <button className="btn btn-ghost btn-sm" style={{ color: 'var(--green-text)' }} onClick={async () => { await g.developers.resendDelivery(d.id); toast('Reenvio agendado'); dels.reload() }}>Reenviar</button> : <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{ago(d.updated_at)}</span>}
             </div>
           )
         })}
@@ -348,7 +353,7 @@ function Hooks() {
             {data.event_types.map((x: string) => { const on = ep.events.includes(x); return <button key={x} className="chip" onClick={() => setEp({ ...ep, events: on ? ep.events.filter(y => y !== x) : [...ep.events, x] })} style={{ border: on ? 0 : '1px solid var(--line-2)', background: on ? 'var(--ink)' : '#fff', color: on ? '#fff' : 'var(--ink)' }}>{x}</button> })}
           </div>
           {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
-          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setEp(null)}>Cancelar</button><button className="btn btn-green" style={{ flex: 1 }} onClick={async () => { if (await call('/developers/endpoints', 'POST', { url: ep.url, enabled_events: ep.events }, 'Endpoint criado')) setEp(null) }}>Criar endpoint</button></div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setEp(null)}>Cancelar</button><button className="btn btn-green" style={{ flex: 1 }} onClick={async () => { if (await call(() => g.developers.createEndpoint(ep.url, ep.events), 'Endpoint criado')) setEp(null) }}>Criar endpoint</button></div>
         </Modal>
       )}
     </div>
@@ -356,6 +361,7 @@ function Hooks() {
 }
 
 function Account() {
+  const g = useGateway()
   const { me, logout, toast } = useSession()
   const nav = useNavigate()
   const [f, setF] = useState({ current_password: '', new_password: '' })
@@ -363,7 +369,7 @@ function Account() {
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true); setErr('')
-    try { await api('/auth/password', { body: f }); setF({ current_password: '', new_password: '' }); toast('Palavra-passe alterada') } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+    try { await g.auth.changePassword(f.current_password, f.new_password); setF({ current_password: '', new_password: '' }); toast('Palavra-passe alterada') } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   return (
     <div className="grid-2" style={{ alignItems: 'start' }}>

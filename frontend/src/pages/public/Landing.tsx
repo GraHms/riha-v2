@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon, QR } from '../../components/ui'
-import { api } from '../../lib/api'
+import { useGateway } from '../../core/gateway'
 import { bpsLabel } from '../../lib/format'
 
 const BARS14 = (() => {
@@ -95,14 +95,15 @@ const css = `
 `
 
 function usePricing() {
+  const g = useGateway()
   const [bps, setBps] = useState(600)
   useEffect(() => {
     let alive = true
-    api<{ default_fee_bps: number }>('/public/pricing')
+    g.checkout.pricing()
       .then(d => { if (alive && typeof d?.default_fee_bps === 'number') setBps(d.default_fee_bps) })
       .catch(() => {})
     return () => { alive = false }
-  }, [])
+  }, [g])
   return bpsLabel(bps)
 }
 

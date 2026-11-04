@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, errMsg } from '../../lib/api'
-import { useData } from '../../lib/useData'
+import { errMsg } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useQuery } from '../../core/useQuery'
 import { bpsLabel, fmt, fullDate, MERCHANT_STATUS, methodLine, PAYOUT_STATUS, relDate, STATUS } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Avatar, Icon, Modal, Pill, Spinner } from '../../components/ui'
@@ -11,12 +12,13 @@ export default function MerchantDetail() {
   const { id } = useParams()
   const nav = useNavigate()
   const { toast } = useSession()
-  const { data: m, setData, reload } = useData<any>('/admin/merchants/' + id, [id])
+  const g = useGateway()
+  const { data: m, setData, reload } = useQuery(g => g.admin.merchant(id!), [id])
   const [fee, setFee] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [note, setNote] = useState('')
-  const settings = useData<any>('/admin/settings')
+  const settings = useQuery(g => g.admin.settings())
   const [def, setDef] = useState('')
   useEffect(() => { if (m) setFee((m.fee_bps / 100).toString().replace('.', ',')) }, [m?.fee_bps]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (settings.data) setDef((settings.data.default_fee_bps / 100).toString().replace('.', ',')) }, [settings.data])
@@ -26,15 +28,15 @@ export default function MerchantDetail() {
     const bps = toBps(fee)
     if (!reset && (!isFinite(bps) || bps < 0 || bps > 2000)) { toast('Taxa entre 0% e 20%', true); return }
     setBusy(true)
-    try { const r = await api('/admin/merchants/' + id, { method: 'PATCH', body: reset ? { reset_fee: true } : { fee_bps: bps } }); setData(r); toast(reset ? 'Taxa reposta para o valor por omissão' : `Taxa negociada: ${bpsLabel(bps)}`) }
+    try { const r = await g.admin.setFee(id!, reset ? null : bps); setData(r); toast(reset ? 'Taxa reposta para o valor por omissão' : `Taxa negociada: ${bpsLabel(bps)}`) }
     catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
   }
   const saveDefault = async () => {
-    try { await api('/admin/settings', { method: 'PUT', body: { default_fee_bps: toBps(def) } }); toast('Taxa por omissão atualizada'); settings.reload(); reload() } catch (e) { toast(errMsg(e), true) }
+    try { await g.admin.saveSettings(toBps(def)); toast('Taxa por omissão atualizada'); settings.reload(); reload() } catch (e) { toast(errMsg(e), true) }
   }
   const decide = async (decision: string) => {
     setBusy(true)
-    try { await api(`/admin/merchants/${id}/decision`, { body: { decision, note } }); toast('Estado atualizado'); setConfirm(null); setNote(''); reload() } catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
+    try { await g.admin.decide(id!, decision, note); toast('Estado atualizado'); setConfirm(null); setNote(''); reload() } catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
   }
   const st = MERCHANT_STATUS[m.status]
   const KV = ({ k, v, mono }: { k: string; v: any; mono?: boolean }) => <div className="between" style={{ padding: '9px 0', borderTop: '1px solid var(--line-3)', fontSize: 13.5 }}><span className="muted">{k}</span><span className={mono ? 'mono' : ''} style={{ fontWeight: 500, textAlign: 'right' }}>{v || '—'}</span></div>

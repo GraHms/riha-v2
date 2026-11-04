@@ -1,7 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { api, errMsg, type ApiError } from '../../lib/api'
-import { useSession, type Me } from '../../lib/session'
+import { errMsg, type ApiError } from '../../core/model'
+import { useGateway } from '../../core/gateway'
+import { useSession } from '../../lib/session'
 import { Icon, Logo, Spinner, Stripes } from '../../components/ui'
 
 export function AuthLayout({ children, step, back }: { children: ReactNode; step?: [number, number]; back?: () => void }) {
@@ -48,6 +49,7 @@ function strength(p: string) {
 }
 
 export function Signup() {
+  const g = useGateway()
   const nav = useNavigate()
   const { setMe } = useSession()
   const [f, setF] = useState({ business_name: '', name: '', email: '', phone: '', password: '' })
@@ -61,7 +63,7 @@ export function Signup() {
     e.preventDefault()
     if (!terms) { setErr({ code: 'terms', message: 'Aceite os termos para continuar.', status: 400 }); return }
     setBusy(true); setErr(null)
-    try { const me = await api<Me>('/auth/signup', { body: f }); setMe(me); nav('/verificacao') }
+    try { const me = await g.auth.signup(f); setMe(me); nav('/verificacao') }
     catch (e) { setErr(e as ApiError) } finally { setBusy(false) }
   }
   const fe = (p: string) => (err?.param === p ? err.message : undefined)
@@ -100,6 +102,7 @@ export function Signup() {
 }
 
 export function Login() {
+  const g = useGateway()
   const nav = useNavigate()
   const [sp] = useSearchParams()
   const { setMe } = useSession()
@@ -110,7 +113,7 @@ export function Login() {
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setErr('')
     try {
-      const me = await api<Me>('/auth/login', { body: { email, password } })
+      const me = await g.auth.login(email, password)
       setMe(me)
       const next = sp.get('next')
       if (me.user.role === 'admin') nav(next?.startsWith('/admin') ? next : '/admin')
