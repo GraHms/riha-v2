@@ -158,10 +158,16 @@ curl http://localhost:8080/v1/checkout/sessions -u sk_test_…: \
 
 Background workers time out wallet prompts stuck for more than 3 minutes, expire open sessions, and settle **test-mode** payouts by themselves after about 20 s, so the whole payout lifecycle can be seen without an admin.
 
+## Confirmed decisions
+
+- A lead or an account under review cannot operate at all, not even in test mode.
+- Admins may approve an account that has no documents. The automatic checks show what is missing.
+- One bank receipt can cover a bulk payout completion, matching a single bank batch transfer.
+- Email delivery stays on the outbox directory for now. SMTP will be configured later through `RIHA_SMTP_ADDR`, `RIHA_SMTP_USER`, `RIHA_SMTP_PASSWORD` and `RIHA_MAIL_FROM`.
+
 ## Assumptions made for v1 (please confirm)
 
 - **The merchant pays the 6% fee.** The customer pays the listed price. There is no withdrawal fee, and the minimum payout is 100,00 MT.
-- A lead or an account under review cannot operate at all, not even in test mode. Admins may approve an account that has no documents; the checks list shows what is missing.
 - Domain ownership for `callback_url` is not really checked: an added domain counts as verified immediately (mock). A DNS TXT check is the production version.
 - The KYC "automatic checks" are simulated. For example, a NUIT starting with `409` is reported as not found.
 - The 72 h deadline counts calendar hours (no business days or holidays).
@@ -172,7 +178,7 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 - Real M-Pesa (Vodacom OpenAPI), e-Mola and card acquirer integrations, and daily reconciliation against them. They plug in as adapters implementing `ports.Rail`.
 - 2FA, password reset by email/SMS, team members and roles, restricted keys (`rk_`).
 - Chargebacks and disputes. Payout holds after a NIB change. Two-admin approval above a threshold. Risk rules and alerts (the admin "Risco e alertas" item is a placeholder).
-- Real SMS receipts. Email goes to `RIHA_OUTBOX_DIR` unless SMTP is configured. Object storage for KYC documents (currently the local disk).
+- Real SMS receipts. SMTP delivery is built but not configured yet, so email goes to `RIHA_OUTBOX_DIR`. Object storage for KYC documents (currently the local disk).
 - The rate limiter and idempotency are per process and in the database; a multi-instance deployment needs a shared limiter.
 - The frontend uses loose `any` types for API payloads (lint warnings). Generating types from an OpenAPI spec would tighten this.
 
