@@ -181,7 +181,7 @@ func (r Reports) VolumeBuckets(ctx context.Context, s ports.Scope, unit string) 
 	}
 	var out []ports.Bucket
 	err := r.scope(ctx, s).Where("status IN ?", domain.SettledStatuses).
-		Select(fmt.Sprintf("date_trunc('%s', created_at) AS date, SUM(amount) AS amount", unit)).Group("1").Order("1").Scan(&out).Error
+		Select(fmt.Sprintf("date_trunc('%s', created_at) AS date, SUM(amount) AS amount", unit)).Group("date").Order("date").Scan(&out).Error
 	return out, err
 }
 func (r Reports) VolumeByMethod(ctx context.Context, s ports.Scope) (map[string]int64, error) {

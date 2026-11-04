@@ -205,6 +205,16 @@ func (a *App) SubscriptionOverview(ctx context.Context, m *domain.Merchant, live
 	}
 	sched, _ := a.Charges.Find(ctx, ports.ChargeQuery{MerchantID: m.ID, Live: &live, Statuses: []string{domain.ChargeScheduled}, DueFrom: ptr(now), DueTo: ptr(now.AddDate(0, 0, 40)), Limit: 2000})
 	o.Upcoming = a.upcoming(ctx, subs, sched, plans, now)
+	// The page reads these lists directly, and a new account has nothing in them.
+	if o.Attention == nil {
+		o.Attention = []Attention{}
+	}
+	if o.Upcoming == nil {
+		o.Upcoming = []Upcoming{}
+	}
+	if o.Counts == nil {
+		o.Counts = map[string]int64{}
+	}
 	return o
 }
 
