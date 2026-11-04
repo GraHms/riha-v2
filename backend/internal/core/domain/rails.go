@@ -27,7 +27,7 @@ const (
 
 var FailureMessages = map[string]string{
 	FailPinIncorrect:        "PIN errado três vezes. O cliente pode tentar de novo com o mesmo link.",
-	FailInsufficientFunds:   "Saldo insuficiente na carteira ou cartão do cliente.",
+	FailInsufficientFunds:   "Saldo insuficiente para este pagamento. Carregue a conta ou escolha um valor mais baixo.",
 	FailCustomerTimeout:     "O cliente não confirmou o pedido a tempo.",
 	FailCustomerCancelled:   "O cliente cancelou o pedido no telemóvel.",
 	FailCardDeclined:        "Cartão recusado pelo banco emissor.",

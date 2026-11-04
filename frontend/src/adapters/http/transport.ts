@@ -23,8 +23,16 @@ export class Transport {
     let body: BodyInit | undefined
     if (opts.form) body = opts.form
     else if (opts.body !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(opts.body) }
-    const res = await fetch(this.base + path, { method: opts.method || (body ? 'POST' : 'GET'), headers, body, credentials: 'same-origin' })
-    const text = await res.text()
+    // A phone drops requests when the page goes to the background, as when a
+    // customer leaves to enter their PIN: the browser's own message means nothing to them.
+    let res: Response
+    let text: string
+    try {
+      res = await fetch(this.base + path, { method: opts.method || (body ? 'POST' : 'GET'), headers, body, credentials: 'same-origin' })
+      text = await res.text()
+    } catch {
+      throw { code: 'network_error', message: 'Sem ligação. Verifique a internet e tente de novo.', status: 0 } satisfies ApiError
+    }
     let data: unknown = null
     try { data = text ? JSON.parse(text) : null } catch { data = null }
     if (!res.ok) {

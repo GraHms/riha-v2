@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { errMsg } from '../../core/model'
+import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
 import { fmt, parseMT } from '../../lib/format'
 import { Avatar, Icon, Spinner } from '../../components/ui'
@@ -14,6 +14,7 @@ export default function LinkLanding() {
   const nav = useNavigate()
   const [link, setLink] = useState<Link | null>(null)
   const [err, setErr] = useState('')
+  const [offline, setOffline] = useState(false)
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
   const channel = sp.get('c') || ''
@@ -23,14 +24,14 @@ export default function LinkLanding() {
     try {
       const r = await g.checkout.openLink(merchant!, slug!, centavos, channel)
       nav('/c/' + r.id, { replace: true })
-    } catch (e) { setErr(errMsg(e)); setBusy(false) }
+    } catch (e) { setOffline((e as ApiError).code === 'network_error'); setErr(errMsg(e)); setBusy(false) }
   }
 
   useEffect(() => {
     g.checkout.link(merchant!, slug!).then(l => {
       setLink(l)
       if (l.active && !l.custom_amount) open(l.amount)
-    }).catch(e => setErr(errMsg(e)))
+    }).catch(e => { setOffline((e as ApiError).code === 'network_error'); setErr(errMsg(e)) })
   }, [merchant, slug]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = parseMT(amount)
@@ -39,7 +40,7 @@ export default function LinkLanding() {
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 30, padding: '0 14px', borderRadius: 10, background: 'var(--paper-2)', fontSize: 13, color: 'var(--text-2)', alignSelf: 'center' }}><Icon name="lock" size={12} stroke={2.4} />rihagateway.com</div>
         {!link && !err && <div style={{ display: 'grid', placeItems: 'center', flex: 1 }}><Spinner dark /></div>}
-        {err && !link?.custom_amount && <div style={{ marginTop: 40, textAlign: 'center' }}><div className="display" style={{ fontSize: 26 }}>Link indisponível</div><p className="muted">{err}</p></div>}
+        {err && !link?.custom_amount && <div style={{ marginTop: 40, textAlign: 'center' }}><div className="display" style={{ fontSize: 26 }}>{offline ? 'Sem ligação' : 'Link indisponível'}</div><p className="muted">{err}</p></div>}
         {link && !link.active && <div style={{ marginTop: 40, textAlign: 'center' }}><div className="display" style={{ fontSize: 26 }}>Este link já não está ativo</div><p className="muted">Peça um novo link a {link.merchant.name}.</p></div>}
         {link && link.active && !link.custom_amount && !err && <div style={{ display: 'grid', placeItems: 'center', flex: 1, color: 'var(--muted)', gap: 12 }}><Spinner dark />A abrir o pagamento…</div>}
         {link && link.active && link.custom_amount && (

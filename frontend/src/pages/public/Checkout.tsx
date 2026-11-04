@@ -26,45 +26,85 @@ export default function Checkout() {
   const g = useGateway()
   const { id } = useParams()
   const [s, setS] = useState<Session | null>(null)
-  const [loadErr, setLoadErr] = useState('')
+  const [loadErr, setLoadErr] = useState<ApiError | null>(null)
   const [method, setMethod] = useState('mpesa')
   const [phone, setPhone] = useState('')
   const [card, setCard] = useState({ number: '', exp: '', cvc: '', name: '' })
   const [email, setEmail] = useState('')
   const [err, setErr] = useState<ApiError | null>(null)
+  // The USSD prompt cuts the phone's data, so losing the connection here is normal.
+  const [reconnecting, setReconnecting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState<'pay' | 'confirm' | 'done'>('pay')
   const [tick, setTick] = useState(0)
   const [redirectIn, setRedirectIn] = useState(8)
   const startRef = useRef(0)
+  // Set when the answer to "pay" was lost: the payment before it, to tell them apart.
+  const lostPay = useRef<{ before: string | null } | null>(null)
 
-  const load = async () => {
+  const refresh = async () => {
     try {
       const d = await g.checkout.session(id!)
       setS(d)
+      setReconnecting(false)
       return d
-    } catch (e) { setLoadErr(errMsg(e)); return null }
+    } catch { setReconnecting(true); return null }
   }
-  useEffect(() => {
-    load().then(d => {
-      if (!d) return
-      if (d.payment_method_types.length && !d.payment_method_types.includes('mpesa')) setMethod(d.payment_method_types[0])
-      if (d.customer_phone) setPhone(fmtPhone(d.customer_phone))
-      if (d.status === 'complete') setView('done')
-      else if (d.payment?.status === 'processing') { setView('confirm'); startRef.current = Date.now() }
-    })
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A failed check says nothing about the payment, so only the first load can fail
+  // the page: phones drop requests while the customer is away entering their PIN.
+  const open = async () => {
+    setLoadErr(null)
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const d = await g.checkout.session(id!)
+        setS(d)
+        return d
+      } catch (e) {
+        const err = e as ApiError
+        if (err.code !== 'network_error' || attempt >= 2) { setLoadErr(err); return null }
+        await new Promise(r => setTimeout(r, 1500))
+      }
+    }
+  }
+
+  const start = () => open().then(d => {
+    if (!d) return
+    if (d.payment_method_types.length && !d.payment_method_types.includes('mpesa')) setMethod(d.payment_method_types[0])
+    if (d.customer_phone) setPhone(fmtPhone(d.customer_phone))
+    if (d.status === 'complete') setView('done')
+    else if (d.payment?.status === 'processing') { setView('confirm'); startRef.current = Date.now() }
+  })
+
+  useEffect(() => { start() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (view !== 'confirm') return
-    const t = setInterval(async () => {
-      setTick(x => x + 1)
-      const d = await load()
-      if (!d?.payment) return
-      if (d.payment.status === 'succeeded') setView('done')
+    let checking = false
+    const check = async () => {
+      if (checking || document.hidden) return
+      checking = true
+      const d = await refresh()
+      checking = false
+      if (!d) return
+      const lost = lostPay.current
+      if (lost && (d.payment?.id ?? null) === lost.before) {
+        // Connected again and no new payment, so the request never arrived.
+        lostPay.current = null
+        setView('pay')
+        setErr({ code: 'network_error', message: 'O pedido não chegou ao M-Pesa. Nada foi cobrado. Tente de novo.', status: 0 })
+        return
+      }
+      lostPay.current = null
+      if (!d.payment) return
+      if (d.status === 'complete' || d.payment.status === 'succeeded') setView('done')
       else if (d.payment.status === 'failed') { setView('pay'); setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 }) }
-    }, 1500)
-    return () => clearInterval(t)
+    }
+    const t = setInterval(() => { setTick(x => x + 1); check() }, 1500)
+    // Back from entering the PIN: answer at once instead of at the next tick.
+    document.addEventListener('visibilitychange', check)
+    window.addEventListener('online', check)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); window.removeEventListener('online', check) }
   }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -86,7 +126,15 @@ export default function Checkout() {
       if (d.status === 'complete') setView('done')
       else if (d.payment?.status === 'processing') { startRef.current = Date.now(); setTick(0); setView('confirm') }
       else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: d.payment.failure_message, status: 402 })
-    } catch (e) { setErr(e as ApiError) } finally { setBusy(false) }
+    } catch (e) {
+      const failure = e as ApiError
+      if (failure.code === 'network_error') {
+        // The answer was lost, and the prompt on the phone may be why: wait for the
+        // connection and let the server say whether the payment started.
+        lostPay.current = { before: s.payment?.id ?? null }
+        startRef.current = Date.now(); setTick(0); setReconnecting(true); setView('confirm')
+      } else setErr(failure)
+    } finally { setBusy(false) }
   }
 
   const cancel = async () => {
@@ -95,7 +143,8 @@ export default function Checkout() {
     else window.history.back()
   }
 
-  if (loadErr) return <Center><div className="display" style={{ fontSize: 26 }}>Pagamento não encontrado</div><p className="muted">{loadErr}</p></Center>
+  if (loadErr?.code === 'network_error') return <Center><div className="display" style={{ fontSize: 26 }}>Sem ligação</div><p className="muted">Não foi possível abrir o pagamento. Verifique a internet e tente de novo.</p><button className="btn btn-green" onClick={start}>Tentar de novo</button></Center>
+  if (loadErr) return <Center><div className="display" style={{ fontSize: 26 }}>Pagamento não encontrado</div><p className="muted">{errMsg(loadErr)}</p></Center>
   if (!s) return <Center><Spinner dark /></Center>
 
   const amount = fmt(s.amount)
@@ -106,6 +155,7 @@ export default function Checkout() {
   const expired = s.status === 'expired'
   const elapsed = startRef.current ? Math.floor((Date.now() - startRef.current) / 1000) : 0
   const left = Math.max(0, WALLET_TIMEOUT - elapsed)
+  const waitingPhone = s.payment?.status === 'processing' ? `${s.payment.phone_prefix} ••• ${s.payment.phone_last4}` : phone
   void tick
 
   const items = s.line_items.length ? s.line_items : [{ name: s.description || 'Pagamento', quantity: 1, unit_amount: s.amount }]
@@ -206,8 +256,9 @@ export default function Checkout() {
                       <input className="input lg" style={{ height: 52 }} type="email" inputMode="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
                     </label>
                   )}
-                  {err && <div className="form-err" style={{ marginTop: 14 }} role="alert">{err.message}</div>}
                   <div className="co-pay">
+                    {/* Inside the bar that stays on screen, or the Pay button covers it on a phone. */}
+                    {err && <div className="form-err" style={{ marginBottom: 10 }} role="alert">{err.message}</div>}
                     <button className="btn btn-green btn-lg btn-block" style={{ height: 58, fontSize: 17, boxShadow: '0 14px 30px -14px rgba(10,130,5,.9)' }} onClick={pay} disabled={busy}>
                       {busy ? <Spinner /> : <><Icon name="lock" size={17} stroke={2.2} />Pagar {amount} MT</>}
                     </button>
@@ -219,25 +270,26 @@ export default function Checkout() {
             </>
           )}
 
-          {view === 'confirm' && s.payment && (
+          {view === 'confirm' && (
             <div className="co-center">
               <div style={{ position: 'relative', width: 250, height: 250, display: 'grid', placeItems: 'center' }}>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(circle,rgba(10,130,5,.14),rgba(10,130,5,0) 70%)' }} />
                 <div style={{ position: 'absolute', inset: 28, borderRadius: '50%', border: '1.5px dashed #C9D9C4', animation: 'spin 18s linear infinite' }} />
                 <div style={{ position: 'relative', width: 200, padding: 16, borderRadius: 16, background: '#2B2F2D', color: '#fff', textAlign: 'left', boxShadow: '0 24px 40px -18px rgba(0,0,0,.6)' }}>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#E6E9E7' }}>{METHOD_NAME[s.payment.method]}: Confirma o pagamento de <b>{amount} MT</b> a {s.merchant.descriptor || s.merchant.name}? Introduza o PIN:</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#E6E9E7' }}>{METHOD_NAME[s.payment?.method ?? method]}: Confirma o pagamento de <b>{amount} MT</b> a {s.merchant.descriptor || s.merchant.name}? Introduza o PIN:</div>
                   <div style={{ height: 30, marginTop: 10, borderBottom: '1.5px solid var(--lime)', fontSize: 16, letterSpacing: '.4em', display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>••••</div>
                   <div className="between" style={{ marginTop: 12, fontSize: 12.5, fontWeight: 600, color: 'var(--lime)' }}><span>Cancelar</span><span>Enviar</span></div>
                 </div>
               </div>
               <h1 className="display" style={{ margin: '14px 0 0', fontSize: 28 }}>Confirme no seu telemóvel</h1>
-              <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: 'var(--muted)', maxWidth: 320 }}>Enviámos um pedido para <b style={{ color: 'var(--ink)' }}>{s.payment.phone_prefix} ••• {s.payment.phone_last4}</b>. Introduza o PIN {METHOD_NAME[s.payment.method]} para concluir.</p>
+              <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: 'var(--muted)', maxWidth: 320 }}>Enviámos um pedido para <b style={{ color: 'var(--ink)' }}>{waitingPhone}</b>. Introduza o PIN {METHOD_NAME[s.payment?.method ?? method]} para concluir.</p>
+              {reconnecting && <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45 }}>O M-Pesa pode cortar a internet enquanto o pedido está aberto. Não precisa de fazer nada: o pagamento continua e atualizamos assim que a ligação voltar.</div>}
               <div className="card" style={{ width: '100%', marginTop: 26, borderRadius: 18, padding: 16, textAlign: 'left' }}>
                 <div className="between" style={{ fontSize: 13.5 }}><span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sun)', boxShadow: '0 0 0 4px var(--sun-bg)' }} />A aguardar confirmação</span><span className="mono muted">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span></div>
                 <div style={{ height: 6, borderRadius: 3, background: '#EEECE5', marginTop: 12, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (elapsed / WALLET_TIMEOUT) * 100)}%`, height: '100%', borderRadius: 3, background: 'var(--green)', transition: 'width 1s linear' }} /></div>
               </div>
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 24 }}>
-                <button className="btn btn-outline btn-block" style={{ height: 52, borderRadius: 15, fontSize: 15 }} onClick={() => load()}>Não recebeu? Verificar estado</button>
+                <button className="btn btn-outline btn-block" style={{ height: 52, borderRadius: 15, fontSize: 15 }} onClick={() => refresh()}>Não recebeu? Verificar estado</button>
                 <button className="btn btn-ghost" onClick={() => setView('pay')}>Mudar método de pagamento</button>
               </div>
             </div>

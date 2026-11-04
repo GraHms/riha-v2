@@ -124,7 +124,6 @@ func TestMpesaFailures(t *testing.T) {
 func TestMpesaUnclearAnswersLeaveItProcessing(t *testing.T) {
 	for name, c2b := range map[string]func(w http.ResponseWriter){
 		"internal":  func(w http.ResponseWriter) { reply(w, 500, "INS-1") },
-		"timeout":   func(w http.ResponseWriter) { reply(w, 408, "INS-9") },
 		"not json":  func(w http.ResponseWriter) { w.WriteHeader(502); w.Write([]byte("<html>")) },
 		"wrong 200": func(w http.ResponseWriter) { reply(w, 200, "INS-0") },
 		"dropped": func(w http.ResponseWriter) {
@@ -211,4 +210,42 @@ func TestTestModeNeverReachesTheRealRail(t *testing.T) {
 	if len(live.got) != 1 || len(test.got) != 1 {
 		t.Fatalf("live: %+v", live.got)
 	}
+}
+
+func TestMpesaTimeoutIsSettledByAskingMpesa(t *testing.T) {
+	mpesaTimeoutCheckDelay = 0
+	for name, c := range map[string]struct {
+		status  string
+		http    int
+		success bool
+		failure string
+	}{
+		"no record":               {"N/A", 400, false, domain.FailCustomerTimeout},
+		"paid at the last second": {"Completed", 200, true, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &mpesaFake{c2b: func(w http.ResponseWriter) { reply(w, 408, "INS-9") }, query: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(c.http)
+				json.NewEncoder(w).Encode(map[string]string{"output_ResponseCode": "INS-997", "output_ResponseTransactionStatus": c.status})
+			}}
+			m, _ := newMpesa(t, f)
+			select {
+			case o := <-charge(t, m):
+				if o.Success != c.success || o.FailureCode != c.failure {
+					t.Fatalf("%+v", o)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("no outcome")
+			}
+		})
+	}
+	t.Run("M-Pesa unreachable leaves it for the sweep", func(t *testing.T) {
+		f := &mpesaFake{c2b: func(w http.ResponseWriter) { reply(w, 408, "INS-9") }, query: func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(401); w.Write([]byte("{}")) }}
+		m, _ := newMpesa(t, f)
+		select {
+		case o := <-charge(t, m):
+			t.Fatalf("ended with %+v", o)
+		case <-time.After(300 * time.Millisecond):
+		}
+	})
 }

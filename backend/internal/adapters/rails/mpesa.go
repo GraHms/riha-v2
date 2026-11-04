@@ -28,6 +28,9 @@ const (
 	mpesaQueryTimeout   = 20 * time.Second
 )
 
+// Gives M-Pesa a moment to record a payment that was answered at the last second.
+var mpesaTimeoutCheckDelay = 3 * time.Second
+
 type MpesaConfig struct {
 	BaseURL             string
 	C2BPort             string
@@ -157,6 +160,25 @@ func (m *Mpesa) send(ref string, body []byte, onComplete func(domain.Outcome)) {
 	}
 	if o, known := mpesaOutcome(ref, res.StatusCode, out); known {
 		onComplete(o)
+		return
+	}
+	if out.ResponseCode == "INS-9" {
+		m.afterTimeout(ref, onComplete)
+	}
+}
+
+// afterTimeout handles M-Pesa saying the customer didn't answer in time, which is
+// common. It asks whether that holds, so they don't wait for the sweep to try again.
+func (m *Mpesa) afterTimeout(ref string, onComplete func(domain.Outcome)) {
+	time.Sleep(mpesaTimeoutCheckDelay)
+	o, known, err := m.Query(context.Background(), ref)
+	switch {
+	case err != nil:
+		log.Printf("mpesa %s: query after timeout failed, the sweep will ask again: %v", ref, err)
+	case known:
+		onComplete(o)
+	default:
+		onComplete(domain.Outcome{FailureCode: domain.FailCustomerTimeout})
 	}
 }
 
