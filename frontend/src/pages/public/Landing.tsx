@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { SUPPORT_PHONE, SUPPORT_TEL } from '../../lib/support'
 import { Link } from 'react-router-dom'
 import { Icon, QR } from '../../components/ui'
 import { useGateway } from '../../core/gateway'
@@ -508,7 +509,7 @@ export default function Landing() {
         <div className="lp-d" style={{ padding: '56px 0 40px', display: 'flex', alignItems: 'flex-start', gap: 64 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
             <Brand size={30} text={17} />
-            <div style={{ fontSize: 13.5, color: '#5E6862' }}>© 2026 RIHA · Maputo, Moçambique</div>
+            <div style={{ fontSize: 13.5, color: '#5E6862' }}>© 2026 RIHA · Maputo, Moçambique · Ajuda: <a href={SUPPORT_TEL} style={{ color: 'inherit' }}>{SUPPORT_PHONE}</a></div>
           </div>
           <FooterCols gap={10} size={14} />
         </div>
@@ -518,7 +519,7 @@ export default function Landing() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
               <FooterCols gap={9} size={13.5} />
             </div>
-            <div style={{ fontSize: 12.5, color: '#5E6862', paddingTop: 18, borderTop: '1px solid #E4E2DA' }}>© 2026 RIHA · Maputo, Moçambique</div>
+            <div style={{ fontSize: 12.5, color: '#5E6862', paddingTop: 18, borderTop: '1px solid #E4E2DA' }}>© 2026 RIHA · Maputo, Moçambique · Ajuda: <a href={SUPPORT_TEL} style={{ color: 'inherit' }}>{SUPPORT_PHONE}</a></div>
           </div>
         </div>
       </div>

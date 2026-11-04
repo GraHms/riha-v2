@@ -18,7 +18,7 @@ func RequireApproved(m *Merchant) *Error {
 	case MerchantActive:
 		return nil
 	case MerchantSuspended:
-		return Forbidden("account_suspended", "Esta conta está suspensa. Contacte o suporte da RIHA.")
+		return Forbidden("account_suspended", "Esta conta está suspensa. Contacte o suporte da RIHA: +258 84 825 5237.")
 	case MerchantRejected:
 		return Forbidden("account_rejected", "A verificação desta conta foi rejeitada.")
 	}

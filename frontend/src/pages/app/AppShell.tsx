@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { SUPPORT_PHONE } from '../../lib/support'
 import { Link, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom'
 import { useSession, type Merchant } from '../../lib/session'
 import { Avatar, Icon, Logo } from '../../components/ui'
@@ -48,8 +49,8 @@ export default function AppShell() {
       {m.status === 'in_review' && 'A sua conta está em verificação. Links, pagamentos, chaves API e levantamentos ficam disponíveis depois da aprovação.'}
       {m.status === 'lead' && <>A sua conta ainda não foi aprovada. Complete a verificação para começar a receber. <Link to="/verificacao" style={{ fontWeight: 700 }}>Verificar agora</Link></>}
       {m.status === 'info_requested' && <>A equipa RIHA pediu mais documentos. <Link to="/verificacao" style={{ fontWeight: 700 }}>Completar</Link></>}
-      {m.status === 'rejected' && 'A verificação foi rejeitada. Contacte o suporte da RIHA.'}
-      {m.status === 'suspended' && 'Esta conta está suspensa. Contacte o suporte da RIHA.'}
+      {m.status === 'rejected' && `A verificação foi rejeitada. Contacte o suporte da RIHA: ${SUPPORT_PHONE}.`}
+      {m.status === 'suspended' && `Esta conta está suspensa. Contacte o suporte da RIHA: ${SUPPORT_PHONE}.`}
     </div>
   )
 

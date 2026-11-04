@@ -62,7 +62,7 @@ type KycInput struct {
 
 func (a *App) SaveKyc(ctx context.Context, m *domain.Merchant, in KycInput) error {
 	if m.Status == domain.MerchantActive || m.Status == domain.MerchantSuspended {
-		return domain.Forbidden("kyc_locked", "A verificação já está concluída. Contacte o suporte para alterar.")
+		return domain.Forbidden("kyc_locked", "A verificação já está concluída. Para alterar, contacte o suporte: +258 84 825 5237.")
 	}
 	if in.BusinessType != "individual" && in.BusinessType != "company" {
 		return domain.Invalid("parameter_invalid", "business_type", "Escolha o tipo de negócio.")

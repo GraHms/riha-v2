@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { SUPPORT_PHONE, SUPPORT_TEL } from '../../lib/support'
 import { useParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
@@ -325,10 +326,13 @@ export default function Checkout() {
 
 function Secure({ dark }: { dark?: boolean }) {
   return (
+    <>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: dark ? 'flex-start' : 'center', gap: 8, fontSize: 12.5, color: dark ? '#93A09A' : 'var(--muted)' }}>
       Pagamento seguro por<img src={dark ? '/assets/riha-icon-light.png' : '/assets/riha-icon-dark.png'} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />
       <span style={{ fontFamily: 'var(--display)', fontWeight: 800, letterSpacing: '.18em', color: dark ? '#fff' : 'var(--ink)' }}>RIHA</span>
     </div>
+    <div style={{ marginTop: 6, textAlign: dark ? 'left' : 'center', fontSize: 12.5, color: dark ? '#93A09A' : 'var(--muted)' }}>Precisa de ajuda? <a href={SUPPORT_TEL} style={{ color: 'inherit', fontWeight: 600 }}>{SUPPORT_PHONE}</a></div>
+    </>
   )
 }
 

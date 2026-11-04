@@ -56,7 +56,8 @@ func (srv *Server) metaFor(c context.Context, path string) pageMeta {
 	case path == "/":
 		return pageMeta{status: 200, title: siteTitle, desc: siteDesc, image: "/og/site.png", alt: siteTitle, path: "/", index: true,
 			ld: []any{
-				domain.M{"@context": "https://schema.org", "@type": "Organization", "name": siteName, "url": srv.url("/"), "logo": srv.url("/assets/riha-icon-dark.png")},
+				domain.M{"@context": "https://schema.org", "@type": "Organization", "name": siteName, "url": srv.url("/"), "logo": srv.url("/assets/riha-icon-dark.png"),
+					"contactPoint": domain.M{"@type": "ContactPoint", "telephone": "+258848255237", "contactType": "customer support", "areaServed": "MZ", "availableLanguage": "Portuguese"}},
 				domain.M{"@context": "https://schema.org", "@type": "WebSite", "name": siteName, "url": srv.url("/"), "inLanguage": "pt-MZ"},
 				domain.M{"@context": "https://schema.org", "@type": "Service", "name": "Pagamentos online com M-Pesa", "serviceType": "Gateway de pagamentos", "provider": domain.M{"@type": "Organization", "name": siteName}, "areaServed": domain.M{"@type": "Country", "name": "Moçambique"}},
 			},
