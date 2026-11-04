@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ func (a *App) uniqueLinkSlug(ctx context.Context, merchantID, base string) strin
 }
 
 func (a *App) CreateLink(ctx context.Context, m *domain.Merchant, live bool, p LinkParams, actor, via string) (*domain.PaymentLink, error) {
-	if e := domain.CanAcceptPayments(m, live); e != nil {
+	if e := domain.RequireApproved(m); e != nil {
 		return nil, e
 	}
 	name := ""
@@ -96,6 +97,9 @@ func (a *App) merchantLink(ctx context.Context, merchantID string, live bool, id
 }
 
 func (a *App) UpdateLink(ctx context.Context, m *domain.Merchant, live bool, id string, p LinkParams) (*domain.PaymentLink, error) {
+	if e := domain.RequireApproved(m); e != nil {
+		return nil, e
+	}
 	l, err := a.merchantLink(ctx, m.ID, live, id)
 	if err != nil {
 		return nil, err
@@ -169,6 +173,9 @@ func (a *App) CreateEndpoint(ctx context.Context, merchantID string, live bool, 
 	if live && u.Scheme != "https" {
 		return nil, domain.Invalid("url_invalid", "url", "Em produção o endpoint tem de usar https.")
 	}
+	if !a.AllowPrivateNetworks && privateHost(u.Hostname()) {
+		return nil, domain.Invalid("url_not_allowed", "url", "O endpoint tem de ser um endereço público.")
+	}
 	evs := []string{}
 	for _, e := range events {
 		if !domain.ValidEvent(e) {
@@ -215,6 +222,15 @@ func (a *App) DeleteEndpoint(ctx context.Context, merchantID string, live *bool,
 
 func (a *App) ListEndpoints(ctx context.Context, merchantID string, live bool) ([]domain.WebhookEndpoint, error) {
 	return a.Endpoints.List(ctx, merchantID, live)
+}
+
+func privateHost(h string) bool {
+	h = strings.ToLower(strings.TrimSuffix(h, "."))
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") || strings.HasSuffix(h, ".local") || strings.HasSuffix(h, ".internal") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified())
 }
 
 var schemeStripper = strings.NewReplacer("https://", "", "http://", "")

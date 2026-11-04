@@ -305,6 +305,22 @@ func (s *seeder) applicants() {
 		{"Escola de Condução Xai-Xai", "Escola de Condução Xai-Xai, Lda", "Abel Sitoe", "company", "400665302", "Xai-Xai", "+258847781120", "geral@ecxaixai.co.mz", "50 – 150 mil MT/mês", "Moza Banco", "Escola de Condução Xai-Xai, Lda", "003400004410900013131", "#EDECE6", 50},
 		{"Kuxa Tech", "Kuxa Tech, SA", "Inês Matsinhe", "company", "400120884", "Maputo", "+258849001002", "financas@kuxatech.co.mz", "Mais de 1 M MT/mês", "Standard Bank", "Kuxa Tech, SA", "000300001002600014141", "#FFD21F", 72},
 	}
+	for _, l := range []struct {
+		name, owner, email, phone, city string
+		ageH                            int
+	}{
+		{"Padaria Zambeze", "Marta Uamusse", "marta@padariazambeze.co.mz", "+258845550101", "Tete", 4},
+		{"Tchova Moda", "Sérgio Langa", "sergio.langa@gmail.com", "+258865550202", "Maputo", 20},
+	} {
+		created := now.Add(-time.Duration(l.ageH) * time.Hour)
+		m := &domain.Merchant{ID: domain.NewID("acct"), Slug: domain.Slugify(l.name), Name: l.name, OwnerName: l.owner, Email: l.email, Phone: l.phone, City: l.city,
+			Status: domain.MerchantLead, AvatarColor: "#E2F3DE", StatementDescriptor: domain.Descriptor(l.name),
+			SigningSecretTest: domain.Token("whsec_", 32), SigningSecretLive: domain.Token("whsec_", 32), CreatedAt: created}
+		s.do(a.Merchants.Create(ctx, m))
+		hash, err := a.Hasher.Hash(domain.Token("", 20))
+		s.do(err)
+		s.do(a.Users.Create(ctx, &domain.User{ID: domain.NewID("usr"), Email: l.email, PasswordHash: hash, Name: l.owner, Role: domain.RoleMerchant, MerchantID: &m.ID, CreatedAt: created}))
+	}
 	for _, x := range apps {
 		sub := now.Add(-time.Duration(x.ageH) * time.Hour)
 		m := &domain.Merchant{ID: domain.NewID("acct"), Slug: domain.Slugify(x.name), Name: x.name, LegalName: x.legal, BusinessType: x.typ, NUIT: x.nuit, City: x.city,

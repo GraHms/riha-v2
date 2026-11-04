@@ -15,11 +15,8 @@ func (a *App) RequestPayout(ctx context.Context, merchantID string, live bool, a
 		if err != nil {
 			return err
 		}
-		if live && m.Status != domain.MerchantActive {
-			return domain.Forbidden("account_not_verified", "A conta tem de estar verificada antes do primeiro levantamento.")
-		}
-		if m.Status == domain.MerchantSuspended {
-			return domain.Forbidden("account_suspended", "Esta conta está suspensa.")
+		if e := domain.RequireApproved(m); e != nil {
+			return e
 		}
 		bank, err := a.Banks.ByMerchant(ctx, merchantID)
 		if err != nil {
@@ -95,8 +92,12 @@ func (a *App) ListPayouts(ctx context.Context, q ports.PayoutQuery) ([]domain.Pa
 func (a *App) Refund(ctx context.Context, merchantID string, live bool, paymentID string, amount int64, reason, actor string) (*domain.Refund, error) {
 	var out *domain.Refund
 	err := a.Tx.Do(ctx, func(ctx context.Context) error {
-		if _, err := a.Merchants.Lock(ctx, merchantID); err != nil {
+		m, err := a.Merchants.Lock(ctx, merchantID)
+		if err != nil {
 			return err
+		}
+		if e := domain.RequireApproved(m); e != nil {
+			return e
 		}
 		p, err := a.Payments.Lock(ctx, paymentID)
 		if err != nil || p.MerchantID != merchantID || p.Livemode != live {

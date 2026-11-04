@@ -246,7 +246,7 @@ func (a *App) Application(ctx context.Context, m *domain.Merchant) Application {
 }
 
 func (a *App) ApprovalQueue(ctx context.Context, statuses []string, limit int) []Application {
-	ms, _ := a.Merchants.List(ctx, ports.MerchantFilter{Statuses: statuses, OrderBy: "kyc_submitted_at", Limit: limit})
+	ms, _ := a.Merchants.List(ctx, ports.MerchantFilter{Statuses: statuses, OrderBy: "kyc_submitted_at NULLS LAST, created_at", Limit: limit})
 	out := make([]Application, 0, len(ms))
 	for i := range ms {
 		out = append(out, a.Application(ctx, &ms[i]))
@@ -276,7 +276,7 @@ func (a *App) MerchantRow(ctx context.Context, m *domain.Merchant) MerchantRow {
 
 var statusTabs = map[string][]string{
 	"active":    {domain.MerchantActive},
-	"review":    {domain.MerchantInReview, domain.MerchantInfoRequested, domain.MerchantOnboarding},
+	"review":    {domain.MerchantInReview, domain.MerchantInfoRequested, domain.MerchantLead},
 	"suspended": {domain.MerchantSuspended, domain.MerchantRejected},
 }
 

@@ -50,8 +50,16 @@ type Payout struct {
 	ClosedAt      *time.Time
 	FailureReason string
 	ReviewedBy    string
+	ReceiptPath   string
+	ReceiptName   string
+	ReceiptType   string
+	ReceiptSize   int64
+	ReceiptHash   string
+	EmailedAt     *time.Time
 	UpdatedAt     time.Time
 }
+
+func (p *Payout) HasReceipt() bool { return p.ReceiptPath != "" }
 
 func (p *Payout) Ref() string { return fmt.Sprintf("LV-%04d", p.Number) }
 
@@ -82,6 +90,9 @@ func (p *Payout) Apply(action, reason, actor string, now time.Time) (Transition,
 	case ActPaid:
 		if p.Status != PayoutSent {
 			return t, bad
+		}
+		if p.Livemode && !p.HasReceipt() {
+			return t, Invalid("receipt_required", "receipt", "Carregue o comprovativo bancário antes de marcar como pago.")
 		}
 		p.Status, p.PaidAt, p.ClosedAt = PayoutPaid, &now, &now
 		t.Event = "payout.paid"

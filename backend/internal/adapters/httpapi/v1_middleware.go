@@ -102,9 +102,10 @@ func (srv *Server) idempotency() gin.HandlerFunc {
 }
 
 type rateLimiter struct {
-	mu   sync.Mutex
-	rate float64
-	b    map[string]*bucket
+	mu       sync.Mutex
+	capacity float64
+	rate     float64
+	b        map[string]*bucket
 }
 
 type bucket struct {
@@ -112,8 +113,8 @@ type bucket struct {
 	last   time.Time
 }
 
-func newRateLimiter(perSecond float64) *rateLimiter {
-	return &rateLimiter{rate: perSecond, b: map[string]*bucket{}}
+func newRateLimiter(capacity, perSecond float64) *rateLimiter {
+	return &rateLimiter{capacity: capacity, rate: perSecond, b: map[string]*bucket{}}
 }
 
 func (r *rateLimiter) allow(key string) bool {
@@ -122,10 +123,13 @@ func (r *rateLimiter) allow(key string) bool {
 	now := time.Now()
 	b, ok := r.b[key]
 	if !ok {
-		b = &bucket{tokens: r.rate, last: now}
+		if len(r.b) > 100000 {
+			r.b = map[string]*bucket{}
+		}
+		b = &bucket{tokens: r.capacity, last: now}
 		r.b[key] = b
 	}
-	b.tokens = min(r.rate, b.tokens+now.Sub(b.last).Seconds()*r.rate)
+	b.tokens = min(r.capacity, b.tokens+now.Sub(b.last).Seconds()*r.rate)
 	b.last = now
 	if b.tokens < 1 {
 		return false

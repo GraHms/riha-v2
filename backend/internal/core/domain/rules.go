@@ -13,16 +13,16 @@ const (
 	MaxAmount = 100_000_000
 )
 
-func CanAcceptPayments(m *Merchant, live bool) *Error {
+func RequireApproved(m *Merchant) *Error {
 	switch m.Status {
+	case MerchantActive:
+		return nil
 	case MerchantSuspended:
 		return Forbidden("account_suspended", "Esta conta está suspensa. Contacte o suporte da Riha.")
 	case MerchantRejected:
-		if live {
-			return Forbidden("account_rejected", "A verificação desta conta foi rejeitada.")
-		}
+		return Forbidden("account_rejected", "A verificação desta conta foi rejeitada.")
 	}
-	return nil
+	return Forbidden("account_not_approved", "A sua conta ainda não foi aprovada. Nenhuma operação é possível até a equipa Riha concluir a verificação.")
 }
 
 func Slugify(s string) string {

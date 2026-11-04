@@ -14,8 +14,8 @@ import (
 )
 
 func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
-	api.POST("/auth/signup", srv.signup)
-	api.POST("/auth/login", srv.login)
+	api.POST("/auth/signup", srv.throttle(srv.authLimiter, "signup"), srv.signup)
+	api.POST("/auth/login", srv.throttle(srv.authLimiter, "login"), srv.login)
 	api.POST("/auth/logout", srv.logout)
 	api.GET("/auth/me", srv.auth(), srv.me)
 	api.POST("/auth/password", srv.auth(), srv.changePassword)
@@ -43,6 +43,8 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	m.GET("/balance", srv.balance)
 	m.GET("/payouts", srv.listPayouts)
 	m.POST("/payouts", srv.createPayout)
+	m.GET("/payouts/:id/statement.pdf", srv.payoutStatement)
+	m.GET("/payouts/:id/receipt", srv.payoutReceipt)
 	m.GET("/bank-account", srv.getBank)
 	m.PUT("/bank-account", srv.putBank)
 	m.GET("/keys", srv.getKeys)
@@ -134,7 +136,8 @@ func (srv *Server) changePassword(c *gin.Context) {
 		return
 	}
 	u := user(c)
-	if err := srv.A.ChangePassword(ctx(c), u, in.Current, in.New); err != nil {
+	tok, _ := c.Cookie(cookieName)
+	if err := srv.A.ChangePassword(ctx(c), u, in.Current, in.New, tok); err != nil {
 		fail(c, err)
 		return
 	}
@@ -610,4 +613,22 @@ func (srv *Server) testEvent(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"ok": true})
+}
+
+func (srv *Server) payoutStatement(c *gin.Context) {
+	pdf, p, err := srv.A.PayoutStatementPDF(ctx(c), c.Param("id"), merchant(c).ID)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	sendPDF(c, "riha-"+strings.ToLower(p.Ref())+".pdf", pdf, c.Query("download") == "1")
+}
+
+func (srv *Server) payoutReceipt(c *gin.Context) {
+	a, err := srv.A.PayoutReceipt(ctx(c), c.Param("id"), merchant(c).ID)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	sendAttachment(c, a)
 }

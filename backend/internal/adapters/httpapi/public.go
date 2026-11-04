@@ -10,11 +10,10 @@ import (
 
 func (srv *Server) publicRoutes(g *gin.RouterGroup) {
 	g.GET("/checkout/:id", srv.publicSession)
-	g.POST("/checkout/:id/pay", srv.publicPay)
+	g.POST("/checkout/:id/pay", srv.throttle(srv.payLimiter, "pay"), srv.publicPay)
 	g.POST("/checkout/:id/cancel", srv.publicCancel)
 	g.GET("/links/:merchant/:slug", srv.publicLink)
-	g.POST("/links/:merchant/:slug/sessions", srv.publicLinkSession)
-	g.GET("/receipts/:ref", srv.publicReceipt)
+	g.POST("/links/:merchant/:slug/sessions", srv.throttle(srv.payLimiter, "link"), srv.publicLinkSession)
 	g.GET("/pricing", func(c *gin.Context) { c.JSON(200, gin.H{"default_fee_bps": srv.A.DefaultFeeBps(ctx(c))}) })
 }
 
@@ -84,14 +83,4 @@ func (srv *Server) publicLinkSession(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"id": cs.ID})
-}
-
-func (srv *Server) publicReceipt(c *gin.Context) {
-	p, m, err := srv.A.Receipt(ctx(c), c.Param("ref"))
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	c.JSON(200, gin.H{"reference": p.Reference, "amount": p.Amount, "method": p.Method, "phone_last4": p.PhoneLast4, "card_last4": p.CardLast4,
-		"description": p.Description, "merchant": publicMerchant(m), "paid_at": iso(p.SucceededAt), "status": p.Status})
 }

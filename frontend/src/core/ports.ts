@@ -37,6 +37,8 @@ export interface PayoutsPort {
   balance(): Promise<Json>
   list(): Promise<Json>
   request(amount: number): Promise<Json>
+  statementUrl(id: string): string
+  receiptUrl(id: string): string
 }
 
 export interface DevelopersPort {
@@ -66,7 +68,7 @@ export interface CheckoutPort {
 
 export interface AdminPort {
   overview(): Promise<Json>
-  approvals(): Promise<Json>
+  approvals(tab: 'review' | 'leads'): Promise<Json>
   decide(merchantId: string, decision: string, note: string): Promise<Json>
   merchants(status: string, q: string): Promise<Json>
   merchant(id: string): Promise<Json>
@@ -75,6 +77,11 @@ export interface AdminPort {
   payouts(tab: string): Promise<Json>
   payoutAction(ids: string[], action: string, reason?: string): Promise<Json>
   payoutExportUrl(ids: string[]): string
+  payoutInstructionsUrl(ids: string[]): string
+  completePayouts(ids: string[], receipt: File): Promise<Json>
+  payoutStatementUrl(id: string): string
+  payoutReceiptUrl(id: string): string
+  emailPayoutStatement(id: string): Promise<{ to: string }>
   settings(): Promise<Json>
   saveSettings(defaultFeeBps: number): Promise<Json>
 }

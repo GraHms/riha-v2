@@ -38,6 +38,8 @@ type SessionParams struct {
 
 var e164MZ = regexp.MustCompile(`^\+258[0-9]{9}$`)
 
+const MaxAttemptsPerSession = 10
+
 func isLocal(h string) bool { return h == "localhost" || h == "127.0.0.1" || h == "::1" }
 
 func validURL(raw, param string, live, required bool) (string, error) {
@@ -63,7 +65,7 @@ func validURL(raw, param string, live, required bool) (string, error) {
 
 func (a *App) DomainAllowed(ctx context.Context, merchantID, host string, live bool) bool {
 	host = strings.ToLower(host)
-	if !live && isLocal(host) {
+	if !live && a.AllowPrivateNetworks && isLocal(host) {
 		return true
 	}
 	doms, _ := a.Domains.List(ctx, merchantID)
@@ -76,7 +78,7 @@ func (a *App) DomainAllowed(ctx context.Context, merchantID, host string, live b
 }
 
 func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, p SessionParams) (*domain.CheckoutSession, error) {
-	if e := domain.CanAcceptPayments(m, live); e != nil {
+	if e := domain.RequireApproved(m); e != nil {
 		return nil, e
 	}
 	if p.Currency == "" {
@@ -107,10 +109,13 @@ func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, 
 			return nil, domain.Invalid("callback_url_not_allowed", "callback_url", fmt.Sprintf("O domínio %s não está verificado.", u.Hostname()))
 		}
 	}
+	if len(p.LineItems) > 100 {
+		return nil, domain.Invalid("line_items_invalid", "line_items", "Máximo de 100 itens.")
+	}
 	if len(p.LineItems) > 0 {
 		var sum int64
 		for i, li := range p.LineItems {
-			if strings.TrimSpace(li.Name) == "" || li.Quantity <= 0 || li.UnitAmount < 0 {
+			if strings.TrimSpace(li.Name) == "" || li.Quantity <= 0 || li.Quantity > 10000 || li.UnitAmount < 0 || li.UnitAmount > domain.MaxAmount {
 				return nil, domain.Invalid("line_items_invalid", fmt.Sprintf("line_items[%d]", i), "Cada item precisa de name, quantity > 0 e unit_amount.")
 			}
 			sum += li.Quantity * li.UnitAmount
@@ -235,11 +240,8 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	if err != nil {
 		return nil, err
 	}
-	if e := domain.CanAcceptPayments(m, cs.Livemode); e != nil {
+	if e := domain.RequireApproved(m); e != nil {
 		return nil, e
-	}
-	if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentProcessing); n > 0 {
-		return nil, domain.Conflict("payment_in_progress", "Já existe um pagamento em curso. Confirme no telemóvel ou aguarde.")
 	}
 	bps := a.FeeBpsFor(ctx, m)
 	fee, net := domain.Split(cs.Amount, bps)
@@ -255,7 +257,23 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 			p.PhonePrefix, p.PhoneLast4 = ph[:2], ph[5:]
 		}
 	}
-	if err := a.Payments.Create(ctx, p); err != nil {
+	err = a.Tx.Do(ctx, func(ctx context.Context) error {
+		locked, err := a.Sessions.Lock(ctx, cs.ID)
+		if err != nil {
+			return err
+		}
+		if !locked.IsOpen(a.Now()) {
+			return domain.Invalid("session_not_open", "session", "Esta sessão de pagamento já não está aberta.")
+		}
+		if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentProcessing); n > 0 {
+			return domain.Conflict("payment_in_progress", "Já existe um pagamento em curso. Confirme no telemóvel ou aguarde.")
+		}
+		if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentFailed); n >= MaxAttemptsPerSession {
+			return domain.Forbidden("too_many_attempts", "Demasiadas tentativas falhadas neste pagamento. Peça um novo link à loja.")
+		}
+		return a.Payments.Create(ctx, p)
+	})
+	if err != nil {
 		return nil, err
 	}
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{

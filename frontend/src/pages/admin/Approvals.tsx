@@ -15,7 +15,8 @@ export default function Approvals() {
   const { toast } = useSession()
   const g = useGateway()
   const [sp, setSp] = useSearchParams()
-  const { data, reload } = useQuery(g => g.admin.approvals())
+  const tab = sp.get('tab') === 'leads' ? 'leads' : 'review'
+  const { data, reload } = useQuery(g => g.admin.approvals(tab), [tab])
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState('')
   const list: any[] = data?.data || []
@@ -30,8 +31,8 @@ export default function Approvals() {
     try {
       await g.admin.decide(app.id, decision, note)
       toast(`${msg}: ${app.name}`)
-      const next = list.find(a => a.id !== app.id && a.status === 'in_review')
-      setSp(next ? { id: next.id } : {})
+      const next = list.find(a => a.id !== app.id)
+      setSp(next ? { id: next.id, tab } : { tab })
       reload()
     } catch (e) { toast(errMsg(e), true) } finally { setBusy('') }
   }
@@ -41,20 +42,25 @@ export default function Approvals() {
       <style>{`.appr{display:flex;height:100%}.appr-list{width:380px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;height:100%}.appr-main{flex:1;min-width:0;display:flex;flex-direction:column;height:100%}
       @media(max-width:860px){.appr{flex-direction:column;height:auto}.appr-list{width:100%;height:auto;border-right:0}.appr-list .scroll{max-height:none;flex-direction:row;overflow-x:auto}.appr-list .scroll>button{flex:none;width:260px}.appr-main{height:auto}.appr-foot{flex-wrap:wrap;position:sticky;bottom:0}.appr-foot input{flex-basis:100%!important}}`}</style>
       <div className="appr-list">
-        <div style={{ padding: '24px 22px 14px' }}><h1 className="h1" style={{ fontSize: 28 }}>Aprovações</h1><div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 4 }}>{data?.pending ?? '…'} contas à espera de verificação</div></div>
+        <div style={{ padding: '24px 22px 14px' }}><h1 className="h1" style={{ fontSize: 28 }}>Aprovações</h1><div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 4 }}>{data?.pending ?? '…'} contas à espera de verificação · {data?.leads ?? '…'} leads</div>
+          <div className="tabs" style={{ marginTop: 14 }}>
+            <button className={tab === 'review' ? 'on' : ''} onClick={() => setSp({})}>Por rever<span className="count">{data?.pending ?? '·'}</span></button>
+            <button className={tab === 'leads' ? 'on' : ''} onClick={() => setSp({ tab: 'leads' })}>Leads<span className="count">{data?.leads ?? '·'}</span></button>
+          </div>
+        </div>
         <div className="scroll" style={{ flex: 1, overflow: 'auto', padding: '0 12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {list.map(a => {
             const on = a.id === app?.id
-            const pill = a.status === 'info_requested' ? ['Docs pedidos', '#EDECE6', '#3E4742'] : ['Risco ' + a.risk.toLowerCase(), ...RISK[a.risk]]
+            const pill = a.status === 'lead' ? ['Lead', '#EDECE6', '#3E4742'] : a.status === 'info_requested' ? ['Docs pedidos', '#EDECE6', '#3E4742'] : ['Risco ' + a.risk.toLowerCase(), ...RISK[a.risk]]
             return (
-              <button key={a.id} onClick={() => setSp({ id: a.id })} className="row" style={{ padding: 12, borderRadius: 14, border: `1px solid ${on ? '#E2E0D8' : 'transparent'}`, background: on ? '#fff' : 'transparent', textAlign: 'left' }}>
+              <button key={a.id} onClick={() => setSp({ id: a.id, tab })} className="row" style={{ padding: 12, borderRadius: 14, border: `1px solid ${on ? '#E2E0D8' : 'transparent'}`, background: on ? '#fff' : 'transparent', textAlign: 'left' }}>
                 <Avatar text={a.initials} color={a.avatar_color} size={40} radius={12} font={13.5} />
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 1 }}>{a.city || '—'} · {submittedAgo(a.submitted_at)}</div></div>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 1 }}>{a.city || a.email} · {submittedAgo(a.submitted_at || a.created_at)}</div></div>
                 <Pill t={pill[0]} bg={pill[1]} fg={pill[2]} style={{ fontSize: 11 }} />
               </button>
             )
           })}
-          {data && !list.length && <div className="empty">Fila vazia. Bom trabalho.</div>}
+          {data && !list.length && <div className="empty">{tab === 'leads' ? 'Sem leads por contactar.' : 'Fila vazia. Bom trabalho.'}</div>}
         </div>
       </div>
       {app && (
@@ -62,8 +68,8 @@ export default function Approvals() {
           <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
             <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
               <Avatar text={app.initials} color={app.avatar_color} size={56} radius={16} font={18} />
-              <div style={{ flex: 1, minWidth: 200 }}><div className="display" style={{ fontSize: 26, letterSpacing: '-0.025em' }}>{app.name}</div><div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 2 }}>{app.owner_name} · Submetido {submittedAgo(app.submitted_at)}</div></div>
-              <Pill t={app.status === 'info_requested' ? 'Docs pedidos' : 'Por rever'} bg={app.status === 'info_requested' ? '#EDECE6' : '#FFF3C4'} fg={app.status === 'info_requested' ? '#3E4742' : '#7A5A00'} style={{ fontSize: 12.5, padding: '5px 11px' }} />
+              <div style={{ flex: 1, minWidth: 200 }}><div className="display" style={{ fontSize: 26, letterSpacing: '-0.025em' }}>{app.name}</div><div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 2 }}>{app.owner_name} · {app.submitted_at ? 'Submetido ' + submittedAgo(app.submitted_at) : 'Registado ' + submittedAgo(app.created_at) + ' · verificação por submeter'}</div></div>
+              <Pill t={app.status === 'lead' ? 'Lead' : app.status === 'info_requested' ? 'Docs pedidos' : 'Por rever'} bg={app.status === 'info_requested' ? '#EDECE6' : '#FFF3C4'} fg={app.status === 'info_requested' ? '#3E4742' : '#7A5A00'} style={{ fontSize: 12.5, padding: '5px 11px' }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 1, marginTop: 22, background: 'var(--line)', border: '1px solid var(--line)', borderRadius: 18, overflow: 'hidden' }}>
               {[['Tipo', app.business_type === 'company' ? 'Empresa' : 'Em nome individual'], ['NUIT', app.nuit?.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3'), true], ['Cidade', app.city], ['Telemóvel', app.phone], ['Email', app.email], ['Volume esperado', app.expected_volume]].map(([k, v, m]) => (

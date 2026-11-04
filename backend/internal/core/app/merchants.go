@@ -139,11 +139,8 @@ func (a *App) SubmitKyc(ctx context.Context, m *domain.Merchant, actor Actor) er
 	if m.NUIT == "" || m.BusinessType == "" {
 		return domain.Invalid("kyc_incomplete", "nuit", "Preencha o tipo de negócio e o NUIT.")
 	}
-	if n, _ := a.Documents.CountKinds(ctx, m.ID, []string{"id_front", "registration"}); n == 0 {
-		return domain.Invalid("kyc_incomplete", "documents", "Carregue pelo menos o Bilhete de Identidade.")
-	}
 	switch m.Status {
-	case domain.MerchantOnboarding, domain.MerchantInfoRequested, domain.MerchantRejected:
+	case domain.MerchantLead, domain.MerchantInfoRequested, domain.MerchantRejected:
 		now := a.Now()
 		m.Status, m.KycSubmittedAt = domain.MerchantInReview, &now
 		if err := a.Merchants.Save(ctx, m); err != nil {

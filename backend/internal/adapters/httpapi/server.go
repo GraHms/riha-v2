@@ -18,23 +18,27 @@ import (
 )
 
 type Config struct {
-	StaticDir    string
-	CookieSecure bool
+	StaticDir      string
+	CookieSecure   bool
+	TrustedProxies []string
 }
 
 type Server struct {
-	A       *app.App
-	cfg     Config
-	limiter *rateLimiter
+	A           *app.App
+	cfg         Config
+	limiter     *rateLimiter
+	authLimiter *rateLimiter
+	payLimiter  *rateLimiter
 }
 
 const cookieName = "riha_session"
 
 func New(a *app.App, cfg Config) *gin.Engine {
-	srv := &Server{A: a, cfg: cfg, limiter: newRateLimiter(100)}
+	srv := &Server{A: a, cfg: cfg, limiter: newRateLimiter(100, 100), authLimiter: newRateLimiter(10, 10.0/60), payLimiter: newRateLimiter(20, 20.0/60)}
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery(), requestID(), accessLog())
+	_ = r.SetTrustedProxies(cfg.TrustedProxies)
+	r.Use(gin.Recovery(), requestID(), securityHeaders(cfg.CookieSecure), bodyLimit(), accessLog())
 	r.MaxMultipartMemory = 8 << 20
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
 	srv.dashboardRoutes(r.Group("/api", csrf()))
@@ -67,6 +71,48 @@ func requestID() gin.HandlerFunc {
 		id := "req_" + domain.Token("", 10)
 		c.Set("request_id", id)
 		c.Header("Request-Id", id)
+		c.Next()
+	}
+}
+
+const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+func securityHeaders(https bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		h := c.Writer.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Content-Security-Policy", csp)
+		if https {
+			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		if strings.HasPrefix(c.Request.URL.Path, "/api") || strings.HasPrefix(c.Request.URL.Path, "/v1") {
+			h.Set("Cache-Control", "no-store")
+		}
+		c.Next()
+	}
+}
+
+func bodyLimit() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		limit := int64(1 << 20)
+		if strings.HasPrefix(c.ContentType(), "multipart/") {
+			limit = 9 << 20
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		c.Next()
+	}
+}
+
+func (srv *Server) throttle(l *rateLimiter, name string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !l.allow(name + "|" + c.ClientIP()) {
+			fail(c, &domain.Error{Status: 429, Type: "rate_limit_error", Code: "rate_limited", Message: "Demasiadas tentativas. Aguarde um minuto e tente de novo."})
+			return
+		}
 		c.Next()
 	}
 }

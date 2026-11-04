@@ -67,7 +67,7 @@ func (a *App) Signup(ctx context.Context, in SignupInput) (*domain.User, *domain
 	now := a.Now()
 	m := &domain.Merchant{
 		ID: domain.NewID("acct"), Slug: a.uniqueMerchantSlug(ctx, domain.Slugify(in.BusinessName)), Name: in.BusinessName,
-		Email: in.Email, Phone: "+258" + phone, OwnerName: strings.TrimSpace(in.Name), Status: domain.MerchantOnboarding,
+		Email: in.Email, Phone: "+258" + phone, OwnerName: strings.TrimSpace(in.Name), Status: domain.MerchantLead,
 		StatementDescriptor: domain.Descriptor(in.BusinessName), AvatarColor: avatarColors[int(now.UnixNano())%len(avatarColors)],
 		SigningSecretTest: domain.Token("whsec_", 32), SigningSecretLive: domain.Token("whsec_", 32), SMSNotifications: true, CreatedAt: now,
 	}
@@ -130,7 +130,7 @@ func (a *App) Logout(ctx context.Context, tok string) {
 	_ = a.AuthSessions.Delete(ctx, domain.Hash(tok))
 }
 
-func (a *App) ChangePassword(ctx context.Context, u *domain.User, current, next string) error {
+func (a *App) ChangePassword(ctx context.Context, u *domain.User, current, next, keepToken string) error {
 	if !a.Hasher.Matches(u.PasswordHash, current) {
 		return domain.Invalid("password_incorrect", "current_password", "A palavra-passe atual está errada.")
 	}
@@ -141,7 +141,24 @@ func (a *App) ChangePassword(ctx context.Context, u *domain.User, current, next 
 	if err != nil {
 		return err
 	}
-	return a.Users.SetPassword(ctx, u.ID, h)
+	if err := a.Users.SetPassword(ctx, u.ID, h); err != nil {
+		return err
+	}
+	return a.AuthSessions.DeleteForUser(ctx, u.ID, domain.Hash(keepToken))
+}
+
+func (a *App) EnsureAdmin(ctx context.Context, email, password string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return nil
+	}
+	if taken, err := a.Users.EmailTaken(ctx, email); err != nil || taken {
+		return err
+	}
+	if len(password) < 12 {
+		return domain.Invalid("password_weak", "RIHA_ADMIN_PASSWORD", "A palavra-passe do administrador precisa de pelo menos 12 caracteres.")
+	}
+	return a.CreateAdmin(ctx, email, password, "Administrador", "Operações")
 }
 
 func (a *App) MerchantForUser(ctx context.Context, u *domain.User) (*domain.Merchant, error) {

@@ -2,9 +2,11 @@ package filestore
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Local struct{ Root string }
@@ -26,4 +28,25 @@ func (l Local) Save(_ context.Context, dir, name string, r io.Reader) (string, e
 	return path, nil
 }
 
-func (l Local) Remove(path string) error { return os.Remove(path) }
+func (l Local) inside(path string) bool {
+	root, err := filepath.Abs(l.Root)
+	if err != nil {
+		return false
+	}
+	abs, err := filepath.Abs(path)
+	return err == nil && strings.HasPrefix(abs, root+string(os.PathSeparator))
+}
+
+func (l Local) Read(path string) ([]byte, error) {
+	if !l.inside(path) {
+		return nil, errors.New("path outside store")
+	}
+	return os.ReadFile(path)
+}
+
+func (l Local) Remove(path string) error {
+	if !l.inside(path) {
+		return errors.New("path outside store")
+	}
+	return os.Remove(path)
+}

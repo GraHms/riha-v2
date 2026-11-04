@@ -38,12 +38,15 @@ type Deps struct {
 	Sender       ports.WebhookSender
 	Files        ports.FileStore
 	Hasher       ports.PasswordHasher
+	Renderer     ports.Renderer
+	Mailer       ports.Mailer
 }
 
 type App struct {
 	Deps
-	PublicURL string
-	Now       func() time.Time
+	PublicURL            string
+	AllowPrivateNetworks bool
+	Now                  func() time.Time
 }
 
 func New(d Deps, publicURL string) *App {

@@ -210,9 +210,9 @@ function Keys() {
           {fresh && <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: 'var(--sun-soft)', fontSize: 12.5, color: '#5B4600', lineHeight: 1.45 }}>Guarde esta chave num local seguro. Por segurança só a mostramos agora.</div>}
           <div className="between" style={{ marginTop: 14, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{sk ? `Criada a ${shortDate(sk.created_at)} · Último uso ${ago(sk.last_used_at)}` : 'Gere uma chave secreta para usar a API.'}</span>
-            <button className="btn btn-outline" style={{ height: 36, fontSize: 13 }} onClick={() => (sk ? setConfirm(true) : roll())} disabled={busy || (live && merchant.status !== 'active')}>{busy ? <Spinner dark /> : sk ? 'Gerar nova chave' : 'Gerar chave secreta'}</button>
+            <button className="btn btn-outline" style={{ height: 36, fontSize: 13 }} onClick={() => (sk ? setConfirm(true) : roll())} disabled={busy || merchant.status !== 'active'}>{busy ? <Spinner dark /> : sk ? 'Gerar nova chave' : 'Gerar chave secreta'}</button>
           </div>
-          {live && merchant.status !== 'active' && <div style={{ fontSize: 12.5, color: 'var(--sun-text)', marginTop: 10 }}>As chaves de produção ficam disponíveis depois da verificação.</div>}
+          {merchant.status !== 'active' && <div style={{ fontSize: 12.5, color: 'var(--sun-text)', marginTop: 10 }}>As chaves API ficam disponíveis depois da aprovação da conta.</div>}
         </Card>
         <div className="card" style={{ padding: '8px 0' }}>
           <div style={{ padding: '14px 22px 8px', fontWeight: 600, fontSize: 16 }}>Pedidos recentes</div>

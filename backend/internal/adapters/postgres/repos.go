@@ -45,6 +45,12 @@ func (r AuthSessions) UserID(ctx context.Context, hash string, now time.Time) (s
 func (r AuthSessions) Delete(ctx context.Context, hash string) error {
 	return r.conn(ctx).Delete(&sessionRecord{}, "id = ?", hash).Error
 }
+func (r AuthSessions) DeleteForUser(ctx context.Context, userID, except string) error {
+	return r.conn(ctx).Where("user_id = ? AND id <> ?", userID, except).Delete(&sessionRecord{}).Error
+}
+func (r AuthSessions) Purge(ctx context.Context, before time.Time) error {
+	return r.conn(ctx).Where("expires_at < ?", before).Delete(&sessionRecord{}).Error
+}
 
 type Merchants struct{ *Store }
 

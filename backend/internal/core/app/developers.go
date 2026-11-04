@@ -33,8 +33,8 @@ func (a *App) APIKey(ctx context.Context, id string) *domain.APIKey {
 }
 
 func (a *App) RollSecretKey(ctx context.Context, m *domain.Merchant, live bool, actor Actor) (string, *domain.APIKey, error) {
-	if live && m.Status != domain.MerchantActive {
-		return "", nil, domain.Forbidden("account_not_verified", "As chaves de produção ficam disponíveis depois da verificação da conta. Use o modo de teste.")
+	if e := domain.RequireApproved(m); e != nil {
+		return "", nil, e
 	}
 	secret := domain.Token("sk_"+domain.Mode(live)+"_", 32)
 	k := &domain.APIKey{MerchantID: m.ID, Livemode: live, Kind: domain.KeySecret, Hash: domain.Hash(secret), Last4: secret[len(secret)-4:], CreatedBy: actor.ID, CreatedAt: a.Now()}
@@ -71,6 +71,9 @@ func (a *App) AuthenticateSecret(ctx context.Context, secret string) (*domain.AP
 	m, err := a.Merchants.ByID(ctx, k.MerchantID)
 	if err != nil {
 		return nil, nil, domain.ErrBadKey
+	}
+	if e := domain.RequireApproved(m); e != nil {
+		return nil, nil, e
 	}
 	_ = a.Keys.Touch(ctx, k.ID, a.Now())
 	return k, m, nil
@@ -222,6 +225,7 @@ func (a *App) Sweep(ctx context.Context) {
 		_, _ = a.TransitionPayout(ctx, p.ID, action, "", "system")
 	}
 	_ = a.Idempotency.Purge(ctx, now.Add(-24*time.Hour))
+	_ = a.AuthSessions.Purge(ctx, now)
 }
 
 func (a *App) RunWorkers(ctx context.Context) {

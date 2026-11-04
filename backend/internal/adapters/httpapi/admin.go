@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/csv"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -26,6 +27,11 @@ func (srv *Server) adminRoutes(a *gin.RouterGroup) {
 	a.GET("/payouts", srv.adminPayouts)
 	a.POST("/payouts/action", srv.adminPayoutAction)
 	a.GET("/payouts/export.csv", srv.adminPayoutExport)
+	a.GET("/payouts/instructions.pdf", srv.adminPayoutInstructions)
+	a.POST("/payouts/complete", srv.adminPayoutComplete)
+	a.GET("/payouts/:id/statement.pdf", srv.adminPayoutStatement)
+	a.GET("/payouts/:id/receipt", srv.adminPayoutReceipt)
+	a.POST("/payouts/:id/email", srv.adminPayoutEmail)
 	a.GET("/settings", srv.adminSettings)
 	a.PUT("/settings", srv.adminPutSettings)
 	a.GET("/payments", srv.adminPayments)
@@ -75,8 +81,13 @@ func (srv *Server) adminOverview(c *gin.Context) {
 }
 
 func (srv *Server) adminApprovals(c *gin.Context) {
-	q := srv.A.ApprovalQueue(ctx(c), []string{domain.MerchantInReview, domain.MerchantInfoRequested}, 200)
-	c.JSON(200, gin.H{"data": applicationsJSON(q, true), "pending": srv.A.PendingApprovals(ctx(c))})
+	statuses := []string{domain.MerchantInReview, domain.MerchantInfoRequested}
+	if c.Query("tab") == "leads" {
+		statuses = []string{domain.MerchantLead}
+	}
+	q := srv.A.ApprovalQueue(ctx(c), statuses, 200)
+	leads, _ := srv.A.Merchants.Count(ctx(c), []string{domain.MerchantLead})
+	c.JSON(200, gin.H{"data": applicationsJSON(q, true), "pending": srv.A.PendingApprovals(ctx(c)), "leads": leads})
 }
 
 func (srv *Server) adminMerchants(c *gin.Context) {
@@ -250,4 +261,107 @@ func (srv *Server) adminPayments(c *gin.Context) {
 		out = append(out, o)
 	}
 	c.JSON(200, gin.H{"data": out})
+}
+
+func sendPDF(c *gin.Context, name string, data []byte, download bool) {
+	disp := "inline"
+	if download {
+		disp = "attachment"
+	}
+	c.Writer.Header().Del("Content-Security-Policy")
+	c.Header("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disp, name))
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(200, "application/pdf", data)
+}
+
+func sendAttachment(c *gin.Context, a *domain.Attachment) {
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, strings.NewReplacer(`"`, "", "\r", "", "\n", "").Replace(a.Name)))
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'")
+	c.Data(200, a.ContentType, a.Data)
+}
+
+func idsParam(c *gin.Context) []string {
+	var out []string
+	for _, x := range strings.Split(c.Query("ids"), ",") {
+		if x = strings.TrimSpace(x); x != "" {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+func (srv *Server) adminPayoutInstructions(c *gin.Context) {
+	pdf, err := srv.A.PayoutInstructionsPDF(ctx(c), idsParam(c))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	sendPDF(c, "riha-ordens-"+time.Now().Format("20060102-1504")+".pdf", pdf, c.Query("download") == "1")
+}
+
+func (srv *Server) adminPayoutComplete(c *gin.Context) {
+	fh, err := c.FormFile("receipt")
+	if err != nil {
+		bad(c, "Carregue o comprovativo bancário.")
+		return
+	}
+	f, err := fh.Open()
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	defer f.Close()
+	head := make([]byte, 8)
+	n, _ := io.ReadFull(f, head)
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		fail(c, err)
+		return
+	}
+	ids := []string{}
+	for _, x := range strings.Split(c.PostForm("ids"), ",") {
+		if x = strings.TrimSpace(x); x != "" {
+			ids = append(ids, x)
+		}
+	}
+	done, err := srv.A.CompletePayouts(ctx(c), ids, app.Upload{FileName: fh.Filename, Size: fh.Size, Head: head[:n], Body: f}, user(c).ID)
+	refs := []string{}
+	for _, p := range done {
+		refs = append(refs, p.Ref())
+		srv.A.Record(ctx(c), p.MerchantID, actor(c), "payout.paid", p.ID, domain.Format(p.Amount)+" MT · "+p.ReceiptName)
+	}
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, gin.H{"done": refs, "stats": statsJSON(srv.A.PayoutStats(ctx(c)))})
+}
+
+func (srv *Server) adminPayoutStatement(c *gin.Context) {
+	pdf, p, err := srv.A.PayoutStatementPDF(ctx(c), c.Param("id"), "")
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	sendPDF(c, "riha-"+strings.ToLower(p.Ref())+".pdf", pdf, c.Query("download") == "1")
+}
+
+func (srv *Server) adminPayoutReceipt(c *gin.Context) {
+	a, err := srv.A.PayoutReceipt(ctx(c), c.Param("id"), "")
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	sendAttachment(c, a)
+}
+
+func (srv *Server) adminPayoutEmail(c *gin.Context) {
+	to, err := srv.A.EmailPayoutStatement(ctx(c), c.Param("id"), actor(c))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, gin.H{"ok": true, "to": to})
 }

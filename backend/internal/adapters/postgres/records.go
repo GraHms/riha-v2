@@ -247,6 +247,12 @@ type payoutRecord struct {
 	ClosedAt      *time.Time
 	FailureReason string `gorm:"size:300"`
 	ReviewedBy    string `gorm:"size:40"`
+	ReceiptPath   string `gorm:"size:500"`
+	ReceiptName   string `gorm:"size:200"`
+	ReceiptType   string `gorm:"size:60"`
+	ReceiptSize   int64
+	ReceiptHash   string `gorm:"size:64"`
+	EmailedAt     *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

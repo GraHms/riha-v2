@@ -72,6 +72,10 @@ func (srv *Server) linkJSON(v app.LinkView, merchantSlug string) gin.H {
 func payoutJSON(p *domain.Payout) gin.H {
 	o := domain.PayoutResource(p)
 	o["requested_at_iso"] = isoT(p.RequestedAt)
+	o["has_receipt"] = p.HasReceipt()
+	o["receipt_name"] = p.ReceiptName
+	o["emailed_at"] = iso(p.EmailedAt)
+	o["paid_at_iso"] = iso(p.PaidAt)
 	return o
 }
 

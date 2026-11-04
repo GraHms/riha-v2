@@ -89,7 +89,7 @@ export const PAYOUT_STATUS: Record<string, { t: string; bg: string; fg: string }
 }
 
 export const MERCHANT_STATUS: Record<string, { t: string; bg: string; fg: string }> = {
-  onboarding: { t: 'Por verificar', bg: '#EDECE6', fg: '#3E4742' },
+  lead: { t: 'Lead', bg: '#EDECE6', fg: '#3E4742' },
   in_review: { t: 'Em verificação', bg: '#FFF3C4', fg: '#7A5A00' },
   info_requested: { t: 'Docs pedidos', bg: '#EDECE6', fg: '#3E4742' },
   active: { t: 'Ativo', bg: '#E2F3DE', fg: '#0A6B05' },

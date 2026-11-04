@@ -25,6 +25,8 @@ type AuthSessions interface {
 	Create(ctx context.Context, s *domain.AuthSession) error
 	UserID(ctx context.Context, tokenHash string, now time.Time) (string, error)
 	Delete(ctx context.Context, tokenHash string) error
+	DeleteForUser(ctx context.Context, userID, exceptHash string) error
+	Purge(ctx context.Context, before time.Time) error
 }
 
 type MerchantFilter struct {
@@ -241,7 +243,17 @@ type WebhookSender interface {
 
 type FileStore interface {
 	Save(ctx context.Context, dir, name string, r io.Reader) (path string, err error)
+	Read(path string) ([]byte, error)
 	Remove(path string) error
+}
+
+type Renderer interface {
+	PayoutInstructions(sheets []domain.PayoutSheet) ([]byte, error)
+	PayoutStatement(sheet domain.PayoutSheet) ([]byte, error)
+}
+
+type Mailer interface {
+	Send(ctx context.Context, e domain.Email) error
 }
 
 type PasswordHasher interface {

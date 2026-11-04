@@ -29,7 +29,7 @@ type AuthSession struct {
 }
 
 const (
-	MerchantOnboarding    = "onboarding"
+	MerchantLead          = "lead"
 	MerchantInReview      = "in_review"
 	MerchantInfoRequested = "info_requested"
 	MerchantActive        = "active"

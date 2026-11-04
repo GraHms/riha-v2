@@ -27,7 +27,7 @@ func Open(dsn string) (*Store, error) {
 		lvl = logger.Info
 	}
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger:  logger.New(log.New(os.Stderr, "", log.LstdFlags), logger.Config{SlowThreshold: 500 * time.Millisecond, LogLevel: lvl, IgnoreRecordNotFoundError: true}),
+		Logger:  logger.New(log.New(os.Stderr, "", log.LstdFlags), logger.Config{SlowThreshold: 500 * time.Millisecond, LogLevel: lvl, IgnoreRecordNotFoundError: true, ParameterizedQueries: true}),
 		NowFunc: func() time.Time { return time.Now().UTC() },
 	})
 	if err != nil {

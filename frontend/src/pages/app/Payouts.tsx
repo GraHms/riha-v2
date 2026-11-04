@@ -6,9 +6,9 @@ import { useQuery } from '../../core/useQuery'
 import { fmt, monthName, parseMT, PAYOUT_STATUS, relDate, shortDate, weekday } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Icon, Pill, Spinner, Stripes } from '../../components/ui'
-import { useShell } from './AppShell'
+import { NOT_APPROVED, useShell } from './AppShell'
 
-const GRID = '100px minmax(0,1fr) 130px 130px 120px'
+const GRID = '100px minmax(0,1fr) 130px 130px 120px 96px'
 
 export default function Payouts() {
   const { version, bump, merchant, live } = useShell()
@@ -27,7 +27,7 @@ export default function Payouts() {
   const over = amt > available
   const acct = bank.data?.account
   const due = new Date(Date.now() + 72 * 3600 * 1000)
-  const blocked = live && merchant.status !== 'active'
+  const blocked = merchant.status !== 'active'
   const disabled = busy || !amt || over || amt < 10000 || !acct || blocked
 
   const request = async () => {
@@ -64,7 +64,7 @@ export default function Payouts() {
         <style>{`.payout-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}@media(max-width:1100px){.payout-grid{grid-template-columns:1fr}.payout-grid>.req{order:-1}}`}</style>
         <div className="table">
           <div className="h2" style={{ padding: '18px 20px 12px' }}>Histórico</div>
-          <div className="thead only-desktop" style={{ gridTemplateColumns: GRID, borderTop: '1px solid #EEECE5' }}><span>Ref.</span><span>Conta</span><span>Pedido</span><span>Estado</span><span style={{ textAlign: 'right' }}>Valor</span></div>
+          <div className="thead only-desktop" style={{ gridTemplateColumns: GRID, borderTop: '1px solid #EEECE5' }}><span>Ref.</span><span>Conta</span><span>Pedido</span><span>Estado</span><span style={{ textAlign: 'right' }}>Valor</span><span /></div>
           {rows.map(p => (
             <div key={p.id}>
               <div className="trow only-desktop" style={{ gridTemplateColumns: GRID, fontSize: 13.5, padding: '13px 20px' }}>
@@ -73,11 +73,13 @@ export default function Payouts() {
                 <span style={{ color: 'var(--text-2)' }}>{relDate(p.requested_at_iso)}</span>
                 <span><Pill {...PAYOUT_STATUS[p.status]} /></span>
                 <span className="tnum" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(p.amount)} MT</span>
+                <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>{p.status === 'paid' && <a className="btn btn-outline btn-sm" href={g.payouts.statementUrl(p.id)} target="_blank" rel="noreferrer" title="Comprovativo completo em PDF">PDF</a>}{p.has_receipt && <a className="btn btn-outline btn-sm" href={g.payouts.receiptUrl(p.id)} title={p.receipt_name}>Talão</a>}</span>
               </div>
               <div className="only-mobile" style={{ padding: '12px 16px', borderTop: '1px solid var(--line-3)' }}>
                 <div className="between"><span className="mono" style={{ fontSize: 12.5 }}>{p.reference}</span><span className="tnum" style={{ fontWeight: 600 }}>{fmt(p.amount)} MT</span></div>
                 <div className="between" style={{ marginTop: 4 }}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{relDate(p.requested_at_iso)}</span><Pill {...PAYOUT_STATUS[p.status]} /></div>
                 {p.failure_reason && <div style={{ fontSize: 12.5, color: 'var(--red-dark)', marginTop: 4 }}>{p.failure_reason}</div>}
+                {p.status === 'paid' && <div className="row" style={{ gap: 6, marginTop: 8 }}><a className="btn btn-outline btn-sm" href={g.payouts.statementUrl(p.id)} target="_blank" rel="noreferrer">Comprovativo PDF</a>{p.has_receipt && <a className="btn btn-outline btn-sm" href={g.payouts.receiptUrl(p.id)}>Talão do banco</a>}</div>}
               </div>
             </div>
           ))}
@@ -104,7 +106,7 @@ export default function Payouts() {
             <button className="btn btn-outline btn-block" style={{ marginTop: 16 }} onClick={() => nav('/painel/definicoes/banco')}><Icon name="bank" size={17} />Adicionar conta bancária</button>
           )}
           <div style={{ display: 'flex', gap: 10, marginTop: 14, fontSize: 13, lineHeight: 1.45, color: 'var(--text-2)' }}><Icon name="clock" size={17} stroke={2} style={{ marginTop: 1 }} />Processado em até 72 horas. Se pedir hoje, chega até {weekday(due).toLowerCase()}, {shortDate(due)}.</div>
-          {blocked && <div className="form-err" style={{ marginTop: 12, background: 'var(--sun-soft)', color: '#5B4600' }}>Os levantamentos em produção ficam disponíveis depois da verificação da conta.</div>}
+          {blocked && <div className="form-err" style={{ marginTop: 12, background: 'var(--sun-soft)', color: '#5B4600' }}>{NOT_APPROVED}</div>}
           {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
           <button className="btn btn-green btn-block" style={{ marginTop: 16, height: 52, borderRadius: 14, fontSize: 15.5 }} disabled={disabled} onClick={request}>{busy ? <Spinner /> : `Levantar ${fmt(amt)} MT`}</button>
           {!live && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, textAlign: 'center' }}>Em modo de teste os levantamentos são concluídos automaticamente em segundos.</div>}

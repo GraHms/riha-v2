@@ -1,6 +1,6 @@
 # Riha: payment gateway for Mozambique
 
-Riha combines M-Pesa, e-Mola and bank cards in one gateway. Merchants sign up, verify their business (KYC), create payment links (WhatsApp, SMS, QR) or integrate through a REST API, see their balance, and request payouts to their bank within 72 hours. A super admin approves accounts, processes payouts and sets per-merchant fees.
+Riha combines M-Pesa, e-Mola and bank cards in one gateway. Merchants sign up as a lead, submit their business details (KYC) and, once an admin approves them, create payment links (WhatsApp, SMS, QR) or integrate through a REST API, see their balance, and request payouts to their bank within 72 hours. A super admin approves accounts, processes payouts and sets per-merchant fees.
 
 This is the first working version, built from the Claude Design handoff in `project/` and `chats/` (see `HANDOFF.md`).
 
@@ -17,14 +17,16 @@ backend/
   cmd/server/            composition root: builds adapters and injects them into the core
   internal/core/
     domain/              entities, rules, money, payout state machine, API resources, webhook signing (no I/O)
-    ports/               interfaces the core needs: repositories, Tx, Rail, WebhookSender, FileStore, PasswordHasher, Reports
+    ports/               interfaces the core needs: repositories, Tx, Rail, WebhookSender, FileStore, Renderer, Mailer, PasswordHasher, Reports
     app/                 use cases: signup, KYC, checkout, payments, links, payouts, refunds, keys, webhooks, admin, reports
   internal/adapters/
     httpapi/             driving adapter: gin handlers for /api (dashboard, checkout, admin) and /v1 (public REST API)
     postgres/            GORM records, mappers and repositories; transactions through context
     rails/               mock M-Pesa, e-Mola and card rail (implements ports.Rail)
-    webhooks/            HTTP webhook sender
-    filestore/           local disk storage for KYC documents
+    webhooks/            HTTP webhook sender (blocks private and loopback targets)
+    filestore/           local disk storage for KYC documents and bank receipts
+    pdf/                 payout transfer orders and payout statements (fpdf)
+    mail/                email with attachments: SMTP, or .eml files in an outbox directory
     crypto/              bcrypt password hasher
   internal/seed/         demo data, written through the application layer
   internal/integration/  end-to-end tests: core + Postgres adapter + mock rail
@@ -51,7 +53,7 @@ frontend/src/
 
 ```bash
 make db            # Postgres in Docker (or use your own: DATABASE_URL=postgres://…)
-make api           # API on :8080; migrates and seeds demo data on an empty DB
+make api           # API on :8080 (development mode); migrates and seeds demo data on an empty DB
 make web           # Vite on :5173, proxies /api and /v1 to :8080
 ```
 
@@ -64,19 +66,38 @@ Demo accounts (created by the seed):
 | Merchant (Café Maputo, verified) | `ola@cafemaputo.co.mz` | `cafe-maputo-2026` |
 | Super admin | `admin@riha.co.mz` | `riha-admin-2026` |
 
-Configuration (environment variables): `DATABASE_URL`, `RIHA_ADDR` (`:8080`), `RIHA_PUBLIC_URL` (base URL for checkout links, `http://localhost:5173`), `RIHA_STATIC_DIR` (serve a built frontend), `RIHA_UPLOAD_DIR` (KYC documents, `./data/uploads`), `RIHA_COOKIE_SECURE` (`true` behind HTTPS), `RIHA_SEED` (`true`), `RIHA_SIM_DELAY_MS` (mock PIN confirmation delay, `4000`).
+Configuration (environment variables):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | local `riha` database | Postgres DSN |
+| `RIHA_ENV` | `production` | `development` relaxes private network checks; seeding is refused in production |
+| `RIHA_ADDR` | `:8080` | listen address |
+| `RIHA_PUBLIC_URL` | `http://localhost:5173` | base URL for checkout links; `https` turns on secure cookies and HSTS |
+| `RIHA_STATIC_DIR` | empty | serve a built frontend |
+| `RIHA_UPLOAD_DIR` | `./data/uploads` | KYC documents and bank receipts |
+| `RIHA_OUTBOX_DIR` | `./data/outbox` | emails are written here as `.eml` when SMTP is not configured |
+| `RIHA_SMTP_ADDR`, `RIHA_SMTP_USER`, `RIHA_SMTP_PASSWORD`, `RIHA_MAIL_FROM` | empty | SMTP delivery for payout statements |
+| `RIHA_ADMIN_EMAIL`, `RIHA_ADMIN_PASSWORD` | empty | create or reset the super admin on start (password of 12 characters or more) |
+| `RIHA_TRUSTED_PROXIES` | none | comma list of proxy IPs or CIDRs allowed to set `X-Forwarded-For` |
+| `RIHA_ALLOW_PRIVATE_NETWORKS` | `true` in development only | allow webhooks and `callback_url` to localhost and private addresses |
+| `RIHA_COOKIE_SECURE` | from `RIHA_PUBLIC_URL` | force secure cookies |
+| `RIHA_SEED` | `false` (`make api` sets `true`) | seed demo data into an empty database |
+| `RIHA_SIM_DELAY_MS` | `4000` | mock PIN confirmation delay |
+
 
 Tests: `make test`. Domain tests are pure. The integration tests (fees, ledger, payouts, refunds, session validation, webhook delivery) need a throwaway database: `RIHA_TEST_DATABASE_URL=postgres://riha:riha@localhost:5432/riha_test?sslmode=disable`.
 
 ## What is in v1
 
 **Merchants** (`/painel`)
-- Signup (step 1) and business verification (step 2): business type, NUIT, documents (PDF/JPG/PNG, content-sniffed, 8 MB max), bank account (NIB, 21 digits).
-- Test and live modes, with separate keys, data and balances. Test mode is always available. Live payouts and live secret keys require an approved account.
+- Signup creates a **lead**. Step 2 (business verification) asks for business type, NUIT and the bank account (NIB, 21 digits). Documents (PDF/JPG/PNG, content-sniffed, 8 MB max) are optional and can be sent later or when the admin asks for them. Submitting moves the lead to `in_review`.
+- **No operation is possible until the account is approved** (`active`), in test or live mode: payment links, checkout sessions, payments, refunds, payouts, API key generation and API key use all return `403 account_not_approved`. The dashboard shows a banner and disables the actions.
+- Test and live modes, with separate keys, data and balances.
 - Overview with balance, money on its way to the bank, received volume (7 days, 30 days, 12 months), split by method, and recent activity.
 - Transactions: filters, search and CSV export. The detail panel shows the timeline, the **origin** (API session, domain, key, IP, `client_reference_id`, `callback_url` and its response, metadata; or link, creator, channel, device), fee, net amount, and full or partial refunds.
 - Payment links: fixed or customer-chosen amount, reusable, accepted methods, expiry, and QR (counter) links. Share by WhatsApp, SMS, copy, or a downloadable QR.
-- Balance and payouts: request a payout (debited immediately and due within 72 h), with history and status.
+- Balance and payouts: request a payout (debited immediately and due within 72 h), with history and status. A paid payout offers the statement PDF and the bank receipt for download.
 - Settings: business profile, bank account, API keys (secret shown once, rotate), recent API requests, redirect URLs, verified domains for `callback_url`, webhook endpoints (choose events, enable or disable, signing secret), deliveries with resend and test event, and password change.
 
 **Customer checkout** (`/c/:session`, `/p/:merchant/:link`)
@@ -84,8 +105,11 @@ Tests: `make test`. Domain tests are pure. The integration tests (fees, ledger, 
 
 **Super admin** (`/admin`)
 - Overview: volume today, success rate, volume by method over 14 days, operator health (computed from recent attempts), payouts falling due, and the approval queue.
-- Approvals: automatic checks (mock NUIT lookup, account holder vs. business name, documents present, high volume), documents, bank account, and approve / reject / request documents with an internal note.
-- Payouts: 72 h SLA bars, tabs, bulk approve, mark as paid, reject or mark failed (the amount goes back to the balance), and a bank transfer CSV export.
+- Approvals: tabs **Por rever** (submitted) and **Leads** (signed up, not submitted yet). Automatic checks (mock NUIT lookup, account holder vs. business name, documents present, high volume), documents, bank account, and approve / reject / request documents with an internal note.
+- Payouts: 72 h SLA bars, tabs, bulk approve, reject or mark failed (the amount goes back to the balance), and a bank transfer CSV export.
+  - **Transfer order PDF** (one payout or a selection): beneficiary, NUIT, bank, holder, NIB, transfer description, deadline and signature lines, with a summary page for a batch.
+  - **Complete**: a live payout can only be marked paid with a **bank receipt** (PDF, JPG or PNG, 8 MB max, content-sniffed). Its SHA-256 is stored as evidence. One receipt can cover a bulk completion.
+  - After completion: download the **payout statement PDF** (amounts, bank details, timeline, receipt name and hash, the receipt image attached on page 2 when it is an image), download the original receipt, or **email** the statement and receipt to the merchant.
 - Merchants: list and detail page with **negotiated fee**, the platform default fee, suspend or reactivate, recent payments, payouts and audit log.
 
 **Fees.** The platform default is **6%** (`default_fee_bps = 600`, editable in admin). Each merchant can have a negotiated `fee_bps`; `NULL` means the default applies. The fee is snapshotted on each payment at creation, so changing a fee never rewrites history. Fee = round-half-up(amount × bps / 10 000), in centavos. The merchant pays the fee, which is deducted from the credited amount. Refunds debit the full refunded amount and the fee is not returned.
@@ -137,7 +161,7 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 ## Assumptions made for v1 (please confirm)
 
 - **The merchant pays the 6% fee.** The customer pays the listed price. There is no withdrawal fee, and the minimum payout is 100,00 MT.
-- An unverified merchant can use test mode and create links. Live payouts and live secret keys need admin approval. Suspended merchants cannot take payments.
+- A lead or an account under review cannot operate at all, not even in test mode. Admins may approve an account that has no documents; the checks list shows what is missing.
 - Domain ownership for `callback_url` is not really checked: an added domain counts as verified immediately (mock). A DNS TXT check is the production version.
 - The KYC "automatic checks" are simulated. For example, a NUIT starting with `409` is reported as not found.
 - The 72 h deadline counts calendar hours (no business days or holidays).
@@ -148,6 +172,19 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 - Real M-Pesa (Vodacom OpenAPI), e-Mola and card acquirer integrations, and daily reconciliation against them. They plug in as adapters implementing `ports.Rail`.
 - 2FA, password reset by email/SMS, team members and roles, restricted keys (`rk_`).
 - Chargebacks and disputes. Payout holds after a NIB change. Two-admin approval above a threshold. Risk rules and alerts (the admin "Risco e alertas" item is a placeholder).
-- Real SMS/email receipts (currently mocked). Object storage for KYC documents (currently the local disk).
+- Real SMS receipts. Email goes to `RIHA_OUTBOX_DIR` unless SMTP is configured. Object storage for KYC documents (currently the local disk).
 - The rate limiter and idempotency are per process and in the database; a multi-instance deployment needs a shared limiter.
 - The frontend uses loose `any` types for API payloads (lint warnings). Generating types from an OpenAPI spec would tighten this.
+
+## Security notes
+
+- Dashboard sessions: random 48 character token (crypto/rand) in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` behind HTTPS). The database stores only its SHA-256. Changing the password revokes every other session, and expired sessions are purged.
+- CSRF: state-changing `/api` requests need the `X-Requested-With: riha` header, which a cross-site form cannot send.
+- API keys are stored as SHA-256 hashes and shown once. Keys of accounts that are not approved are refused.
+- Every merchant query is scoped by the merchant of the session or key. Another merchant's payout, document or receipt returns 404. Admin routes check the role.
+- Responses are built by presenters, never by serializing domain structs, so password hashes, key hashes and file paths never leave the server. The public receipt endpoint was removed.
+- Rate limits: login and signup 10 per minute per IP, checkout pay 20 per minute per IP, `/v1` 100 per second per account. Checkout sessions accept at most 10 failed attempts.
+- Request bodies are capped at 1 MB (9 MB for uploads). Uploads are content-sniffed and stored under random names; reads cannot escape the upload directory.
+- Webhook delivery refuses loopback, private, link-local, CGNAT and multicast addresses at connection time (DNS rebinding included) and does not follow redirects. Endpoint creation rejects private hosts too.
+- Headers: CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, HSTS behind HTTPS, and `Cache-Control: no-store` on API responses.
+- `X-Forwarded-For` is ignored unless `RIHA_TRUSTED_PROXIES` lists the proxy. SQL logging uses parameterized output, so values do not reach the logs.

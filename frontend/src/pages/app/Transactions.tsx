@@ -81,6 +81,7 @@ export default function Transactions() {
 }
 
 function Detail({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+  const { approved } = useShell()
   const g = useGateway()
   const { toast } = useSession()
   const { data: p, reload } = useQuery(g => g.payments.get(id), [id], 5000)
@@ -151,7 +152,7 @@ function Detail({ id, onClose, onChanged }: { id: string; onClose: () => void; o
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <button className="btn btn-outline" style={{ flex: 1 }} disabled={p.status !== 'succeeded'} onClick={async () => { const r = await g.payments.sendReceipt(p.id); toast(r.message) }}>Enviar recibo</button>
-          {refundable && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setRefund(true)}>Reembolsar</button>}
+          {refundable && approved && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setRefund(true)}>Reembolsar</button>}
         </div>
         {refund && <RefundModal p={p} onClose={() => setRefund(false)} onDone={() => { setRefund(false); reload(); onChanged() }} />}
       </div>
