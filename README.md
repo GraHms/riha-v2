@@ -73,6 +73,7 @@ Configuration (environment variables):
 | `DATABASE_URL` | local `riha` database | Postgres DSN |
 | `RIHA_ENV` | `production` | `development` relaxes private network checks; seeding is refused in production |
 | `RIHA_ADDR` | `:8080` | listen address |
+| `RIHA_PAY_URL` | `RIHA_PUBLIC_URL` | address used in checkout and payment links |
 | `RIHA_PUBLIC_URL` | `http://localhost:5173` | base URL for checkout links; `https` turns on secure cookies and HSTS |
 | `RIHA_STATIC_DIR` | empty | serve a built frontend |
 | `RIHA_UPLOAD_DIR` | `./data/uploads` | KYC documents and bank receipts |

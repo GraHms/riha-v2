@@ -47,6 +47,7 @@ type Deps struct {
 type App struct {
 	Deps
 	PublicURL            string
+	PayURL               string // the address in checkout and payment links
 	AllowPrivateNetworks bool
 	AdminNotifyEmail     string
 	// ComingSoon lists the methods that can't take money yet.
@@ -57,7 +58,7 @@ type App struct {
 }
 
 func New(d Deps, publicURL string) *App {
-	return &App{Deps: d, PublicURL: publicURL, Now: func() time.Time { return time.Now().UTC() }}
+	return &App{Deps: d, PublicURL: publicURL, PayURL: publicURL, Now: func() time.Time { return time.Now().UTC() }}
 }
 
 func notFound(err error, what string) error {

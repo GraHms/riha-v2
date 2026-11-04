@@ -41,6 +41,7 @@ func main() {
 	deps := Deps(store, cfg)
 	deps.Rail = rail
 	a := app.New(deps, cfg.PublicURL)
+	a.PayURL = cfg.PayURL
 	a.AllowPrivateNetworks = cfg.AllowPrivateNetworks
 	if realMoney {
 		a.ComingSoon = []string{domain.MethodEmola, domain.MethodCard}

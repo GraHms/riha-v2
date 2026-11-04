@@ -59,7 +59,7 @@ func (srv *Server) v1CreateSession(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, domain.SessionResource(cs, srv.A.PublicURL))
+	c.JSON(200, domain.SessionResource(cs, srv.A.PayURL))
 }
 
 func (srv *Server) v1GetSession(c *gin.Context) {
@@ -68,7 +68,7 @@ func (srv *Server) v1GetSession(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, domain.SessionResource(cs, srv.A.PublicURL))
+	c.JSON(200, domain.SessionResource(cs, srv.A.PayURL))
 }
 
 func (srv *Server) v1ListSessions(c *gin.Context) {
@@ -81,7 +81,7 @@ func (srv *Server) v1ListSessions(c *gin.Context) {
 	out := []any{}
 	for i := range rows {
 		if i < n {
-			out = append(out, domain.SessionResource(&rows[i], srv.A.PublicURL))
+			out = append(out, domain.SessionResource(&rows[i], srv.A.PayURL))
 		}
 	}
 	c.JSON(200, list(out, len(rows) > n))
@@ -93,7 +93,7 @@ func (srv *Server) v1ExpireSession(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, domain.SessionResource(cs, srv.A.PublicURL))
+	c.JSON(200, domain.SessionResource(cs, srv.A.PayURL))
 }
 
 func (srv *Server) v1ListPayments(c *gin.Context) {
@@ -152,7 +152,7 @@ func (srv *Server) v1ListLinks(c *gin.Context) {
 	}
 	out := []any{}
 	for i := range vs {
-		out = append(out, domain.LinkResource(&vs[i].PaymentLink, srv.A.PublicURL, m.Slug))
+		out = append(out, domain.LinkResource(&vs[i].PaymentLink, srv.A.PayURL, m.Slug))
 	}
 	c.JSON(200, list(out, false))
 }
@@ -169,7 +169,7 @@ func (srv *Server) v1CreateLink(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, domain.LinkResource(l, srv.A.PublicURL, m.Slug))
+	c.JSON(200, domain.LinkResource(l, srv.A.PayURL, m.Slug))
 }
 
 func (srv *Server) v1UpdateLink(c *gin.Context) {
@@ -184,7 +184,7 @@ func (srv *Server) v1UpdateLink(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, domain.LinkResource(l, srv.A.PublicURL, m.Slug))
+	c.JSON(200, domain.LinkResource(l, srv.A.PayURL, m.Slug))
 }
 
 func (srv *Server) v1Balance(c *gin.Context) {

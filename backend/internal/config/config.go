@@ -11,6 +11,7 @@ type Config struct {
 	Addr                 string
 	DatabaseURL          string
 	PublicURL            string
+	PayURL               string // where payment pages are shared from; the main site if unset
 	StaticDir            string
 	UploadDir            string
 	OutboxDir            string
@@ -64,6 +65,7 @@ func Load() Config {
 		Addr:                 env("RIHA_ADDR", ":8080"),
 		DatabaseURL:          env("DATABASE_URL", "postgres://riha:riha@localhost:5432/riha?sslmode=disable"),
 		PublicURL:            public,
+		PayURL:               env("RIHA_PAY_URL", public),
 		StaticDir:            env("RIHA_STATIC_DIR", ""),
 		UploadDir:            env("RIHA_UPLOAD_DIR", "./data/uploads"),
 		OutboxDir:            env("RIHA_OUTBOX_DIR", "./data/outbox"),

@@ -382,7 +382,7 @@ export default function Landing() {
               <div style={{ fontSize: 15, lineHeight: 1.55, color: '#5E6862', marginTop: 8 }}>Sem site, sem código. Crie no telemóvel e partilhe por WhatsApp, SMS ou QR no balcão.</div>
             </div>
             <div style={{ width: 120, height: 120, flex: 'none', borderRadius: 20, background: '#F4F3EE', display: 'grid', placeItems: 'center' }}>
-              <QR value="https://rihagateway.com/p/cafe-maputo/bolo" size={92} logo={false} />
+              <QR value="https://pay.rihagateway.com/p/cafe-maputo/bolo" size={92} logo={false} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 16 }}>
@@ -408,7 +408,7 @@ export default function Landing() {
                 <div style={{ width: 36, height: 36, flex: 'none', borderRadius: 10, background: '#E2F3DE', color: '#0A6B05', display: 'grid', placeItems: 'center' }}><Icon name="link" size={18} stroke={2} /></div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 13.5 }}>Bolo de chocolate · 1 kg</div>
-                  <div style={{ fontFamily: MONO, fontSize: 11.5, color: '#5E6862', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>rihagateway.com/p/cafe-maputo/bolo</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11.5, color: '#5E6862', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>pay.rihagateway.com/p/cafe-maputo/bolo</div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

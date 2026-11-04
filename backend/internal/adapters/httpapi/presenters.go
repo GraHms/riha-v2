@@ -63,7 +63,7 @@ func bankJSON(b *domain.BankAccount) gin.H {
 }
 
 func (srv *Server) linkJSON(v app.LinkView, merchantSlug string) gin.H {
-	o := domain.LinkResource(&v.PaymentLink, srv.A.PublicURL, merchantSlug)
+	o := domain.LinkResource(&v.PaymentLink, srv.A.PayURL, merchantSlug)
 	o["payments_count"] = v.Count
 	o["total_received"] = v.Total
 	o["location"] = v.Location

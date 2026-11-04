@@ -267,7 +267,7 @@ const SESSION_RES = `{
   "status": "open",
   "amount": 125000,
   "currency": "MZN",
-  "url": "https://rihagateway.com/c/cs_test_8K2D4410",
+  "url": "https://pay.rihagateway.com/c/cs_test_8K2D4410",
   "client_reference_id": "pedido_2094",
   "callback_url": "https://loja.co.mz/webhooks/riha",
   "payment": null,
@@ -341,7 +341,7 @@ const LINK_RES = `{
   "payment_method_types": ["mpesa"],
   "active": true,
   "expires_at": null,
-  "url": "https://rihagateway.com/p/cafe-maputo/bolo",
+  "url": "https://pay.rihagateway.com/p/cafe-maputo/bolo",
   "livemode": false
 }`
 
@@ -465,7 +465,7 @@ const FAILS: [string, string, string][] = [
 
 const FLOW = [
   { n: '01 · Servidor', t: 'Cria a sessão', d: 'POST /v1/checkout/sessions → url', mono: true },
-  { n: '02 · Browser', t: 'Redireciona o cliente', d: '303 → rihagateway.com/c/cs_…', mono: true },
+  { n: '02 · Browser', t: 'Redireciona o cliente', d: '303 → pay.rihagateway.com/c/cs_…', mono: true },
   { n: '03 · RIHA', t: 'O cliente paga', d: 'Confirma com o PIN M-Pesa', mono: false, green: true },
   { n: '04 · Servidor a servidor', t: 'Evento assinado', d: 'POST callback_url + endpoints', mono: true, dark: true },
   { n: '05 · Browser', t: 'Volta à loja', d: 'success_url?session_id=cs_…', mono: true },
@@ -694,7 +694,7 @@ export default function Docs() {
             <div>
               <Endpoint method="POST" path="/v1/payment_links" />
               <H2 mt={12}>Payment Links</H2>
-              <P>Um link de pagamento é uma página pronta em <C>rihagateway.com/p/…</C> que pode partilhar por WhatsApp, SMS ou QR, sem escrever código. Os links criados pela API aparecem no painel.</P>
+              <P>Um link de pagamento é uma página pronta em <C>pay.rihagateway.com/p/…</C> que pode partilhar por WhatsApp, SMS ou QR, sem escrever código. Os links criados pela API aparecem no painel.</P>
               <Eyebrow m="26px 0 4px">Parâmetros</Eyebrow>
               <Param name="name" type="string" req>Nome mostrado ao cliente e no painel.</Param>
               <Param name="amount" type="integer">Valor fixo em centavos. Omita e envie <C s={13}>custom_amount=true</C> para o cliente escolher o valor.</Param>

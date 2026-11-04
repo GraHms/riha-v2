@@ -350,7 +350,7 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			if err := a.emit(ctx, p.MerchantID, p.Livemode, "payment.succeeded", p.ID, domain.PaymentResource(p), cs.CallbackURL); err != nil {
 				return err
 			}
-			if err := a.emit(ctx, p.MerchantID, p.Livemode, "checkout.session.completed", cs.ID, domain.SessionResource(cs, a.PublicURL), cs.CallbackURL); err != nil {
+			if err := a.emit(ctx, p.MerchantID, p.Livemode, "checkout.session.completed", cs.ID, domain.SessionResource(cs, a.PayURL), cs.CallbackURL); err != nil {
 				return err
 			}
 			return a.mailPaymentSucceeded(ctx, p, m)
@@ -382,7 +382,7 @@ func (a *App) ExpireSession(ctx context.Context, merchantID string, live bool, i
 			return err
 		}
 		out = cs
-		return a.emit(ctx, cs.MerchantID, cs.Livemode, "checkout.session.expired", cs.ID, domain.SessionResource(cs, a.PublicURL), cs.CallbackURL)
+		return a.emit(ctx, cs.MerchantID, cs.Livemode, "checkout.session.expired", cs.ID, domain.SessionResource(cs, a.PayURL), cs.CallbackURL)
 	})
 	return out, err
 }
