@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -176,16 +175,16 @@ func (srv *Server) adminDocument(c *gin.Context) {
 		c.Data(200, "image/svg+xml", []byte(fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="100%%" height="100%%" fill="#F0EEE8"/><text x="50%%" y="50%%" text-anchor="middle" font-family="monospace" font-size="20" fill="#5E6862">%s · documento de demonstração</text></svg>`, label)))
 		return
 	}
-	f, err := os.Open(d.StoredPath)
+	data, err := srv.A.DocumentContent(ctx(c), d)
 	if err != nil {
-		fail(c, domain.NotFound("O documento"))
+		fail(c, err)
 		return
 	}
-	defer f.Close()
 	c.Header("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, strings.ReplaceAll(d.FileName, `"`, "")))
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
-	c.DataFromReader(http.StatusOK, d.Size, d.ContentType, f, nil)
+	c.Header("Cache-Control", "no-store")
+	c.Data(http.StatusOK, d.ContentType, data)
 }
 
 func (srv *Server) adminPayouts(c *gin.Context) {

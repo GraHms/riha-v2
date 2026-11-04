@@ -24,7 +24,7 @@ backend/
     postgres/            GORM records, mappers and repositories; transactions through context
     rails/               mock M-Pesa, e-Mola and card rail (implements ports.Rail)
     webhooks/            HTTP webhook sender (blocks private and loopback targets)
-    filestore/           local disk storage for KYC documents and bank receipts
+    filestore/           Cloudflare R2 (S3 API) or local disk for KYC documents, bank receipts and payment proofs
     pdf/                 payout transfer orders and payout statements (fpdf)
     mail/                email with attachments: SMTP, or .eml files in an outbox directory
     messaging/           SMS and WhatsApp (mock: appends to RIHA_OUTBOX_DIR/messages/messages.jsonl)
@@ -74,11 +74,15 @@ Configuration (environment variables):
 | Variable | Default | Purpose |
 |---|---|---|
 | `DATABASE_URL` | local `riha` database | Postgres DSN |
-| `RIHA_ENV` | `production` | `development` relaxes private network checks; seeding is refused in production |
+| `RIHA_ENV` | `development` | set `production` in deployments: it blocks private network targets, refuses seeding and requires R2 |
 | `RIHA_ADDR` | `:8080` | listen address |
 | `RIHA_PUBLIC_URL` | `http://localhost:5173` | base URL for checkout links; `https` turns on secure cookies and HSTS |
 | `RIHA_STATIC_DIR` | empty | serve a built frontend |
-| `RIHA_UPLOAD_DIR` | `./data/uploads` | KYC documents and bank receipts |
+| `RIHA_STORAGE` | `r2` in production or when `RIHA_R2_BUCKET` is set, otherwise `local` | where uploaded files go |
+| `RIHA_R2_ACCOUNT_ID`, `RIHA_R2_BUCKET`, `RIHA_R2_ACCESS_KEY_ID`, `RIHA_R2_SECRET_ACCESS_KEY` | empty | Cloudflare R2 bucket and an API token with Object Read and Write on that bucket only |
+| `RIHA_R2_PREFIX` | empty | optional key prefix, for example `prod`, to share one bucket between environments |
+| `RIHA_R2_ENDPOINT` | `https://<account>.r2.cloudflarestorage.com` | override, for example the EU jurisdiction endpoint `https://<account>.eu.r2.cloudflarestorage.com` |
+| `RIHA_UPLOAD_DIR` | `./data/uploads` | local storage, and where files uploaded before R2 are still read from |
 | `RIHA_OUTBOX_DIR` | `./data/outbox` | emails are written here as `.eml` when SMTP is not configured |
 | `RIHA_SMTP_ADDR`, `RIHA_SMTP_USER`, `RIHA_SMTP_PASSWORD`, `RIHA_MAIL_FROM` | empty | SMTP delivery for payout statements |
 | `RIHA_ADMIN_EMAIL`, `RIHA_ADMIN_PASSWORD` | empty | create or reset the super admin on start (password of 12 characters or more) |
@@ -221,9 +225,19 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 - 2FA, password reset by email/SMS, team members and roles, restricted keys (`rk_`).
 - Chargebacks and disputes. Payout holds after a NIB change. Two-admin approval above a threshold. Risk rules and alerts (the admin "Risco e alertas" item is a placeholder).
 - Real SMS and WhatsApp providers (both mocked: messages are written to `RIHA_OUTBOX_DIR/messages/messages.jsonl`), a registered SMS sender ID, and delivery receipts. SMTP delivery is built but not configured yet, so email goes to `RIHA_OUTBOX_DIR`.
-- Subscriptions: team roles for marking payments, customer self-service pause or cancel, card tokenisation for prefilled cards, and the `/docs` page does not yet document the subscription endpoints. Object storage for KYC documents (currently the local disk).
+- Subscriptions: team roles for marking payments, customer self-service pause or cancel, card tokenisation for prefilled cards, and the `/docs` page does not yet document the subscription endpoints.
 - The rate limiter and idempotency are per process and in the database; a multi-instance deployment needs a shared limiter.
 - The frontend uses loose `any` types for API payloads (lint warnings). Generating types from an OpenAPI spec would tighten this.
+
+## File storage (Cloudflare R2)
+
+KYC documents, payout bank receipts and proofs of payments made outside Riha go to a **private** R2 bucket through the S3 API (`internal/adapters/filestore/r2.go`). Files are never served from R2 directly: every download goes through the API, which checks the session and the merchant first, so the bucket needs no public access, custom domain or presigned URLs.
+
+- Keys are `<prefix>/<folder>/<random id>.<ext>` (folders: merchant id, `payout-receipts`, `outside-proofs`). Original file names stay only in the database. Objects are stored with `Cache-Control: private, no-store` and `Content-Disposition: attachment`. R2 encrypts data at rest.
+- The database stores `r2:<key>`. Files uploaded before the switch keep their local path and are still read from `RIHA_UPLOAD_DIR`, so nothing breaks on migration; copy that folder to the bucket later if the disk goes away.
+- At start the server checks the bucket (`HeadBucket`) and refuses to run if it cannot reach it, and in production it refuses to run without R2 unless `RIHA_STORAGE=local` is set on purpose.
+- Create the token in Cloudflare (R2, Manage API tokens) with **Object Read & Write** scoped to this one bucket. Keep the secret in the environment, never in the repository.
+- `aws-sdk-go-v2/service/s3` is pinned to v1.72.0. Later releases send default CRC checksums on uploads, which R2 did not fully support; upgrade only after testing against the bucket.
 
 ## Security notes
 

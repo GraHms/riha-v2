@@ -242,9 +242,9 @@ type WebhookSender interface {
 }
 
 type FileStore interface {
-	Save(ctx context.Context, dir, name string, r io.Reader) (path string, err error)
-	Read(path string) ([]byte, error)
-	Remove(path string) error
+	Save(ctx context.Context, dir, name, contentType string, r io.Reader) (path string, err error)
+	Read(ctx context.Context, path string) ([]byte, error)
+	Remove(ctx context.Context, path string) error
 }
 
 type Renderer interface {

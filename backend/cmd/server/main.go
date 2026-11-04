@@ -80,7 +80,7 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 		Sheets:    sheets.Reader{},
 		Rail:      rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond),
 		Sender:    webhooks.NewHTTPSender(cfg.AllowPrivateNetworks),
-		Files:     filestore.Local{Root: cfg.UploadDir},
+		Files:     files(cfg),
 		Hasher:    crypto.Bcrypt{},
 		Renderer:  pdf.New(),
 		Mailer:    mailer(cfg),
@@ -92,4 +92,28 @@ func mailer(cfg config.Config) ports.Mailer {
 		return mail.SMTP{Addr: cfg.SMTPAddr, Username: cfg.SMTPUser, Password: cfg.SMTPPassword, From: cfg.MailFrom}
 	}
 	return mail.Outbox{Dir: cfg.OutboxDir, From: cfg.MailFrom}
+}
+
+func files(cfg config.Config) ports.FileStore {
+	local := filestore.Local{Root: cfg.UploadDir}
+	rc := filestore.R2Config{AccountID: cfg.R2AccountID, AccessKey: cfg.R2AccessKey, SecretKey: cfg.R2SecretKey, Bucket: cfg.R2Bucket, Prefix: cfg.R2Prefix, Endpoint: cfg.R2Endpoint}
+	if cfg.Storage != "r2" {
+		router := filestore.Router{Primary: local, Local: local}
+		if rc.Enabled() {
+			if r2, err := filestore.NewR2(rc); err == nil {
+				router.Remote = r2
+			}
+		}
+		log.Printf("storage: local disk at %s", cfg.UploadDir)
+		return router
+	}
+	r2, err := filestore.NewR2(rc)
+	if err != nil {
+		log.Fatalf("storage: %v. Set RIHA_R2_ACCOUNT_ID, RIHA_R2_BUCKET, RIHA_R2_ACCESS_KEY_ID and RIHA_R2_SECRET_ACCESS_KEY, or RIHA_STORAGE=local", err)
+	}
+	if err := r2.Check(context.Background()); err != nil {
+		log.Fatalf("storage: cannot reach R2 bucket %s: %v", cfg.R2Bucket, err)
+	}
+	log.Printf("storage: Cloudflare R2 bucket %s", cfg.R2Bucket)
+	return filestore.Router{Primary: r2, Remote: r2, Local: local}
 }

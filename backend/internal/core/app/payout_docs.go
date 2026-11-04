@@ -20,7 +20,7 @@ func (a *App) payoutSheet(ctx context.Context, p *domain.Payout, withReceipt boo
 	}
 	s := domain.PayoutSheet{Payout: *p, Merchant: *m}
 	if withReceipt && p.HasReceipt() {
-		if data, err := a.Files.Read(p.ReceiptPath); err == nil {
+		if data, err := a.Files.Read(ctx, p.ReceiptPath); err == nil {
 			s.Receipt = &domain.Attachment{Name: p.ReceiptName, ContentType: p.ReceiptType, Data: data}
 		}
 	}
@@ -80,7 +80,7 @@ func (a *App) CompletePayouts(ctx context.Context, ids []string, up Upload, acto
 	sum := sha256.Sum256(buf.Bytes())
 	hash := hex.EncodeToString(sum[:])
 	name := domain.Trim(filepath.Base(up.FileName), 200)
-	path, err := a.Files.Save(ctx, "payout-receipts", domain.NewID("rcpt")+ext, bytes.NewReader(buf.Bytes()))
+	path, err := a.Files.Save(ctx, "payout-receipts", domain.NewID("rcpt")+ext, ct, bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (a *App) PayoutReceipt(ctx context.Context, id, merchantID string) (*domain
 	if !p.HasReceipt() {
 		return nil, domain.NotFound("O comprovativo bancário")
 	}
-	data, err := a.Files.Read(p.ReceiptPath)
+	data, err := a.Files.Read(ctx, p.ReceiptPath)
 	if err != nil {
 		return nil, domain.NotFound("O comprovativo bancário")
 	}

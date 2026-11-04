@@ -827,7 +827,7 @@ func (a *App) MarkPaidOutside(ctx context.Context, m *domain.Merchant, live bool
 		}
 		sum := sha256.Sum256(buf.Bytes())
 		hash, name = hex.EncodeToString(sum[:]), domain.Trim(filepath.Base(in.Proof.FileName), 200)
-		p, err := a.Files.Save(ctx, "outside-proofs", domain.NewID("prf")+ext, bytes.NewReader(buf.Bytes()))
+		p, err := a.Files.Save(ctx, "outside-proofs", domain.NewID("prf")+ext, receiptTypes[ext], bytes.NewReader(buf.Bytes()))
 		if err != nil {
 			return nil, err
 		}
@@ -901,7 +901,7 @@ func (a *App) OutsideProof(ctx context.Context, merchantID string, live bool, ch
 	if err != nil || len(cs) == 0 || cs[0].OutsideProofPath == "" {
 		return nil, domain.NotFound("O comprovativo")
 	}
-	data, err := a.Files.Read(cs[0].OutsideProofPath)
+	data, err := a.Files.Read(ctx, cs[0].OutsideProofPath)
 	if err != nil {
 		return nil, domain.NotFound("O comprovativo")
 	}
