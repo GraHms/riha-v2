@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { SUPPORT_PHONE, SUPPORT_TEL } from '../../lib/support'
 import { Link } from 'react-router-dom'
-import { Icon, QR } from '../../components/ui'
+import { Icon, QR, stripeBlur } from '../../components/ui'
 import { useGateway } from '../../core/gateway'
 import { bpsLabel } from '../../lib/format'
 
@@ -108,7 +108,7 @@ function usePricing() {
   return bpsLabel(bps)
 }
 
-const stripe = (s: CSSProperties, red: boolean): CSSProperties => ({ position: 'absolute', transform: 'skewX(22deg)', background: red ? '#FF0F15' : '#0A8205', pointerEvents: 'none', ...s })
+const stripe = (s: CSSProperties, red: boolean): CSSProperties => ({ position: 'absolute', transform: 'skewX(22deg)', background: red ? '#FF0F15' : '#0A8205', pointerEvents: 'none', opacity: 0.7, filter: stripeBlur(Number(s.width)), ...s })
 
 function Brand({ dark, size, text }: { dark?: boolean; size: number; text: number }) {
   return (
@@ -223,8 +223,8 @@ export default function Landing() {
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg,#0B120E 38%,rgba(11,18,14,.55) 70%,rgba(11,18,14,.2))' }} />
         </div>
         <div className="lp-m" style={{ position: 'absolute', inset: 0 }}>
-          <div style={stripe({ top: -80, right: 62, width: 58, height: 560, opacity: 0.95 }, false)} />
-          <div style={stripe({ top: -80, right: -8, width: 58, height: 560, opacity: 0.95 }, true)} />
+          <div style={stripe({ top: -80, right: 62, width: 58, height: 560 }, false)} />
+          <div style={stripe({ top: -80, right: -8, width: 58, height: 560 }, true)} />
           <div style={{ position: 'absolute', top: -120, right: -140, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle,rgba(10,130,5,.35),rgba(11,18,14,0) 65%)' }} />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(11,18,14,0) 0%,rgba(11,18,14,.55) 38%,#0B120E 70%)' }} />
         </div>

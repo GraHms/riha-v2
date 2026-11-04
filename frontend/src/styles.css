@@ -57,7 +57,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
 .card-pad { padding: 22px; }
 .dark-card { background: var(--ink); color: #fff; border-radius: 26px; position: relative; overflow: hidden; }
 
-.stripe { position: absolute; transform: skewX(22deg); pointer-events: none; }
+.stripe { position: absolute; transform: skewX(22deg); pointer-events: none; opacity: .7; filter: blur(8px); }
 .stripe.g { background: var(--green); }
 .stripe.r { background: var(--red); }
 

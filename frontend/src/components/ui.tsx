@@ -61,11 +61,14 @@ export function Logo({ dark = false, size = 28, text = 16 }: { dark?: boolean; s
   )
 }
 
+// The stripes sit behind content, so they stay soft. Wider ones need more blur to look the same.
+export const stripeBlur = (width: number) => `blur(${Math.round(Math.max(6, width * 0.18))}px)`
+
 export function Stripes({ top = -40, right = 0, w = 44, h = 320, gap = 12, fade }: { top?: number; right?: number; w?: number; h?: number; gap?: number; fade?: string }) {
   return (
     <>
-      <div className="stripe g" style={{ top, right: right + w + gap, width: w, height: h }} />
-      <div className="stripe r" style={{ top, right, width: w, height: h }} />
+      <div className="stripe g" style={{ top, right: right + w + gap, width: w, height: h, filter: stripeBlur(w) }} />
+      <div className="stripe r" style={{ top, right, width: w, height: h, filter: stripeBlur(w) }} />
       {fade && <div style={{ position: 'absolute', inset: 0, background: fade, pointerEvents: 'none' }} />}
     </>
   )
