@@ -1,0 +1,38 @@
+# Riha on a shared server. Lives in /opt/riha next to its .env. Postgres runs on
+# the server itself, and the server's Caddy reaches this stack over the shared
+# apps network.
+
+name: riha
+
+services:
+  riha:
+    image: riha:${IMAGE_TAG:?set IMAGE_TAG in .env}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # The host on the private network, so the connection comes from the subnet
+      # Postgres and the firewall allow, not from the apps network.
+      DATABASE_URL: postgres://riha:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@172.30.2.1:5432/riha?sslmode=disable
+      RIHA_TRUSTED_PROXIES: ${APPS_SUBNET:-172.30.3.0/24}
+    volumes:
+      - data:/app/data
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    stop_grace_period: 30s
+    networks: [private, apps]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+volumes:
+  data:
+
+networks:
+  private:
+    ipam:
+      config:
+        - subnet: 172.30.2.0/24
+  apps:
+    external: true

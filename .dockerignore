@@ -1,0 +1,9 @@
+.git
+chats
+project
+**/node_modules
+frontend/dist
+backend/bin
+backend/data
+*.log
+.env
