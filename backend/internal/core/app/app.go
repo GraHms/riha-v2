@@ -40,6 +40,14 @@ type Deps struct {
 	Hasher       ports.PasswordHasher
 	Renderer     ports.Renderer
 	Mailer       ports.Mailer
+	Plans        ports.Plans
+	Members      ports.Members
+	Subs         ports.Subscriptions
+	Charges      ports.Charges
+	Messages     ports.Messages
+	SubSettings  ports.SubscriptionSettingsRepo
+	Messenger    ports.Messenger
+	Sheets       ports.Sheet
 }
 
 type App struct {

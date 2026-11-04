@@ -14,6 +14,8 @@ var AllEventTypes = []string{
 	"checkout.session.completed", "checkout.session.expired",
 	"payment.processing", "payment.succeeded", "payment.failed",
 	"refund.succeeded", "payout.created", "payout.paid", "payout.failed", "account.updated",
+	"plan.created", "plan.updated", "subscription.created", "subscription.updated", "subscription.canceled",
+	"subscription_charge.paid", "subscription_charge.paid_outside", "subscription_charge.past_due",
 }
 
 var CallbackEvents = map[string]bool{

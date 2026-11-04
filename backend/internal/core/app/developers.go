@@ -248,4 +248,6 @@ func (a *App) RunWorkers(ctx context.Context) {
 		}
 	})
 	tick(10*time.Second, func() { a.Sweep(ctx) })
+	tick(15*time.Second, func() { a.BillingTick(ctx) })
+	tick(2*time.Second, func() { a.SendQueued(ctx) })
 }

@@ -29,6 +29,7 @@ func (srv *Server) v1Routes(v1 *gin.RouterGroup) {
 	v1.POST("/webhook_endpoints", srv.v1CreateEndpoint)
 	v1.DELETE("/webhook_endpoints/:id", srv.v1DeleteEndpoint)
 	v1.GET("/events/:id", srv.v1GetEvent)
+	srv.v1SubscriptionRoutes(v1)
 }
 
 func list(items any, hasMore bool) gin.H {

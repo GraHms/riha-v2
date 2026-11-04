@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -14,9 +15,11 @@ import (
 	"riha/internal/adapters/filestore"
 	"riha/internal/adapters/httpapi"
 	"riha/internal/adapters/mail"
+	"riha/internal/adapters/messaging"
 	"riha/internal/adapters/pdf"
 	"riha/internal/adapters/postgres"
 	"riha/internal/adapters/rails"
+	"riha/internal/adapters/sheets"
 	"riha/internal/adapters/webhooks"
 	"riha/internal/config"
 	"riha/internal/core/app"
@@ -72,12 +75,15 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 		Keys: r.Keys, Links: r.Links, Sessions: r.Sessions, Payments: r.Payments, Refunds: r.Refunds, Ledger: r.Ledger,
 		Payouts: r.Payouts, Endpoints: r.Endpoints, Domains: r.Domains, Events: r.Events, Deliveries: r.Deliveries,
 		RequestLogs: r.RequestLogs, Idempotency: r.Idempotency, Audit: r.Audit, Settings: r.Settings, Reports: r.Reports,
-		Rail:     rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond),
-		Sender:   webhooks.NewHTTPSender(cfg.AllowPrivateNetworks),
-		Files:    filestore.Local{Root: cfg.UploadDir},
-		Hasher:   crypto.Bcrypt{},
-		Renderer: pdf.New(),
-		Mailer:   mailer(cfg),
+		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings,
+		Messenger: &messaging.Outbox{Dir: filepath.Join(cfg.OutboxDir, "messages")},
+		Sheets:    sheets.Reader{},
+		Rail:      rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond),
+		Sender:    webhooks.NewHTTPSender(cfg.AllowPrivateNetworks),
+		Files:     filestore.Local{Root: cfg.UploadDir},
+		Hasher:    crypto.Bcrypt{},
+		Renderer:  pdf.New(),
+		Mailer:    mailer(cfg),
 	}
 }
 

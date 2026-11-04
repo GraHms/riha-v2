@@ -71,6 +71,42 @@ export function httpGateway(t = new Transport()): Gateway {
       openLink: (m, s, amount, channel) => post<{ id: string }>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}/sessions`, { amount, channel }),
       pricing: () => get<{ default_fee_bps: number }>('/public/pricing'),
     },
+    subscriptions: {
+      overview: () => get('/subscriptions/overview'),
+      settings: () => get('/subscriptions/settings'),
+      saveSettings: input => send('PUT', '/subscriptions/settings', input),
+      plans: () => get('/subscriptions/plans'),
+      plan: id => get('/subscriptions/plans/' + encodeURIComponent(id)),
+      createPlan: input => post('/subscriptions/plans', input),
+      updatePlan: (id, input) => send('PATCH', '/subscriptions/plans/' + encodeURIComponent(id), input),
+      changePrice: (id, amount, scope, subscriptions = []) => post(`/subscriptions/plans/${encodeURIComponent(id)}/price`, { amount, scope, subscriptions }),
+      archivePlan: id => post(`/subscriptions/plans/${encodeURIComponent(id)}/archive`),
+      saveCatalog: (entries, multi) => send('PUT', '/subscriptions/catalog', { entries, multi }),
+      members: f => get('/subscriptions/members?' + qs(f)),
+      membersExportUrl: f => t.url('/subscriptions/members/export.csv?' + qs(f)),
+      invite: input => post('/subscriptions/members', input),
+      previewImport: (file, planId) => { const fd = new FormData(); fd.append('file', file); fd.append('plan_id', planId); fd.append('dry_run', 'true'); return t.request('/subscriptions/members/import', { form: fd }) },
+      importMembers: (file, planId) => { const fd = new FormData(); fd.append('file', file); fd.append('plan_id', planId); return t.request('/subscriptions/members/import', { form: fd }) },
+      resendInvites: () => post('/subscriptions/members/resend-invites'),
+      member: id => get('/subscriptions/members/' + encodeURIComponent(id)),
+      updateMember: (id, input) => send('PATCH', '/subscriptions/members/' + encodeURIComponent(id), input),
+      resend: id => post(`/subscriptions/members/${encodeURIComponent(id)}/resend`),
+      markPaidOutside: (id, i) => {
+        const fd = new FormData(); fd.append('charge_ids', i.charge_ids.join(',')); fd.append('method', i.method); fd.append('date', i.date); fd.append('reference', i.reference)
+        if (i.proof) fd.append('proof', i.proof)
+        return t.request(`/subscriptions/members/${encodeURIComponent(id)}/paid-outside`, { form: fd })
+      },
+      proofUrl: id => t.url(`/subscriptions/charges/${encodeURIComponent(id)}/proof`),
+      action: (id, action, body = {}) => post(`/subscriptions/subs/${encodeURIComponent(id)}/${action}`, body),
+    },
+    publicSubs: {
+      plan: (m, s) => get(`/public/subscriptions/plans/${encodeURIComponent(m)}/${encodeURIComponent(s)}`),
+      catalog: m => get('/public/subscriptions/catalog/' + encodeURIComponent(m)),
+      agreement: (m, plans, phone, channel) => get<{ texts: string[] }>(`/public/subscriptions/agreement/${encodeURIComponent(m)}?` + qs({ plans: plans.join(','), phone, channel })),
+      subscribe: (m, input) => post<{ token: string }>('/public/subscriptions/subscribe/' + encodeURIComponent(m), input),
+      invoice: tok => get('/public/invoices/' + encodeURIComponent(tok)),
+      pay: (tok, input) => post(`/public/invoices/${encodeURIComponent(tok)}/pay`, input),
+    },
     admin: {
       overview: () => get('/admin/overview'),
       approvals: tab => get('/admin/approvals?' + qs({ tab: tab === 'leads' ? 'leads' : '' })),

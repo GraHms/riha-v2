@@ -1,6 +1,9 @@
 package domain
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 type M = map[string]any
 
@@ -125,3 +128,46 @@ func EndpointResource(e *WebhookEndpoint) M {
 }
 
 func AccountResource(m *Merchant) M { return M{"id": m.ID, "object": "account", "status": m.Status} }
+
+func unix(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.Unix()
+}
+
+func PlanURL(publicURL, merchantSlug, slug string) string {
+	return strings.TrimRight(publicURL, "/") + "/s/" + merchantSlug + "/" + slug
+}
+
+func PlanResource(p *Plan, publicURL, merchantSlug string) M {
+	return M{"id": p.ID, "object": "plan", "livemode": p.Livemode, "name": p.Name, "status": p.Status, "amount": p.Amount, "currency": "MZN",
+		"interval": p.Interval, "anchor": p.Anchor, "billing_day": p.BillingDay, "months": p.Months, "missed": p.Missed, "fields": p.Fields,
+		"ends_at": unix(p.EndsAt), "version": p.Version, "in_catalog": p.InCatalog, "url": PlanURL(publicURL, merchantSlug, p.Slug), "created": p.CreatedAt.Unix()}
+}
+
+func SubscriptionResource(s *Subscription, m *Member) M {
+	out := M{"id": s.ID, "object": "subscription", "livemode": s.Livemode, "plan": s.PlanID, "plan_version": s.PlanVersion, "amount": s.Amount,
+		"currency": "MZN", "status": s.Status, "member": s.MemberID, "next_due": unix(s.NextDueAt), "paused_until": unix(s.PausedUntil),
+		"canceled_at": unix(s.CanceledAt), "consent_at": unix(s.ConsentAt), "created": s.CreatedAt.Unix()}
+	if s.PendingFrom != nil {
+		out["pending_change"] = M{"amount": s.PendingAmount, "version": s.PendingVersion, "effective": s.PendingFrom.Unix()}
+	}
+	if m != nil {
+		out["customer"] = M{"name": m.Name, "payer_name": null(m.PayerName), "phone": "+258" + m.Phone, "fields": meta(m.Fields), "channel": m.Channel}
+	}
+	return out
+}
+
+func ChargeResource(c *Charge, publicURL string) M {
+	out := M{"id": c.ID, "object": "subscription_charge", "livemode": c.Livemode, "subscription": c.SubscriptionID, "member": c.MemberID,
+		"plan": c.PlanID, "period": c.Period, "label": c.Label, "due": c.DueAt.Unix(), "amount": c.Amount, "currency": "MZN", "status": c.Status,
+		"paid_at": unix(c.PaidAt), "payment": c.PaymentID, "method": null(c.Method), "created": c.CreatedAt.Unix()}
+	if c.Unpaid() {
+		out["url"] = strings.TrimRight(publicURL, "/") + "/i/" + c.Token
+	}
+	if c.Status == ChargePaidOutside {
+		out["paid_outside"] = M{"method": c.OutsideMethod, "reference": null(c.OutsideRef), "marked_by": c.MarkedBy, "proof_sha256": null(c.OutsideProofHash)}
+	}
+	return out
+}

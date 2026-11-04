@@ -27,6 +27,8 @@ backend/
     filestore/           local disk storage for KYC documents and bank receipts
     pdf/                 payout transfer orders and payout statements (fpdf)
     mail/                email with attachments: SMTP, or .eml files in an outbox directory
+    messaging/           SMS and WhatsApp (mock: appends to RIHA_OUTBOX_DIR/messages/messages.jsonl)
+    sheets/              CSV and XLSX reader for member imports
     crypto/              bcrypt password hasher
   internal/seed/         demo data, written through the application layer
   internal/integration/  end-to-end tests: core + Postgres adapter + mock rail
@@ -64,6 +66,7 @@ Demo accounts (created by the seed):
 | Role | Email | Password |
 |---|---|---|
 | Merchant (Café Maputo, verified) | `ola@cafemaputo.co.mz` | `cafe-maputo-2026` |
+| Merchant (Escola Primavera, subscriptions demo) | `escola@primavera.co.mz` | `primavera-2026` |
 | Super admin | `admin@riha.co.mz` | `riha-admin-2026` |
 
 Configuration (environment variables):
@@ -115,6 +118,45 @@ Tests: `make test`. Domain tests are pure. The integration tests (fees, ledger, 
 **Fees.** The platform default is **6%** (`default_fee_bps = 600`, editable in admin). Each merchant can have a negotiated `fee_bps`; `NULL` means the default applies. The fee is snapshotted on each payment at creation, so changing a fee never rewrites history. Fee = round-half-up(amount × bps / 10 000), in centavos. The merchant pays the fee, which is deducted from the credited amount. Refunds debit the full refunded amount and the fee is not returned.
 
 **Money model.** All amounts are integer centavos. The balance is `SUM(ledger_entries.amount)` per merchant and mode. Payments credit the net amount, payouts debit at request time, and rejected or failed payouts and refunds write compensating entries. Balance-changing operations lock the merchant row (`SELECT … FOR UPDATE`) inside a transaction.
+
+## Subscriptions (Assinaturas)
+
+A service for anything paid by period: school fees, gyms, tutors, condominiums. It lives under **Serviços › Assinaturas** in the dashboard (`/painel/assinaturas`) and on mobile behind the **+** button.
+
+M-Pesa and e-Mola do not allow automatic debits, so **Riha never charges on its own**. Each period the customer receives a link by SMS or WhatsApp with the amount and their last wallet number filled in, and confirms with the PIN.
+
+**Model.** A *plan* (amount, frequency, fixed day or signup anniversary, months with charges, what happens to a missed month, questions for the customer, optional end date) has price *versions*. A *member* is one person being paid for, identified by payer phone and name, and can hold several *subscriptions* (for example school fee and transport). Each subscription produces one *charge* per period, unique per subscription and period.
+
+**Merchant screens.** Summary (expected per month, members, debt, the month split into received by Riha, paid outside Riha and in debt, what needs attention, upcoming charges), plans, new plan with a live preview of what the customer sees, plan detail with price versions and the subscribe link and QR, change price, members with filters, add one member or import a sheet, member detail with the charge history and a per-charge timeline, mark as paid outside Riha, catalogue, and service settings.
+
+**Customer pages.** `/s/:merchant/:plan` subscribe from a plan link; `/a/:merchant` catalogue (one or several plans, paid together); `/i/:token` pay a period, with months in debt added and the option to pay only the oldest; then the paid screen with the next date, a receipt and the subscription summary.
+
+**Lifecycle.** A background worker issues each charge 4 days ahead and walks the reminder schedule: reminder 3 days before, link on the day at 09:00, evening reminder if the link was not opened, past due and a resend at +2 days, a resend on the second channel at +5, a last warning 3 days before the end of the tolerance, and the final action on its last day. Messages are only sent between 08:00 and 20:00 and never on Sunday (Maputo time); a step that falls on a Sunday moves to Monday. If several steps are overdue at once (for example after downtime), their state changes all apply but only the latest one sends a message. Messages go through an outbox table, so a message is never lost or sent twice when a transaction rolls back.
+
+**Paid outside Riha.** Cash, transfer, deposit or other, with date, reference and optional or required proof (PDF, JPG or PNG, SHA-256 stored). It closes the debt and stops the reminders, but writes **no ledger entry**: it never reaches the balance, payouts or fees. Who marked it, when and how is recorded on the charge and in the audit log.
+
+**API and events.** `GET/POST /v1/plans`, `GET /v1/plans/:id`, `GET/POST /v1/subscriptions` (POST invites a customer), `GET /v1/subscriptions/:id`, `POST /v1/subscriptions/:id/cancel`, `GET /v1/subscription_charges[/:id]`. Events: `plan.created`, `plan.updated`, `subscription.created`, `subscription.updated`, `subscription.canceled`, `subscription_charge.paid`, `subscription_charge.paid_outside`, `subscription_charge.past_due`.
+
+**Test numbers.** In the mock messenger, a number ending in `9999` fails delivery, which shows up under "Precisa de atenção". In test mode the member page has "Enviar próximo link agora (teste)" to open the next period without waiting.
+
+### How the design inconsistencies were resolved
+
+- **Tolerance and the final action.** The design showed "tolerância 7 dias" next to a final action at "+10 dias" and "suspende a 15 out" for a charge due on 5 Oct. There is now one setting: the tolerance (default 10 days, between 6 and 30). The final action runs on its last day, and the last warning 3 days before. The +2, +5 and last-warning offsets are fixed.
+- **Who can mark as paid outside.** "Admin e Financeiro" assumed team roles, which do not exist yet. It shows "Dono da conta" until roles exist.
+- **Months with charges on non-monthly plans.** For weekly, quarterly and annual plans, a charge whose due date falls in a switched-off month is skipped.
+- **Prefilled payment method.** Only wallets are prefilled (the number used last time). Cards are typed again, because storing them needs a card tokenisation provider.
+- **Demo figures.** The design used 7 500, 10 000 and 11 000 MT for the same debt. The seed is built so the screens agree (11 000 MT across 3 members, one with 2 months).
+- **SMS sender.** "EscPrimavera" has 12 characters; alphanumeric SMS senders allow 11, so the field enforces 11 and the demo uses "EPrimavera".
+- **Link paths.** `/c/` is already the checkout path, so the catalogue is `/a/:merchant` and plan links are `/s/:merchant/:plan` instead of `/c/primavera` and `/s/primavera-1a4`.
+- **The + button.** It now opens a sheet with "Novo link de pagamento" and the Serviços list, as in design section 2, which replaces screens 1a and 1d.
+
+### Security and privacy
+
+- Charge links use 16 random characters and are rate limited; the page sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. It shows the student's name and amounts, but only a masked phone number (`84 ••• 4567`), and paying with "the number used last time" never sends the full number to the browser.
+- The agreement text is generated by the server from the plan, amount, phone and channel. The exact text the customer accepted is stored with the time and IP on each subscription.
+- Payments go oldest month first: a later month cannot be paid while an older one is open on the same subscription.
+- Every merchant route checks the merchant of the session; other merchants' members, charges and proofs return 404. Creating plans, inviting, importing, changing prices, editing the catalogue or settings, and marking payments all require an approved account.
+- Imports accept `.csv` and `.xlsx` up to 4 MB and 2 000 rows; the XLSX reader caps the unzipped size. CSV exports neutralise formula injection.
 
 ## Public REST API (`/v1`)
 
@@ -178,7 +220,8 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 - Real M-Pesa (Vodacom OpenAPI), e-Mola and card acquirer integrations, and daily reconciliation against them. They plug in as adapters implementing `ports.Rail`.
 - 2FA, password reset by email/SMS, team members and roles, restricted keys (`rk_`).
 - Chargebacks and disputes. Payout holds after a NIB change. Two-admin approval above a threshold. Risk rules and alerts (the admin "Risco e alertas" item is a placeholder).
-- Real SMS receipts. SMTP delivery is built but not configured yet, so email goes to `RIHA_OUTBOX_DIR`. Object storage for KYC documents (currently the local disk).
+- Real SMS and WhatsApp providers (both mocked: messages are written to `RIHA_OUTBOX_DIR/messages/messages.jsonl`), a registered SMS sender ID, and delivery receipts. SMTP delivery is built but not configured yet, so email goes to `RIHA_OUTBOX_DIR`.
+- Subscriptions: team roles for marking payments, customer self-service pause or cancel, card tokenisation for prefilled cards, and the `/docs` page does not yet document the subscription endpoints. Object storage for KYC documents (currently the local disk).
 - The rate limiter and idempotency are per process and in the database; a multi-instance deployment needs a shared limiter.
 - The frontend uses loose `any` types for API payloads (lint warnings). Generating types from an OpenAPI spec would tighten this.
 

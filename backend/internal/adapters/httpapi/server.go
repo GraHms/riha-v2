@@ -29,12 +29,13 @@ type Server struct {
 	limiter     *rateLimiter
 	authLimiter *rateLimiter
 	payLimiter  *rateLimiter
+	viewLimiter *rateLimiter
 }
 
 const cookieName = "riha_session"
 
 func New(a *app.App, cfg Config) *gin.Engine {
-	srv := &Server{A: a, cfg: cfg, limiter: newRateLimiter(100, 100), authLimiter: newRateLimiter(10, 10.0/60), payLimiter: newRateLimiter(20, 20.0/60)}
+	srv := &Server{A: a, cfg: cfg, limiter: newRateLimiter(100, 100), authLimiter: newRateLimiter(10, 10.0/60), payLimiter: newRateLimiter(20, 20.0/60), viewLimiter: newRateLimiter(120, 2)}
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	_ = r.SetTrustedProxies(cfg.TrustedProxies)

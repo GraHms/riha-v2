@@ -86,6 +86,40 @@ export interface AdminPort {
   saveSettings(defaultFeeBps: number): Promise<Json>
 }
 
+export interface SubscriptionsPort {
+  overview(): Promise<Json>
+  settings(): Promise<Json>
+  saveSettings(input: Json): Promise<Json>
+  plans(): Promise<Json>
+  plan(id: string): Promise<Json>
+  createPlan(input: Json): Promise<Json>
+  updatePlan(id: string, input: Json): Promise<Json>
+  changePrice(id: string, amount: number, scope: string, subscriptions?: string[]): Promise<Json>
+  archivePlan(id: string): Promise<Json>
+  saveCatalog(entries: { plan_id: string; in_catalog: boolean }[], multi: boolean): Promise<Json>
+  members(filter: Record<string, string | number | undefined>): Promise<Json>
+  membersExportUrl(filter: Record<string, string | number | undefined>): string
+  invite(input: Json): Promise<Json>
+  previewImport(file: File, planId: string): Promise<Json>
+  importMembers(file: File, planId: string): Promise<Json>
+  resendInvites(): Promise<Json>
+  member(id: string): Promise<Json>
+  updateMember(id: string, input: Json): Promise<Json>
+  resend(id: string): Promise<Json>
+  markPaidOutside(id: string, input: { charge_ids: string[]; method: string; date: string; reference: string; proof?: File | null }): Promise<Json>
+  proofUrl(chargeId: string): string
+  action(subId: string, action: 'skip' | 'pause' | 'resume' | 'cancel' | 'change-plan' | 'send-now', body?: Json): Promise<Json>
+}
+
+export interface PublicSubscriptionsPort {
+  plan(merchant: string, slug: string): Promise<Json>
+  catalog(merchant: string): Promise<Json>
+  agreement(merchant: string, planIds: string[], phone: string, channel: string): Promise<{ texts: string[] }>
+  subscribe(merchant: string, input: Json): Promise<{ token: string }>
+  invoice(token: string): Promise<Json>
+  pay(token: string, input: Json): Promise<Json>
+}
+
 export interface Gateway {
   mode: { get(): Mode; set(m: Mode): void }
   auth: AuthPort
@@ -96,5 +130,7 @@ export interface Gateway {
   developers: DevelopersPort
   checkout: CheckoutPort
   admin: AdminPort
+  subscriptions: SubscriptionsPort
+  publicSubs: PublicSubscriptionsPort
   onUnauthorized(fn: () => void): () => void
 }
