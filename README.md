@@ -122,6 +122,10 @@ Tests: `make test`. Domain tests are pure. The integration tests (fees, ledger, 
 
 The request blocks until the customer answers the prompt, so it runs on a goroutine. Each payment stores a `RIHA…` reference before the request goes out. A payment fails only when M-Pesa says so: a timeout, a dropped connection, `INS-1`, `INS-9` or a restart leave it processing, and the sweep asks the query API after 3 minutes. With no record at M-Pesa it ends after 5 minutes, and with no answer at all after 30, logged for a manual check.
 
+## Link previews and search
+
+Apps that preview a link, and most crawlers, read the HTML without running the site, so the server writes each page's title, description and image into it (`adapters/httpapi/seo.go`). Payment links get their own preview image from `/og/`, showing the merchant, product and amount, and stay out of search results. An unknown address gets a real 404. `/robots.txt` and `/sitemap.xml` are served by the API.
+
 ## Emails
 
 Every email goes through `email_outbox`: it is written in the same transaction as the change it reports, sent by a worker, and retried on the webhook schedule, so a mail server problem never fails a payment. The body is cleared once sent, because a reset email holds a live link. Payment, refund and payout emails are live mode only.

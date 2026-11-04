@@ -1,26 +1,26 @@
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useSession } from './lib/session'
 import Landing from './pages/public/Landing'
 import { Login, Signup, ForgotPassword, ResetPassword } from './pages/public/Auth'
-import Kyc from './pages/public/Kyc'
 import Checkout from './pages/public/Checkout'
 import LinkLanding from './pages/public/LinkLanding'
-import AppShell from './pages/app/AppShell'
-import Overview from './pages/app/Overview'
-import Transactions from './pages/app/Transactions'
-import Links from './pages/app/Links'
-import Payouts from './pages/app/Payouts'
-import Settings from './pages/app/Settings'
-import NewLinkPage from './pages/app/NewLinkPage'
-import AdminShell from './pages/admin/AdminShell'
-import AdminOverview from './pages/admin/AdminOverview'
-import Approvals from './pages/admin/Approvals'
-import AdminPayouts from './pages/admin/AdminPayouts'
-import Merchants from './pages/admin/Merchants'
-import MerchantDetail from './pages/admin/MerchantDetail'
 import { Spinner } from './components/ui'
 
+const Kyc = lazy(() => import('./pages/public/Kyc'))
+const AppShell = lazy(() => import('./pages/app/AppShell'))
+const Overview = lazy(() => import('./pages/app/Overview'))
+const Transactions = lazy(() => import('./pages/app/Transactions'))
+const Links = lazy(() => import('./pages/app/Links'))
+const Payouts = lazy(() => import('./pages/app/Payouts'))
+const Settings = lazy(() => import('./pages/app/Settings'))
+const NewLinkPage = lazy(() => import('./pages/app/NewLinkPage'))
+const AdminShell = lazy(() => import('./pages/admin/AdminShell'))
+const AdminOverview = lazy(() => import('./pages/admin/AdminOverview'))
+const Approvals = lazy(() => import('./pages/admin/Approvals'))
+const AdminPayouts = lazy(() => import('./pages/admin/AdminPayouts'))
+const Merchants = lazy(() => import('./pages/admin/Merchants'))
+const MerchantDetail = lazy(() => import('./pages/admin/MerchantDetail'))
 const Docs = lazy(() => import('./pages/public/Docs'))
 
 function Loading() {
@@ -44,8 +44,31 @@ function RequireAdmin({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+// The server writes the first title. These keep it right as people move around,
+// and pages it wrote for a specific payment are left alone.
+const TITLES: [string, string][] = [
+  ['/docs', 'API de pagamentos M-Pesa para Moçambique: documentação · RIHA'],
+  ['/registo', 'Criar conta para receber pagamentos M-Pesa · RIHA'],
+  ['/entrar', 'Entrar · RIHA'], ['/recuperar', 'Recuperar palavra-passe · RIHA'], ['/verificacao', 'Verificação · RIHA'],
+  ['/painel', 'Painel · RIHA'], ['/admin', 'Administração · RIHA'],
+]
+
+function PageTitle() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    if (pathname === '/') document.title = 'RIHA: pagamentos online em Moçambique com M-Pesa'
+    else {
+      const t = TITLES.find(([p]) => pathname.startsWith(p))
+      if (t) document.title = t[1]
+    }
+  }, [pathname])
+  return null
+}
+
 export default function App() {
   return (
+    <Suspense fallback={<Loading />}>
+    <PageTitle />
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/docs" element={<Suspense fallback={<Loading />}><Docs /></Suspense>} />
@@ -77,5 +100,6 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }

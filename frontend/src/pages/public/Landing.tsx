@@ -305,7 +305,7 @@ export default function Landing() {
         <div className="lp-methods">
           <div>
             <div className="lp-eyebrow">Métodos de pagamento</div>
-            <h2 className="lp-h2">Todos os métodos que os seus clientes já usam.</h2>
+            <h2 className="lp-h2">Receba como os seus clientes já pagam: por M-Pesa.</h2>
           </div>
           <div className="lp-methods-grid">
             {METHODS.map(m => (

@@ -3,11 +3,15 @@ package integration
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"riha/internal/adapters/httpapi"
 	"riha/internal/core/app"
 	"riha/internal/core/domain"
 )
@@ -471,3 +475,56 @@ func TestRealMoneyRules(t *testing.T) {
 		}
 	})
 }
+
+func TestLinkPreviewsAndSearchRules(t *testing.T) {
+	a, ctx := setup(t)
+	m := approved(t, a, ctx, `Loja </title><script>alert(1)</script>`, "loja@sol.co.mz")
+	l, err := a.CreateLink(ctx, m, true, app.LinkParams{Name: ptr(`Bolo <img src=x onerror=alert(2)>`), Amount: ptr(int64(125000))}, "ana", "dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/index.html", []byte("<html><head><!--seo:head--><title>x</title><!--/seo:head--></head><body><!--seo:body--></body></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	engine := httpapi.New(a, httpapi.Config{StaticDir: dir})
+	a.PublicURL = "https://rihagateway.com"
+	get := func(path string) (*httptest.ResponseRecorder, string) {
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		return w, w.Body.String()
+	}
+	w, page := get("/p/" + m.Slug + "/" + l.Slug)
+	if w.Code != 200 || strings.Contains(page, "<script>alert") || strings.Contains(page, "<img src=x") {
+		t.Fatalf("names reached the HTML unescaped (%d): %s", w.Code, page)
+	}
+	for _, want := range []string{domain.Format(125000) + " MT", `og:image" content="https://rihagateway.com/og/p/` + m.Slug + "/" + l.Slug + ".png?v=", "summary_large_image", "noindex"} {
+		if !strings.Contains(strings.ReplaceAll(page, " ", " "), want) {
+			t.Fatalf("missing %q in %s", want, page)
+		}
+	}
+	if w.Header().Get("X-Robots-Tag") == "" {
+		t.Fatal("payment links must stay out of search")
+	}
+	if img, _ := get("/og/p/" + m.Slug + "/" + l.Slug + ".png"); img.Code != 200 || img.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("image: %d", img.Code)
+	}
+	w, page = get("/")
+	if w.Code != 200 || !strings.Contains(page, "index,follow") || !strings.Contains(page, `rel="canonical" href="https://rihagateway.com/"`) || !strings.Contains(page, "application/ld+json") {
+		t.Fatalf("home (%d): %s", w.Code, page)
+	}
+	for path, code := range map[string]int{"/painel": 200, "/admin/aprovacoes": 200, "/entrar": 200, "/p/nada/nada": 404, "/c/cs_nada": 404, "/nao-existe": 404} {
+		w, page := get(path)
+		if w.Code != code || !strings.Contains(page, "noindex") || strings.Contains(page, "canonical") {
+			t.Fatalf("%s (%d): %s", path, w.Code, page)
+		}
+	}
+	if _, xml := get("/sitemap.xml"); !strings.Contains(xml, "<loc>https://rihagateway.com/docs</loc>") || strings.Contains(xml, "/p/") {
+		t.Fatal(xml)
+	}
+	if _, txt := get("/robots.txt"); !strings.Contains(txt, "Sitemap: https://rihagateway.com/sitemap.xml") || !strings.Contains(txt, "Disallow: /admin") || strings.Contains(txt, "Disallow: /p\n") {
+		t.Fatal(txt)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

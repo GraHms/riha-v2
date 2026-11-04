@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,9 @@ type Server struct {
 	limiter     *rateLimiter
 	authLimiter *rateLimiter
 	payLimiter  *rateLimiter
+	shellOnce   sync.Once
+	shell       string
+	cards       cardCache
 }
 
 const cookieName = "riha_session"
@@ -41,6 +45,9 @@ func New(a *app.App, cfg Config) *gin.Engine {
 	r.Use(gin.Recovery(), requestID(), securityHeaders(cfg.CookieSecure), bodyLimit(), accessLog())
 	r.MaxMultipartMemory = 8 << 20
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
+	r.GET("/robots.txt", srv.robots)
+	r.GET("/sitemap.xml", srv.sitemap)
+	r.GET("/og/*rest", srv.throttle(srv.limiter, "og"), srv.ogImage)
 	srv.dashboardRoutes(r.Group("/api", csrf()))
 	srv.v1Routes(r.Group("/v1", srv.apiKeyAuth(), srv.apiLog(), srv.idempotency()))
 	r.NoRoute(srv.noRoute)
@@ -62,7 +69,7 @@ func (srv *Server) noRoute(c *gin.Context) {
 			c.File(f)
 			return
 		}
-		c.File(filepath.Join(srv.cfg.StaticDir, "index.html"))
+		srv.servePage(c)
 	}
 }
 
