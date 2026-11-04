@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/csv"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -17,6 +18,8 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	api.POST("/auth/signup", srv.throttle(srv.authLimiter, "signup"), srv.signup)
 	api.POST("/auth/login", srv.throttle(srv.authLimiter, "login"), srv.login)
 	api.POST("/auth/logout", srv.logout)
+	api.POST("/auth/forgot", srv.throttle(srv.authLimiter, "forgot"), srv.forgotPassword)
+	api.POST("/auth/reset", srv.throttle(srv.authLimiter, "reset"), srv.resetPassword)
 	api.GET("/auth/me", srv.auth(), srv.me)
 	api.POST("/auth/password", srv.auth(), srv.changePassword)
 
@@ -34,9 +37,7 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	m.GET("/payments/export.csv", srv.exportPayments)
 	m.GET("/payments/:id", srv.getPayment)
 	m.POST("/payments/:id/refund", srv.refundPayment)
-	m.POST("/payments/:id/receipt", func(c *gin.Context) {
-		c.JSON(200, gin.H{"ok": true, "message": "Recibo enviado ao cliente (simulado)."})
-	})
+	m.POST("/payments/:id/receipt", srv.throttle(srv.authLimiter, "receipt"), srv.sendReceipt)
 	m.GET("/links", srv.listLinks)
 	m.POST("/links", srv.createLink)
 	m.PATCH("/links/:id", srv.updateLink)
@@ -90,6 +91,46 @@ func (srv *Server) signup(c *gin.Context) {
 	srv.setCookie(c, tok, int(app.SessionTTL.Seconds()))
 	c.Set("user", u)
 	srv.me(c)
+}
+
+func (srv *Server) forgotPassword(c *gin.Context) {
+	var in struct{ Email string }
+	if err := c.ShouldBindJSON(&in); err != nil {
+		bad(c, "Pedido inválido.")
+		return
+	}
+	if err := srv.A.RequestPasswordReset(ctx(c), in.Email); err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, gin.H{"ok": true})
+}
+
+func (srv *Server) resetPassword(c *gin.Context) {
+	var in struct{ Token, Password string }
+	if err := c.ShouldBindJSON(&in); err != nil {
+		bad(c, "Pedido inválido.")
+		return
+	}
+	if err := srv.A.ResetPassword(ctx(c), in.Token, in.Password); err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, gin.H{"ok": true})
+}
+
+func (srv *Server) sendReceipt(c *gin.Context) {
+	var in struct{ Email string }
+	if err := c.ShouldBindJSON(&in); err != nil && !errors.Is(err, io.EOF) {
+		bad(c, "Pedido inválido.")
+		return
+	}
+	to, err := srv.A.SendReceipt(ctx(c), merchant(c).ID, live(c), c.Param("id"), in.Email)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, gin.H{"ok": true, "message": "Recibo enviado para " + to + "."})
 }
 
 func (srv *Server) login(c *gin.Context) {

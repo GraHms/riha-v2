@@ -18,11 +18,11 @@ func RequireApproved(m *Merchant) *Error {
 	case MerchantActive:
 		return nil
 	case MerchantSuspended:
-		return Forbidden("account_suspended", "Esta conta está suspensa. Contacte o suporte da Riha.")
+		return Forbidden("account_suspended", "Esta conta está suspensa. Contacte o suporte da RIHA.")
 	case MerchantRejected:
 		return Forbidden("account_rejected", "A verificação desta conta foi rejeitada.")
 	}
-	return Forbidden("account_not_approved", "A sua conta ainda não foi aprovada. Nenhuma operação é possível até a equipa Riha concluir a verificação.")
+	return Forbidden("account_not_approved", "A sua conta ainda não foi aprovada. Nenhuma operação é possível até a equipa RIHA concluir a verificação.")
 }
 
 func Slugify(s string) string {

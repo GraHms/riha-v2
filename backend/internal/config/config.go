@@ -22,6 +22,13 @@ type Config struct {
 	AdminEmail           string
 	AdminPassword        string
 	MailFrom             string
+	AdminNotifyEmail     string
+	MpesaBaseURL         string
+	MpesaC2BPort         string
+	MpesaQueryPort       string
+	MpesaAPIKey          string
+	MpesaPublicKey       string
+	MpesaProviderCode    string
 	SMTPAddr             string
 	SMTPUser             string
 	SMTPPassword         string
@@ -67,7 +74,14 @@ func Load() Config {
 		TrustedProxies:       proxies,
 		AdminEmail:           env("RIHA_ADMIN_EMAIL", ""),
 		AdminPassword:        env("RIHA_ADMIN_PASSWORD", ""),
-		MailFrom:             env("RIHA_MAIL_FROM", "Riha <no-reply@riha.co.mz>"),
+		MailFrom:             env("RIHA_MAIL_FROM", "RIHA <no-reply@rihagateway.com>"),
+		AdminNotifyEmail:     env("RIHA_ADMIN_NOTIFY_EMAIL", ""),
+		MpesaBaseURL:         env("RIHA_MPESA_BASE_URL", "https://api.vm.co.mz"),
+		MpesaC2BPort:         env("RIHA_MPESA_C2B_PORT", "18352"),
+		MpesaQueryPort:       env("RIHA_MPESA_QUERY_PORT", "18353"),
+		MpesaAPIKey:          env("RIHA_MPESA_API_KEY", ""),
+		MpesaPublicKey:       env("RIHA_MPESA_PUBLIC_KEY", ""),
+		MpesaProviderCode:    env("RIHA_MPESA_SERVICE_PROVIDER_CODE", ""),
 		SMTPAddr:             env("RIHA_SMTP_ADDR", ""),
 		SMTPUser:             env("RIHA_SMTP_USER", ""),
 		SMTPPassword:         env("RIHA_SMTP_PASSWORD", ""),

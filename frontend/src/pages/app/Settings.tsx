@@ -82,7 +82,7 @@ function Business() {
   const { me, refresh, toast } = useSession()
   const m = me!.merchant!
   const kyc = useQuery(g => g.merchant.kyc())
-  const [f, setF] = useState({ name: m.name, legal_name: m.legal_name, phone: m.phone, city: m.city, statement_descriptor: m.statement_descriptor, sms_notifications: m.sms_notifications })
+  const [f, setF] = useState({ name: m.name, legal_name: m.legal_name, phone: m.phone, city: m.city, statement_descriptor: m.statement_descriptor, sms_notifications: m.sms_notifications, email_notifications: m.email_notifications })
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
@@ -105,6 +105,7 @@ function Business() {
           <label><span className="label">Nome no extrato do cliente</span><input className="input mono" maxLength={22} value={f.statement_descriptor} onChange={e => setF({ ...f, statement_descriptor: e.target.value.toUpperCase() })} /></label>
         </div>
         <div className="row" style={{ marginTop: 16, padding: '12px 0', borderTop: '1px solid var(--line-3)' }}><div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>Notificações por SMS</div><div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Avisos de pagamentos e levantamentos</div></div><Toggle on={f.sms_notifications} onChange={v => setF({ ...f, sms_notifications: v })} label="SMS" /></div>
+        <div className="row" style={{ padding: '12px 0', borderTop: '1px solid var(--line-3)' }}><div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>Avisos de pagamento por email</div><div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Um email por cada pagamento recebido. Os avisos de conta, segurança e levantamentos são sempre enviados.</div></div><Toggle on={f.email_notifications} onChange={v => setF({ ...f, email_notifications: v })} label="Email" /></div>
         <div className="between" style={{ marginTop: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, color: 'var(--muted)' }}>Taxa por transação: <b style={{ color: 'var(--ink)' }}>{m.fee_label}</b>{m.fee_negotiated ? ' (negociada)' : ''}</span>
           <button className="btn btn-green" onClick={save} disabled={busy}>{busy ? <Spinner /> : 'Guardar'}</button>
@@ -164,7 +165,7 @@ function Bank() {
           <DocRow kind="nib_proof" title="Comprovativo de NIB" hint="Declaração do banco, PDF ou fotografia" doc={proof} onUploaded={kyc.reload} last />
         </div>
         {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
-        <div className="between" style={{ marginTop: 18, flexWrap: 'wrap' }}><span style={{ fontSize: 13, color: 'var(--muted)', flex: 1, minWidth: 220 }}>O titular tem de ter o mesmo nome ou NUIT registado na Riha. Alterações ficam registadas.</span><button className="btn btn-green" onClick={save} disabled={busy || nib.length !== 21}>{busy ? <Spinner /> : 'Guardar'}</button></div>
+        <div className="between" style={{ marginTop: 18, flexWrap: 'wrap' }}><span style={{ fontSize: 13, color: 'var(--muted)', flex: 1, minWidth: 220 }}>O titular tem de ter o mesmo nome ou NUIT registado na RIHA. Alterações ficam registadas.</span><button className="btn btn-green" onClick={save} disabled={busy || nib.length !== 21}>{busy ? <Spinner /> : 'Guardar'}</button></div>
       </Card>
     </div>
   )
@@ -290,7 +291,7 @@ function Hooks() {
         </Card>
         <Card>
           <div className="between"><div style={{ fontWeight: 600, fontSize: 16 }}>Callback por transação</div><span className="tag" style={{ background: 'var(--ink)', color: '#fff', fontSize: 11.5, padding: '3px 8px' }}>DINÂMICO</span></div>
-          <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--muted)', marginTop: 4 }}>Envie <span className="mono" style={{ color: 'var(--ink)' }}>callback_url</span> ao criar a sessão. A Riha envia o resultado dessa transação para esse endereço, além dos endpoints abaixo.</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--muted)', marginTop: 4 }}>Envie <span className="mono" style={{ color: 'var(--ink)' }}>callback_url</span> ao criar a sessão. A RIHA envia o resultado dessa transação para esse endereço, além dos endpoints abaixo.</div>
           <div className="mono" style={{ marginTop: 12, padding: '10px 14px', borderRadius: 12, background: 'var(--ink)', color: '#C9D3CD', fontSize: 12.5, overflowX: 'auto', whiteSpace: 'nowrap' }}><span style={{ color: 'var(--sun)' }}>"callback_url"</span>: <span style={{ color: 'var(--lime)' }}>"https://{data.domains[0]?.domain || 'loja.co.mz'}/pedidos/2094/riha"</span></div>
           <span className="label" style={{ margin: '14px 0 8px' }}>Domínios autorizados</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

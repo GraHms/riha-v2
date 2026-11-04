@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/mail"
 	"net/url"
 	"regexp"
 	"strings"
@@ -135,7 +136,7 @@ func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, 
 		}
 		meta[k] = vs
 	}
-	methods, err := domain.CleanMethods(p.PaymentMethodTypes)
+	methods, err := a.cleanMethods(p.PaymentMethodTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +221,7 @@ type PayInput struct {
 	CardExpiry string `json:"card_expiry"`
 	CardCVC    string `json:"card_cvc"`
 	Name       string `json:"name"`
+	Email      string `json:"email"`
 	PayerIP    string `json:"-"`
 	PayerUA    string `json:"-"`
 }
@@ -232,8 +234,14 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	if !cs.IsOpen(a.Now()) {
 		return nil, domain.Invalid("session_not_open", "session", "Esta sessão de pagamento já não está aberta.")
 	}
+	in.Email = strings.TrimSpace(in.Email)
+	if in.Email != "" {
+		if _, err := mail.ParseAddress(in.Email); err != nil || len(in.Email) > 200 {
+			return nil, domain.Invalid("email_invalid", "email", "Email inválido.")
+		}
+	}
 	in.Method = strings.ToLower(in.Method)
-	if !domain.Contains(cs.PaymentMethodTypes, in.Method) {
+	if !domain.Contains(cs.PaymentMethodTypes, in.Method) || domain.Contains(a.ComingSoon, in.Method) {
 		return nil, domain.Invalid("payment_method_not_allowed", "method", "Este método não está disponível neste pagamento.")
 	}
 	m, err := a.Merchants.ByID(ctx, cs.MerchantID)
@@ -248,7 +256,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	p := &domain.Payment{
 		ID: domain.NewID("pay"), Reference: domain.PaymentReference(), MerchantID: m.ID, Livemode: cs.Livemode, SessionID: cs.ID,
 		Status: domain.PaymentProcessing, Amount: cs.Amount, FeeBps: bps, Fee: fee, Net: net, Method: in.Method,
-		CustomerName: domain.FirstNonEmpty(domain.Trim(in.Name, 200), cs.CustomerName), CustomerEmail: cs.CustomerEmail,
+		CustomerName: domain.FirstNonEmpty(domain.Trim(in.Name, 200), cs.CustomerName), CustomerEmail: domain.FirstNonEmpty(in.Email, cs.CustomerEmail), RailReference: domain.RailReference(),
 		Description: cs.Description, ClientReferenceID: cs.ClientReferenceID, Metadata: cs.Metadata, Origin: cs.Origin,
 		PayerIP: in.PayerIP, PayerUserAgent: domain.Trim(in.PayerUA, 300), CreatedAt: a.Now(),
 	}
@@ -279,6 +287,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
 		PaymentID: p.ID, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
 		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor,
+		Live: p.Livemode, Reference: p.RailReference,
 	}, func(o domain.Outcome) {
 		if err := a.CompletePayment(context.Background(), p.ID, o); err != nil {
 			log.Printf("complete payment %s: %v", p.ID, err)
@@ -317,7 +326,8 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 		if p.Status != domain.PaymentProcessing {
 			return nil
 		}
-		if _, err := a.Merchants.Lock(ctx, p.MerchantID); err != nil {
+		m, err := a.Merchants.Lock(ctx, p.MerchantID)
+		if err != nil {
 			return err
 		}
 		cs, err := a.Sessions.Lock(ctx, p.SessionID)
@@ -340,7 +350,10 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			if err := a.emit(ctx, p.MerchantID, p.Livemode, "payment.succeeded", p.ID, domain.PaymentResource(p), cs.CallbackURL); err != nil {
 				return err
 			}
-			return a.emit(ctx, p.MerchantID, p.Livemode, "checkout.session.completed", cs.ID, domain.SessionResource(cs, a.PublicURL), cs.CallbackURL)
+			if err := a.emit(ctx, p.MerchantID, p.Livemode, "checkout.session.completed", cs.ID, domain.SessionResource(cs, a.PublicURL), cs.CallbackURL); err != nil {
+				return err
+			}
+			return a.mailPaymentSucceeded(ctx, p, m)
 		}
 		p.Status, p.FailureCode, p.FailedAt = domain.PaymentFailed, o.FailureCode, &now
 		p.FailureMessage = domain.FailureMessages[o.FailureCode]
@@ -389,4 +402,27 @@ func (a *App) Receipt(ctx context.Context, ref string) (*domain.Payment, *domain
 	}
 	m, err := a.Merchants.ByID(ctx, p.MerchantID)
 	return p, m, err
+}
+
+// cleanMethods is CleanMethods without what can't take money yet.
+func (a *App) cleanMethods(in []string) ([]string, error) {
+	methods, err := domain.CleanMethods(in)
+	if err != nil {
+		return nil, err
+	}
+	out := a.ActiveMethods(methods)
+	if len(out) == 0 {
+		return nil, domain.Invalid("payment_method_unavailable", "payment_method_types", "Estes métodos chegam em breve. Por agora só aceitamos M-Pesa.")
+	}
+	return out, nil
+}
+
+func (a *App) ActiveMethods(methods []string) []string {
+	out := make([]string, 0, len(methods))
+	for _, m := range methods {
+		if !domain.Contains(a.ComingSoon, m) {
+			out = append(out, m)
+		}
+	}
+	return out
 }

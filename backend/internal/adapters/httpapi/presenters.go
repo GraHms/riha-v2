@@ -19,7 +19,8 @@ func (srv *Server) merchantJSON(c context.Context, m *domain.Merchant) gin.H {
 		"phone": m.Phone, "email": m.Email, "city": m.City, "owner_name": m.OwnerName, "expected_volume": m.ExpectedVolume,
 		"statement_descriptor": m.StatementDescriptor, "avatar_color": m.AvatarColor, "status": m.Status,
 		"fee_bps": bps, "fee_negotiated": m.FeeBps != nil, "fee_label": domain.FormatBps(bps),
-		"success_url": m.SuccessURL, "cancel_url": m.CancelURL, "sms_notifications": m.SMSNotifications,
+		"success_url": m.SuccessURL, "cancel_url": m.CancelURL, "sms_notifications": m.SMSNotifications, "email_notifications": m.EmailNotifications,
+		"coming_soon": srv.A.ComingSoon, "live_refunds": !srv.A.NoLiveRefunds,
 		"kyc_submitted_at": iso(m.KycSubmittedAt), "approved_at": iso(m.ApprovedAt), "review_note": m.ReviewNote,
 		"created_at": isoT(m.CreatedAt),
 	}
@@ -161,10 +162,10 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	}
 	out := gin.H{
 		"id": cs.ID, "status": status, "amount": cs.Amount, "currency": cs.Currency, "description": cs.Description,
-		"line_items": items, "payment_method_types": cs.PaymentMethodTypes, "livemode": cs.Livemode,
+		"line_items": items, "payment_method_types": srv.A.ActiveMethods(cs.PaymentMethodTypes), "coming_soon": srv.A.ComingSoon, "livemode": cs.Livemode,
 		"success_url": success, "cancel_url": cs.CancelURL, "return_host": hostOf(domain.FirstNonEmpty(cs.SuccessURL, cs.CancelURL)),
 		"client_reference_id": cs.ClientReferenceID, "customer_phone": strings.TrimPrefix(cs.CustomerPhone, "+258"),
-		"customer_name": cs.CustomerName, "expires_at": isoT(cs.ExpiresAt), "merchant": publicMerchant(m), "payment": nil,
+		"customer_name": cs.CustomerName, "email_on_file": cs.CustomerEmail != "", "expires_at": isoT(cs.ExpiresAt), "merchant": publicMerchant(m), "payment": nil,
 	}
 	if p := srv.A.LatestPayment(c, cs.ID); p != nil {
 		out["payment"] = gin.H{"id": p.ID, "reference": p.Reference, "status": p.Status, "method": p.Method, "phone_prefix": p.PhonePrefix,

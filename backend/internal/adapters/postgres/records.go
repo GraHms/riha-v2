@@ -50,6 +50,7 @@ type merchantRecord struct {
 	SigningSecretTest   string `gorm:"size:80"`
 	SigningSecretLive   string `gorm:"size:80"`
 	SMSNotifications    bool   `gorm:"default:true"`
+	EmailNotifications  bool   `gorm:"default:true"`
 	KycSubmittedAt      *time.Time
 	ApprovedAt          *time.Time
 	ReviewNote          string `gorm:"size:1000"`
@@ -183,6 +184,7 @@ type paymentRecord struct {
 	CardBrand         string     `gorm:"size:20"`
 	CardLast4         string     `gorm:"size:4"`
 	OperatorReference string     `gorm:"size:40"`
+	RailReference     string     `gorm:"size:20;index"`
 	FailureCode       string     `gorm:"size:40"`
 	FailureMessage    string     `gorm:"size:300"`
 	CustomerName      string     `gorm:"size:200"`
@@ -368,11 +370,39 @@ type settingRecord struct {
 
 func (settingRecord) TableName() string { return "platform_settings" }
 
+type emailRecord struct {
+	ID            string `gorm:"primaryKey;size:40"`
+	Kind          string `gorm:"size:60;index"`
+	To            string `gorm:"column:recipient;size:320"`
+	Subject       string `gorm:"size:500"`
+	Text          string
+	HTML          string `gorm:"column:html"`
+	Status        string `gorm:"size:20;index"`
+	Attempts      int
+	NextAttemptAt *time.Time `gorm:"index"`
+	LastError     string     `gorm:"size:500"`
+	SentAt        *time.Time
+	CreatedAt     time.Time `gorm:"index"`
+	UpdatedAt     time.Time
+}
+
+func (emailRecord) TableName() string { return "email_outbox" }
+
+type passwordResetRecord struct {
+	TokenHash string    `gorm:"primaryKey;size:64"`
+	UserID    string    `gorm:"size:40;index;not null"`
+	ExpiresAt time.Time `gorm:"index;not null"`
+	UsedAt    *time.Time
+	CreatedAt time.Time
+}
+
+func (passwordResetRecord) TableName() string { return "password_resets" }
+
 func allRecords() []any {
 	return []any{
 		&userRecord{}, &sessionRecord{}, &merchantRecord{}, &documentRecord{}, &bankRecord{}, &keyRecord{},
 		&linkRecord{}, &sessionCheckoutRecord{}, &paymentRecord{}, &refundRecord{}, &ledgerRecord{}, &payoutRecord{},
 		&endpointRecord{}, &domainRecord{}, &eventRecord{}, &deliveryRecord{}, &requestLogRecord{}, &idempotencyRecord{},
-		&auditRecord{}, &settingRecord{},
+		&auditRecord{}, &settingRecord{}, &emailRecord{}, &passwordResetRecord{},
 	}
 }

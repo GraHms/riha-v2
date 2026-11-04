@@ -56,15 +56,15 @@ func newDoc(title string) *doc {
 	f.SetMargins(18, 18, 18)
 	f.SetAutoPageBreak(true, 20)
 	f.SetTitle(title, true)
-	f.SetAuthor("Riha", true)
-	f.SetCreator("Riha", true)
+	f.SetAuthor("RIHA", true)
+	f.SetCreator("RIHA", true)
 	f.RegisterImageOptionsReader("logo", fpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(logo))
 	d := &doc{f: f, tr: f.UnicodeTranslatorFromDescriptor("")}
 	f.SetFooterFunc(func() {
 		f.SetY(-14)
 		f.SetFont("Helvetica", "", 8)
 		f.SetTextColor(138, 147, 142)
-		f.CellFormat(0, 5, d.tr(fmt.Sprintf("Riha · Maputo, Moçambique · Documento gerado automaticamente · Página %d", f.PageNo())), "", 0, "C", false, 0, "")
+		f.CellFormat(0, 5, d.tr(fmt.Sprintf("RIHA · Maputo, Moçambique · Documento gerado automaticamente · Página %d", f.PageNo())), "", 0, "C", false, 0, "")
 	})
 	return d
 }
@@ -163,7 +163,7 @@ func (d *doc) bytes() ([]byte, error) {
 
 func (r Renderer) PayoutInstructions(sheets []domain.PayoutSheet) ([]byte, error) {
 	now := r.Now()
-	d := newDoc("Ordens de transferência Riha")
+	d := newDoc("Ordens de transferência RIHA")
 	if len(sheets) > 1 {
 		d.header("Ordens de transferência", fmt.Sprintf("%d levantamentos", len(sheets)), now)
 		f := d.f

@@ -156,9 +156,11 @@ func (a *App) EmailPayoutStatement(ctx context.Context, id string, actor Actor) 
 	if r, err := a.PayoutReceipt(ctx, id, ""); err == nil {
 		atts = append(atts, *r)
 	}
-	body := fmt.Sprintf("Olá %s,\n\nO levantamento %s de %s MT foi transferido para %s (NIB terminado em %s).\n\nSegue em anexo o comprovativo completo da Riha e o comprovativo bancário.\n\nEquipa Riha",
-		domain.FirstNonEmpty(m.OwnerName, m.Name), p.Ref(), domain.Format(p.Amount), p.BankName, p.NIB[len(p.NIB)-4:])
-	if err := a.Mailer.Send(ctx, domain.Email{To: m.Email, Subject: "Riha · Levantamento " + p.Ref() + " transferido", Text: body, Attachments: atts}); err != nil {
+	email := domain.Notice{To: m.Email, Subject: "RIHA · Levantamento " + p.Ref() + " transferido", Title: "O comprovativo do seu levantamento",
+		Lines: []string{merchantHello(m), fmt.Sprintf("O levantamento %s de %s foi transferido para %s (NIB terminado em %s).", p.Ref(), mt(p.Amount), p.BankName, p.NIB[len(p.NIB)-4:]),
+			"Segue em anexo o comprovativo completo da RIHA e o comprovativo bancário."}}.Email()
+	email.Attachments = atts
+	if err := a.Mailer.Send(ctx, email); err != nil {
 		return "", err
 	}
 	now := a.Now()

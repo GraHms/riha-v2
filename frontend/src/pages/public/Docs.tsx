@@ -164,7 +164,7 @@ const ENDPOINTS: [string, string][][] = [
 ]
 
 const SESSION_CODE: Record<string, string> = {
-  cURL: String.raw`curl https://api.riha.co.mz/v1/checkout/sessions \
+  cURL: String.raw`curl https://rihagateway.com/v1/checkout/sessions \
   -H "Authorization: Bearer sk_test_…" \
   -H "Idempotency-Key: pedido-2094-a1" \
   -H "Content-Type: application/json" \
@@ -181,7 +181,7 @@ const SESSION_CODE: Record<string, string> = {
     ],
     "metadata": { "canal": "loja_online" }
   }'`,
-  Node: String.raw`const res = await fetch("https://api.riha.co.mz/v1/checkout/sessions", {
+  Node: String.raw`const res = await fetch("https://rihagateway.com/v1/checkout/sessions", {
   method: "POST",
   headers: {
     "Authorization": "Bearer " + process.env.RIHA_SECRET_KEY,
@@ -206,7 +206,7 @@ const session = await res.json();
 // Envie o cliente para session.url (303)
 res.redirect(303, session.url);`,
   PHP: String.raw`<?php
-$ch = curl_init("https://api.riha.co.mz/v1/checkout/sessions");
+$ch = curl_init("https://rihagateway.com/v1/checkout/sessions");
 curl_setopt_array($ch, [
   CURLOPT_POST => true,
   CURLOPT_RETURNTRANSFER => true,
@@ -236,7 +236,7 @@ header("Location: " . $session["url"], true, 303);`,
 import requests
 
 r = requests.post(
-    "https://api.riha.co.mz/v1/checkout/sessions",
+    "https://rihagateway.com/v1/checkout/sessions",
     headers={
         "Authorization": "Bearer " + os.environ["RIHA_SECRET_KEY"],
         "Idempotency-Key": "pedido-2094-a1",
@@ -267,7 +267,7 @@ const SESSION_RES = `{
   "status": "open",
   "amount": 125000,
   "currency": "MZN",
-  "url": "https://pay.riha.co.mz/c/cs_test_8K2D4410",
+  "url": "https://rihagateway.com/c/cs_test_8K2D4410",
   "client_reference_id": "pedido_2094",
   "callback_url": "https://loja.co.mz/webhooks/riha",
   "payment": null,
@@ -276,15 +276,15 @@ const SESSION_RES = `{
 }`
 
 const AUTH_CODE = String.raw`# Bearer
-curl https://api.riha.co.mz/v1/balance \
+curl https://rihagateway.com/v1/balance \
   -H "Authorization: Bearer sk_test_51RhA…V71c"
 
 # Basic auth: a chave é o utilizador, sem palavra-passe
-curl https://api.riha.co.mz/v1/balance \
+curl https://rihagateway.com/v1/balance \
   -u «ysk_test_51RhA…V71c»:
 
 # Corpo form-encoded (o mesmo que JSON)
-curl https://api.riha.co.mz/v1/checkout \
+curl https://rihagateway.com/v1/checkout \
   -u «ysk_test_…»: \
   -d amount=125000 \
   -d currency=MZN \
@@ -324,7 +324,7 @@ const SOURCE_LINK = `«g"source"»: {
   "channel": "whatsapp"
 }`
 
-const LINK_CODE = String.raw`curl https://api.riha.co.mz/v1/payment_links \
+const LINK_CODE = String.raw`curl https://rihagateway.com/v1/payment_links \
   -u «ysk_test_…»: \
   -d name="Bolo de chocolate 1 kg" \
   -d amount=125000 \
@@ -338,21 +338,21 @@ const LINK_RES = `{
   "amount": 125000,
   "custom_amount": false,
   "reusable": true,
-  "payment_method_types": ["mpesa", "emola", "card"],
+  "payment_method_types": ["mpesa"],
   "active": true,
   "expires_at": null,
-  "url": "https://riha.co.mz/p/cafe-maputo/bolo",
+  "url": "https://rihagateway.com/p/cafe-maputo/bolo",
   "livemode": false
 }`
 
-const REFUND_CODE = String.raw`curl https://api.riha.co.mz/v1/refunds \
+const REFUND_CODE = String.raw`curl https://rihagateway.com/v1/refunds \
   -u «ysk_test_…»: \
   -H "Idempotency-Key: reemb-2093-1" \
   -d payment=pay_7Q1A2093 \
   -d amount=50000 \
   -d reason="Produto em falta"`
 
-const MONEY_CODE = String.raw`curl https://api.riha.co.mz/v1/balance -u «ysk_test_…»:
+const MONEY_CODE = String.raw`curl https://rihagateway.com/v1/balance -u «ysk_test_…»:
 
 {
   "object": "balance",
@@ -420,7 +420,7 @@ const ERROR_RES = `{
     "code": "callback_url_not_allowed",
     "param": "callback_url",
     "message": "O domínio loja-teste.com não está verificado.",
-    "doc_url": "https://docs.riha.co.mz/erros#callback_url_not_allowed",
+    "doc_url": "https://rihagateway.com/docs#erros",
     "request_id": "req_9fK2mA81"
   }
 }`
@@ -465,8 +465,8 @@ const FAILS: [string, string, string][] = [
 
 const FLOW = [
   { n: '01 · Servidor', t: 'Cria a sessão', d: 'POST /v1/checkout/sessions → url', mono: true },
-  { n: '02 · Browser', t: 'Redireciona o cliente', d: '303 → pay.riha.co.mz/c/cs_…', mono: true },
-  { n: '03 · Riha', t: 'O cliente paga', d: 'PIN M-Pesa ou e-Mola, ou cartão com 3-D Secure', mono: false, green: true },
+  { n: '02 · Browser', t: 'Redireciona o cliente', d: '303 → rihagateway.com/c/cs_…', mono: true },
+  { n: '03 · RIHA', t: 'O cliente paga', d: 'Confirma com o PIN M-Pesa', mono: false, green: true },
   { n: '04 · Servidor a servidor', t: 'Evento assinado', d: 'POST callback_url + endpoints', mono: true, dark: true },
   { n: '05 · Browser', t: 'Volta à loja', d: 'success_url?session_id=cs_…', mono: true },
 ]
@@ -519,7 +519,7 @@ export default function Docs() {
           )}
         </button>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 9, color: '#0B120E', minWidth: 0 }}>
-          <img src="/assets/riha-icon-dark.png" alt="Riha" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+          <img src="/assets/riha-icon-dark.png" alt="RIHA" style={{ width: 28, height: 28, objectFit: 'contain' }} />
           <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 16, letterSpacing: '.2em' }}>RIHA</span>
           <span className="docs-label" style={{ fontSize: 14, color: '#5E6862', paddingLeft: 10, borderLeft: '1px solid #E4E2DA' }}>Documentação</span>
         </Link>
@@ -549,10 +549,10 @@ export default function Docs() {
           <section id="intro" className="docs-sec">
             <div>
               <h1 className="docs-h1" style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 700, fontSize: 44, letterSpacing: '-0.035em', lineHeight: 1.02 }}>Referência da API</h1>
-              <P mt={16} s={16} style={{ lineHeight: 1.65, textWrap: 'pretty' }}>A API da Riha é REST. Tem URLs organizados por recurso, recebe JSON ou dados form-encoded, devolve JSON, usa códigos HTTP padrão e autentica com a sua chave secreta. Todos os valores são inteiros em centavos de metical: 125000 corresponde a 1 250,00 MT.</P>
+              <P mt={16} s={16} style={{ lineHeight: 1.65, textWrap: 'pretty' }}>A API da RIHA é REST. Tem URLs organizados por recurso, recebe JSON ou dados form-encoded, devolve JSON, usa códigos HTTP padrão e autentica com a sua chave secreta. Todos os valores são inteiros em centavos de metical: 125000 corresponde a 1 250,00 MT.</P>
               <P mt={12} s={16} style={{ lineHeight: 1.65, textWrap: 'pretty' }}>O modo de teste usa as chaves <Chip>sk_test_</Chip>. Nenhum dinheiro real é movimentado e os <a href="#teste" onClick={e => { e.preventDefault(); go('teste') }}>números de teste</a> simulam cada resultado (sucesso, PIN errado, saldo insuficiente, tempo esgotado).</P>
               <div className="docs-2" style={{ marginTop: 24 }}>
-                <div style={{ padding: '14px 16px', borderRadius: 14, border: '1px solid #E8E6DF', minWidth: 0 }}><div style={{ fontSize: 12, color: '#5E6862' }}>URL base</div><div style={{ fontFamily: MONO, fontSize: 13.5, marginTop: 4, wordBreak: 'break-all' }}>https://api.riha.co.mz/v1</div></div>
+                <div style={{ padding: '14px 16px', borderRadius: 14, border: '1px solid #E8E6DF', minWidth: 0 }}><div style={{ fontSize: 12, color: '#5E6862' }}>URL base</div><div style={{ fontFamily: MONO, fontSize: 13.5, marginTop: 4, wordBreak: 'break-all' }}>https://rihagateway.com/v1</div></div>
                 <div style={{ padding: '14px 16px', borderRadius: 14, border: '1px solid #E8E6DF', minWidth: 0 }}><div style={{ fontSize: 12, color: '#5E6862' }}>Formato</div><div style={{ fontFamily: MONO, fontSize: 13.5, marginTop: 4 }}>application/json · UTF-8</div></div>
               </div>
             </div>
@@ -574,8 +574,8 @@ export default function Docs() {
           <section id="teste" className="docs-sec">
             <div>
               <H2>Modo de teste</H2>
-              <P>Com uma chave <C>sk_test_</C> (ou o painel em modo de teste) os pagamentos são simulados. O resultado depende dos últimos quatro dígitos do telefone M-Pesa (84, 85) ou e-Mola (86, 87) usado no checkout.</P>
-              <Eyebrow>M-Pesa e e-Mola</Eyebrow>
+              <P>Com uma chave <C>sk_test_</C> (ou o painel em modo de teste) os pagamentos são simulados. Em produção, os pagamentos são reais. O resultado depende dos últimos quatro dígitos do telefone M-Pesa (84, 85) usado no checkout.</P>
+              <Eyebrow>M-Pesa</Eyebrow>
               <Table>
                 {FAILS.map(([d, code, t]) => <Row key={d} k={<>84 123 <b style={{ fontWeight: 600 }}>{d}</b></>} w={150}><C s={13}>{code}</C> · {t}</Row>)}
                 <Row k="84 123 4567" w={150}><C s={13}>succeeded</C> · Qualquer outro número é pago com sucesso</Row>
@@ -604,7 +604,7 @@ export default function Docs() {
 
           <section id="fluxo" className="docs-sec single">
             <H2>Fluxo de pagamento</H2>
-            <P style={{ maxWidth: 720 }}>O servidor da loja cria uma sessão e envia o cliente para o checkout da Riha. Depois do pagamento, a Riha avisa o servidor e devolve o cliente à loja. Os dois passos são independentes.</P>
+            <P style={{ maxWidth: 720 }}>O servidor da loja cria uma sessão e envia o cliente para o checkout da RIHA. Depois do pagamento, a RIHA avisa o servidor e devolve o cliente à loja. Os dois passos são independentes.</P>
             <div className="docs-flow">
               {FLOW.map(f => (
                 <div key={f.n} style={{ padding: 16, borderRadius: 16, minWidth: 0, ...(f.green ? { background: '#0A8205', color: '#fff' } : f.dark ? { background: '#0B120E', color: '#fff' } : { border: '1px solid #E8E6DF', background: '#FAFAF7' }) }}>
@@ -648,9 +648,9 @@ export default function Docs() {
               <Param name="cancel_url" type="string">Para onde o cliente volta se desistir ou se a sessão expirar.</Param>
               <Param name="callback_url" type="string" badge="WEBHOOK DINÂMICO" hl>Endereço do seu servidor que recebe o resultado desta sessão: <C s={12.5}>checkout.session.completed</C>, <C s={12.5}>payment.succeeded</C>, <C s={12.5}>payment.failed</C> e <C s={12.5}>checkout.session.expired</C>. É enviado além dos endpoints fixos da conta. O domínio tem de estar verificado em Definições.</Param>
               <Param name="client_reference_id" type="string">O seu identificador interno, como o número da encomenda. Volta em todos os eventos e aparece no painel.</Param>
-              <Param name="customer" type="object"><C s={13}>name</C>, <C s={13}>phone</C> (formato E.164, +258…) e <C s={13}>email</C>. O telefone pré-preenche o número M-Pesa ou e-Mola no checkout.</Param>
+              <Param name="customer" type="object"><C s={13}>name</C>, <C s={13}>phone</C> (formato E.164, +258…) e <C s={13}>email</C>. O telefone pré-preenche o número M-Pesa no checkout.</Param>
               <Param name="line_items" type="array">Lista de <C s={13}>name</C>, <C s={13}>quantity</C> e <C s={13}>unit_amount</C>, mostrada no checkout e no recibo. A soma tem de ser igual a amount.</Param>
-              <Param name="payment_method_types" type="array"><C s={13}>mpesa</C>, <C s={13}>emola</C>, <C s={13}>card</C>. Por omissão, todos os métodos ativos na conta.</Param>
+              <Param name="payment_method_types" type="array">Por agora só <C s={13}>mpesa</C>. <C s={13}>emola</C> e <C s={13}>card</C> chegam em breve.</Param>
               <Param name="metadata" type="object">Até 20 pares chave-valor (chave até 40 caracteres, valor até 500). Não é mostrado ao cliente. Copiado para o Payment.</Param>
               <Param name="expires_at" type="timestamp">Entre 15 minutos e 24 horas. Por omissão, 1 hora.</Param>
               <Param name="description · locale" type="string · pt-MZ | en" last>Texto mostrado no checkout e no recibo. Idioma do checkout.</Param>
@@ -681,7 +681,7 @@ export default function Docs() {
                 <span style={{ padding: '4px 9px', borderRadius: 7, background: '#EDECE6', color: '#3E4742' }}>refunded</span><span style={{ padding: '4px 9px', borderRadius: 7, background: '#EDECE6', color: '#3E4742' }}>partially_refunded</span>
               </div>
               <div style={{ fontSize: 14, lineHeight: 1.55, color: '#3E4742', marginTop: 12 }}>Em <C s={13}>failed</C>, o campo <C s={13}>failure_code</C> indica o motivo: <C s={12.5}>pin_incorrect</C>, <C s={12.5}>insufficient_funds</C>, <C s={12.5}>customer_timeout</C>, <C s={12.5}>customer_cancelled</C>, <C s={12.5}>card_declined</C>, <C s={12.5}>operator_unavailable</C>.</div>
-              <P mt={14} s={14}><C s={13}>fee</C> é a taxa Riha ({bpsLabel(bps)} do <C s={13}>amount</C>, arredondada ao centavo) e <C s={13}>net</C> o valor creditado no saldo.</P>
+              <P mt={14} s={14}><C s={13}>fee</C> é a taxa RIHA ({bpsLabel(bps)} do <C s={13}>amount</C>, arredondada ao centavo) e <C s={13}>net</C> o valor creditado no saldo.</P>
               <P mt={10} s={14}>Liste com <C s={13}>GET /v1/payments</C> (os mais recentes primeiro; <C s={13}>?limit=</C> de 1 a 100, por omissão 10). As listas devolvem <C s={13}>{'{ "object": "list", "data": [...], "has_more": false }'}</C>.</P>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignSelf: 'start', minWidth: 0 }}>
@@ -694,7 +694,7 @@ export default function Docs() {
             <div>
               <Endpoint method="POST" path="/v1/payment_links" />
               <H2 mt={12}>Payment Links</H2>
-              <P>Um link de pagamento é uma página pronta em <C>riha.co.mz/p/…</C> que pode partilhar por WhatsApp, SMS ou QR, sem escrever código. Os links criados pela API aparecem no painel.</P>
+              <P>Um link de pagamento é uma página pronta em <C>rihagateway.com/p/…</C> que pode partilhar por WhatsApp, SMS ou QR, sem escrever código. Os links criados pela API aparecem no painel.</P>
               <Eyebrow m="26px 0 4px">Parâmetros</Eyebrow>
               <Param name="name" type="string" req>Nome mostrado ao cliente e no painel.</Param>
               <Param name="amount" type="integer">Valor fixo em centavos. Omita e envie <C s={13}>custom_amount=true</C> para o cliente escolher o valor.</Param>
@@ -713,7 +713,8 @@ export default function Docs() {
             <div>
               <Endpoint method="POST" path="/v1/refunds" />
               <H2 mt={12}>Refunds</H2>
-              <P>Devolve o dinheiro de um Payment com <C>succeeded</C>, no todo ou em parte. O valor sai do seu saldo Riha e o Payment passa a <C>refunded</C> ou <C>partially_refunded</C>.</P>
+              <P>Devolve o dinheiro de um Payment com <C>succeeded</C>, no todo ou em parte. O valor sai do seu saldo RIHA e o Payment passa a <C>refunded</C> ou <C>partially_refunded</C>.</P>
+              <P><b>Só em modo de teste, por agora.</b> Em produção devolve <C>refunds_unavailable</C>: os reembolsos reais chegam em breve.</P>
               <Eyebrow m="26px 0 4px">Parâmetros</Eyebrow>
               <Param name="payment" type="string" req>ID do Payment, por exemplo <C s={13}>pay_7Q1A2093</C>.</Param>
               <Param name="amount" type="integer">Valor em centavos. Por omissão, o que falta reembolsar.</Param>
@@ -767,7 +768,7 @@ export default function Docs() {
               <Eyebrow id="assinatura" m="28px 0 10px">Assinatura</Eyebrow>
               <P mt={0} s={14.5}>Cada pedido traz <C s={13}>Riha-Signature: t=…,v1=…</C>. Calcule HMAC-SHA256 de <C s={13}>t + "." + corpo</C> com o segredo <C s={13}>whsec_</C> e compare com v1. Rejeite se t tiver mais de 5 minutos.</P>
               <Eyebrow m="24px 0 10px">Tentativas</Eyebrow>
-              <P mt={0} s={14.5}>Responda 2xx em até 10 segundos. Caso contrário, a Riha volta a tentar 8 vezes ao longo de 3 dias:</P>
+              <P mt={0} s={14.5}>Responda 2xx em até 10 segundos. Caso contrário, a RIHA volta a tentar 8 vezes ao longo de 3 dias:</P>
               <div className="docs-retries">
                 {RETRIES.map((r, i) => <span key={r} style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 8, background: i === 0 ? '#0B120E' : '#F4F3EE', color: i === 0 ? '#fff' : undefined, fontFamily: MONO, fontSize: 11.5, whiteSpace: 'nowrap' }}>{r}</span>)}
               </div>
@@ -785,7 +786,7 @@ export default function Docs() {
               <P>Respostas 4xx trazem um objeto <C>error</C> com um código estável que pode tratar no seu código. Inclua o <C>request_id</C> quando contactar o suporte.</P>
               <div style={{ marginTop: 18 }}>
                 <Table>
-                  {[['400', 'Parâmetro em falta ou inválido'], ['401', 'Chave API inválida ou revogada'], ['403', 'Chave restrita sem permissão, ou conta por verificar'], ['404', 'Recurso não existe neste modo (teste ou produção)'], ['409', 'Idempotency-Key reutilizada com outro corpo'], ['429', 'Demasiados pedidos (100 por segundo por conta)'], ['5xx', 'Erro da Riha ou do operador. Repita com a mesma Idempotency-Key.']].map(([k, v]) => (
+                  {[['400', 'Parâmetro em falta ou inválido'], ['401', 'Chave API inválida ou revogada'], ['403', 'Chave restrita sem permissão, ou conta por verificar'], ['404', 'Recurso não existe neste modo (teste ou produção)'], ['409', 'Idempotency-Key reutilizada com outro corpo'], ['429', 'Demasiados pedidos (100 por segundo por conta)'], ['5xx', 'Erro da RIHA ou do operador. Repita com a mesma Idempotency-Key.']].map(([k, v]) => (
                     <div key={k} className="docs-row keep" style={{ '--w': '70px', padding: '11px 16px' } as CSSProperties}><span style={{ fontFamily: MONO }}>{k}</span><span style={{ color: '#3E4742' }}>{v}</span></div>
                   ))}
                 </Table>

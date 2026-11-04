@@ -7,7 +7,7 @@ export const errMsg = (e: unknown) => (e as ApiError)?.message || 'Algo correu m
 export type Merchant = {
   id: string; slug: string; name: string; legal_name: string; business_type: string; nuit: string; phone: string; email: string
   city: string; owner_name: string; status: string; fee_bps: number; fee_negotiated: boolean; fee_label: string
-  statement_descriptor: string; avatar_color: string; success_url: string; cancel_url: string; sms_notifications: boolean
+  statement_descriptor: string; avatar_color: string; success_url: string; cancel_url: string; sms_notifications: boolean; email_notifications: boolean; coming_soon: string[]; live_refunds: boolean
   approved_at: string | null; kyc_submitted_at: string | null; review_note: string; expected_volume: string; created_at: string
 }
 
@@ -26,7 +26,7 @@ export type CheckoutPayment = {
 export type CheckoutSession = {
   id: string; status: string; amount: number; description: string; livemode: boolean
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
-  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string
+  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
   payment: CheckoutPayment | null
 }

@@ -8,12 +8,12 @@ import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 type Session = {
   id: string; status: string; amount: number; description: string; livemode: boolean
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
-  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string
+  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
   payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null }
 }
 
-const WALLET_TIMEOUT = 60
+const WALLET_TIMEOUT = 120
 
 function fmtPhone(v: string) {
   const d = v.replace(/\D/g, '').slice(0, 9)
@@ -30,6 +30,7 @@ export default function Checkout() {
   const [method, setMethod] = useState('mpesa')
   const [phone, setPhone] = useState('')
   const [card, setCard] = useState({ number: '', exp: '', cvc: '', name: '' })
+  const [email, setEmail] = useState('')
   const [err, setErr] = useState<ApiError | null>(null)
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState<'pay' | 'confirm' | 'done'>('pay')
@@ -78,8 +79,8 @@ export default function Checkout() {
     setBusy(true); setErr(null)
     try {
       const body = method === 'card'
-        ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name }
-        : { method, phone: phone.replace(/\D/g, '') }
+        ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email }
+        : { method, phone: phone.replace(/\D/g, ''), email }
       const d = await g.checkout.pay(s.id, body)
       setS(d)
       if (d.status === 'complete') setView('done')
@@ -143,7 +144,7 @@ export default function Checkout() {
 
       <main className="co-main">
         <div className="co-main-in">
-          <div className="co-url only-mobile"><Icon name="lock" size={12} stroke={2.4} />pay.riha.co.mz</div>
+          <div className="co-url only-mobile"><Icon name="lock" size={12} stroke={2.4} />rihagateway.com</div>
 
           {view === 'pay' && (
             <>
@@ -175,6 +176,12 @@ export default function Checkout() {
                         <span className="co-radio"><span /></span>
                       </button>
                     ))}
+                    {(s.coming_soon || []).map(m => (
+                      <div key={m} className="co-m" aria-disabled="true" style={{ opacity: 0.55, cursor: 'not-allowed', borderStyle: 'dashed' }}>
+                        <MethodIcon method={m} size={38} />
+                        <span className="co-m-txt"><span className="co-m-name">{METHOD_NAME[m]}</span><span className="co-m-sub">Em breve</span></span>
+                      </div>
+                    ))}
                   </div>
                   {wallet ? (
                     <div style={{ marginTop: 20 }}>
@@ -192,6 +199,12 @@ export default function Checkout() {
                       </div>
                       <input className="input lg" style={{ height: 56 }} autoComplete="cc-name" placeholder="Nome no cartão" value={card.name} onChange={e => setCard({ ...card, name: e.target.value })} />
                     </div>
+                  )}
+                  {!s.email_on_file && (
+                    <label style={{ display: 'block', marginTop: 14 }}>
+                      <span className="label" style={{ marginBottom: 7 }}>Email para o recibo (opcional)</span>
+                      <input className="input lg" style={{ height: 52 }} type="email" inputMode="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+                    </label>
                   )}
                   {err && <div className="form-err" style={{ marginTop: 14 }} role="alert">{err.message}</div>}
                   <div className="co-pay">

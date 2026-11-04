@@ -2,7 +2,7 @@ import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useSession } from './lib/session'
 import Landing from './pages/public/Landing'
-import { Login, Signup } from './pages/public/Auth'
+import { Login, Signup, ForgotPassword, ResetPassword } from './pages/public/Auth'
 import Kyc from './pages/public/Kyc'
 import Checkout from './pages/public/Checkout'
 import LinkLanding from './pages/public/LinkLanding'
@@ -51,6 +51,8 @@ export default function App() {
       <Route path="/docs" element={<Suspense fallback={<Loading />}><Docs /></Suspense>} />
       <Route path="/entrar" element={<Login />} />
       <Route path="/registo" element={<Signup />} />
+      <Route path="/recuperar" element={<ForgotPassword />} />
+      <Route path="/recuperar/nova" element={<ResetPassword />} />
       <Route path="/verificacao" element={<RequireMerchant><Kyc /></RequireMerchant>} />
       <Route path="/c/:id" element={<Checkout />} />
       <Route path="/p/:merchant/:slug" element={<LinkLanding />} />

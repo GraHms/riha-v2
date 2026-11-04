@@ -20,6 +20,7 @@ import (
 	"riha/internal/adapters/webhooks"
 	"riha/internal/config"
 	"riha/internal/core/app"
+	"riha/internal/core/domain"
 	"riha/internal/core/ports"
 	"riha/internal/seed"
 )
@@ -33,8 +34,19 @@ func main() {
 	if err := store.Migrate(); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	a := app.New(Deps(store, cfg), cfg.PublicURL)
+	rail, realMoney, err := paymentRail(cfg)
+	if err != nil {
+		log.Fatalf("payments: %v", err)
+	}
+	deps := Deps(store, cfg)
+	deps.Rail = rail
+	a := app.New(deps, cfg.PublicURL)
 	a.AllowPrivateNetworks = cfg.AllowPrivateNetworks
+	if realMoney {
+		a.ComingSoon = []string{domain.MethodEmola, domain.MethodCard}
+		a.NoLiveRefunds = true
+	}
+	a.AdminNotifyEmail = cfg.AdminNotifyEmail
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -54,7 +66,7 @@ func main() {
 	srv := &http.Server{Addr: cfg.Addr, Handler: httpapi.New(a, httpapi.Config{StaticDir: cfg.StaticDir, CookieSecure: cfg.CookieSecure, TrustedProxies: cfg.TrustedProxies}),
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
 	go func() {
-		log.Printf("Riha API listening on %s (checkout at %s)", cfg.Addr, cfg.PublicURL)
+		log.Printf("RIHA API listening on %s (checkout at %s)", cfg.Addr, cfg.PublicURL)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal(err)
 		}
@@ -78,7 +90,27 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 		Hasher:   crypto.Bcrypt{},
 		Renderer: pdf.New(),
 		Mailer:   mailer(cfg),
+		Emails:   r.Emails,
+		Resets:   r.Resets,
 	}
+}
+
+// paymentRail sends live money to M-Pesa, while test mode stays on the simulator.
+// Production can't start on the simulator: it would pass fake money off as real.
+func paymentRail(cfg config.Config) (ports.Rail, bool, error) {
+	test := rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond)
+	if cfg.MpesaAPIKey == "" {
+		if cfg.Env == "production" {
+			return nil, false, errors.New("production needs RIHA_MPESA_API_KEY, RIHA_MPESA_PUBLIC_KEY and RIHA_MPESA_SERVICE_PROVIDER_CODE")
+		}
+		return test, false, nil
+	}
+	live, err := rails.NewMpesa(rails.MpesaConfig{BaseURL: cfg.MpesaBaseURL, C2BPort: cfg.MpesaC2BPort, QueryPort: cfg.MpesaQueryPort, APIKey: cfg.MpesaAPIKey,
+		PublicKey: cfg.MpesaPublicKey, ServiceProviderCode: cfg.MpesaProviderCode})
+	if err != nil {
+		return nil, false, err
+	}
+	return rails.Modes{Test: test, Live: live}, true, nil
 }
 
 func mailer(cfg config.Config) ports.Mailer {

@@ -58,6 +58,7 @@ type Merchant struct {
 	SigningSecretTest   string
 	SigningSecretLive   string
 	SMSNotifications    bool
+	EmailNotifications  bool
 	KycSubmittedAt      *time.Time
 	ApprovedAt          *time.Time
 	ReviewNote          string
@@ -220,6 +221,7 @@ type Payment struct {
 	CardBrand         string
 	CardLast4         string
 	OperatorReference string
+	RailReference     string
 	FailureCode       string
 	FailureMessage    string
 	CustomerName      string

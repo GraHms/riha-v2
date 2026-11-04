@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
 	"riha/internal/core/domain"
+	"riha/internal/core/ports"
 )
 
 func (a *App) PublishableKey(ctx context.Context, merchantID string, live bool) string {
@@ -54,6 +56,9 @@ func (a *App) RollSecretKey(ctx context.Context, m *domain.Merchant, live bool, 
 		return "", nil, err
 	}
 	a.Record(ctx, m.ID, actor, "api_key.rolled", k.ID, domain.Mode(live))
+	if live {
+		a.mailKeyRolled(ctx, m, k)
+	}
 	return secret, k, nil
 }
 
@@ -209,8 +214,8 @@ func (a *App) deliver(ctx context.Context, d *domain.Delivery) {
 func (a *App) Sweep(ctx context.Context) {
 	now := a.Now()
 	stale, _ := a.Payments.StaleProcessing(ctx, now.Add(-3*time.Minute), 100)
-	for _, p := range stale {
-		_ = a.CompletePayment(ctx, p.ID, domain.Outcome{FailureCode: domain.FailCustomerTimeout})
+	for i := range stale {
+		a.settleStale(ctx, &stale[i])
 	}
 	expired, _ := a.Sessions.ExpiredOpen(ctx, now, 200)
 	for _, cs := range expired {
@@ -226,6 +231,39 @@ func (a *App) Sweep(ctx context.Context) {
 	}
 	_ = a.Idempotency.Purge(ctx, now.Add(-24*time.Hour))
 	_ = a.AuthSessions.Purge(ctx, now)
+	_ = a.Resets.Purge(ctx, now.Add(-24*time.Hour))
+	_ = a.Emails.Purge(ctx, now.Add(-90*24*time.Hour))
+}
+
+const (
+	// After this long with no record at the operator, nobody paid.
+	railNoRecordAfter = 5 * time.Minute
+	// After this long without any answer from the operator, stop waiting.
+	railGiveUpAfter = 30 * time.Minute
+)
+
+// settleStale ends a payment whose answer never came. Real money only ends on what
+// the operator says: the customer may have paid while the answer was being lost.
+func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
+	timedOut := domain.Outcome{FailureCode: domain.FailCustomerTimeout}
+	rail, ok := a.Rail.(ports.RailQuery)
+	if !ok || !p.Livemode || p.RailReference == "" {
+		_ = a.CompletePayment(ctx, p.ID, timedOut)
+		return
+	}
+	age := a.Now().Sub(p.CreatedAt)
+	o, known, err := rail.Query(ctx, p.RailReference)
+	switch {
+	case err == nil && known:
+		_ = a.CompletePayment(ctx, p.ID, o)
+	case err == nil && age >= railNoRecordAfter:
+		_ = a.CompletePayment(ctx, p.ID, timedOut)
+	case err != nil && age >= railGiveUpAfter:
+		log.Printf("payment %s (%s): no answer from the operator after %s, closed unconfirmed, check it by hand: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
+		_ = a.CompletePayment(ctx, p.ID, timedOut)
+	case err != nil:
+		log.Printf("payment %s (%s): query failed: %v", p.ID, p.RailReference, err)
+	}
 }
 
 func (a *App) RunWorkers(ctx context.Context) {
@@ -245,6 +283,10 @@ func (a *App) RunWorkers(ctx context.Context) {
 	}
 	tick(time.Second, func() {
 		for a.DeliverDue(ctx, 20) == 20 {
+		}
+	})
+	tick(2*time.Second, func() {
+		for a.SendDueEmails(ctx, 20) == 20 {
 		}
 	})
 	tick(10*time.Second, func() { a.Sweep(ctx) })

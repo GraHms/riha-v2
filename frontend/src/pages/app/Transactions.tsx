@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { errMsg } from '../../core/model'
+import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
 import { useQuery } from '../../core/useQuery'
 import { bpsLabel, fmt, fullDate, methodLine, parseMT, relDate, SOURCE, STATUS } from '../../lib/format'
@@ -82,10 +82,12 @@ export default function Transactions() {
 
 function Detail({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const { approved } = useShell()
+  const merchant = useSession().me?.merchant
   const g = useGateway()
   const { toast } = useSession()
   const { data: p, reload } = useQuery(g => g.payments.get(id), [id], 5000)
   const [refund, setRefund] = useState(false)
+  const [receipt, setReceipt] = useState(false)
   useEffect(() => { const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h) }, [onClose])
 
   const body = !p ? <div style={{ padding: 24 }}><Skeleton h={40} w="60%" /><Skeleton h={18} style={{ marginTop: 16 }} /><Skeleton h={200} style={{ marginTop: 16 }} /></div> : (() => {
@@ -146,15 +148,21 @@ function Detail({ id, onClose, onChanged }: { id: string; onClose: () => void; o
           <div className="between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line-3)' }}><span className="muted">Método</span><span style={{ fontWeight: 500 }}>{methodLine(p)}</span></div>
           {p.payment_method?.[p.method]?.operator_reference && <div className="between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line-3)' }}><span className="muted">Ref. do operador</span><span className="mono" style={{ fontSize: 12.5 }}>{p.payment_method[p.method].operator_reference}</span></div>}
           <div className="between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line-3)' }}><span className="muted">Data</span><span style={{ fontWeight: 500 }}>{fullDate(p.created_at)}</span></div>
-          <div className="between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line-3)' }}><span className="muted">Taxa Riha ({bpsLabel(p.fee_bps)})</span><span className="tnum" style={{ fontWeight: 500 }}>{failed ? '—' : fmt(p.fee) + ' MT'}</span></div>
+          <div className="between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line-3)' }}><span className="muted">Taxa RIHA ({bpsLabel(p.fee_bps)})</span><span className="tnum" style={{ fontWeight: 500 }}>{failed ? '—' : fmt(p.fee) + ' MT'}</span></div>
           {p.amount_refunded > 0 && <div className="between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line-3)' }}><span className="muted">Reembolsado</span><span className="tnum" style={{ fontWeight: 500 }}>−{fmt(p.amount_refunded)} MT</span></div>}
           <div className="between" style={{ padding: '10px 0' }}><span className="muted">Líquido</span><span className="tnum" style={{ fontWeight: 600 }}>{failed ? '—' : fmt(p.net - p.amount_refunded) + ' MT'}</span></div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <button className="btn btn-outline" style={{ flex: 1 }} disabled={p.status !== 'succeeded'} onClick={async () => { const r = await g.payments.sendReceipt(p.id); toast(r.message) }}>Enviar recibo</button>
-          {refundable && approved && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setRefund(true)}>Reembolsar</button>}
+          <button className="btn btn-outline" style={{ flex: 1 }} disabled={p.status !== 'succeeded'} onClick={async () => {
+            try { const r = await g.payments.sendReceipt(p.id); toast(r.message) }
+            catch (e) { if ((e as ApiError).code === 'customer_email_missing') setReceipt(true); else toast(errMsg(e)) }
+          }}>Enviar recibo</button>
+          {refundable && approved && (p.livemode && merchant && !merchant.live_refunds
+            ? <button className="btn btn-outline" style={{ flex: 1 }} disabled title="Os reembolsos em produção chegam em breve">Reembolsar · em breve</button>
+            : <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => setRefund(true)}>Reembolsar</button>)}
         </div>
         {refund && <RefundModal p={p} onClose={() => setRefund(false)} onDone={() => { setRefund(false); reload(); onChanged() }} />}
+        {receipt && <ReceiptModal id={p.id} onClose={() => setReceipt(false)} />}
       </div>
     )
   })()
@@ -173,6 +181,30 @@ function uaShort(ua: string) {
   return `${os} · ${br}`
 }
 
+function ReceiptModal({ id, onClose }: { id: string; onClose: () => void }) {
+  const g = useGateway()
+  const { toast } = useSession()
+  const [email, setEmail] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const go = async (e: FormEvent) => {
+    e.preventDefault(); setBusy(true); setErr('')
+    try { const r = await g.payments.sendReceipt(id, email); toast(r.message); onClose() }
+    catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+  }
+  return (
+    <Modal onClose={onClose}>
+      <form onSubmit={go}>
+        <div className="display" style={{ fontSize: 22 }}>Enviar recibo</div>
+        <div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 6, lineHeight: 1.5 }}>Este pagamento não tem email do cliente. O email que indicar fica guardado no pagamento.</div>
+        <label style={{ display: 'block', marginTop: 16 }}><span className="label">Email do cliente</span><input className="input" type="email" required autoFocus value={email} onChange={e => setEmail(e.target.value)} /></label>
+        {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}><button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={onClose}>Cancelar</button><button className="btn btn-ink" style={{ flex: 1 }} disabled={busy}>{busy ? <Spinner /> : 'Enviar recibo'}</button></div>
+      </form>
+    </Modal>
+  )
+}
+
 function RefundModal({ p, onClose, onDone }: { p: any; onClose: () => void; onDone: () => void }) {
   const g = useGateway()
   const { toast } = useSession()
@@ -189,7 +221,7 @@ function RefundModal({ p, onClose, onDone }: { p: any; onClose: () => void; onDo
   return (
     <Modal onClose={onClose}>
       <div className="display" style={{ fontSize: 22 }}>Reembolsar pagamento</div>
-      <div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 6, lineHeight: 1.5 }}>O valor é devolvido ao cliente ({methodLine(p)}) e debitado do seu saldo. A taxa Riha não é devolvida.</div>
+      <div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 6, lineHeight: 1.5 }}>O valor é devolvido ao cliente ({methodLine(p)}) e debitado do seu saldo. A taxa RIHA não é devolvida.</div>
       <label style={{ display: 'block', marginTop: 16 }}><span className="label">Valor (máx. {fmt(max)} MT)</span><input className="input" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /></label>
       <label style={{ display: 'block', marginTop: 12 }}><span className="label">Motivo (opcional)</span><input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="Produto esgotado" /></label>
       {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}

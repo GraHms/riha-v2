@@ -40,13 +40,20 @@ type Deps struct {
 	Hasher       ports.PasswordHasher
 	Renderer     ports.Renderer
 	Mailer       ports.Mailer
+	Emails       ports.Emails
+	Resets       ports.PasswordResets
 }
 
 type App struct {
 	Deps
 	PublicURL            string
 	AllowPrivateNetworks bool
-	Now                  func() time.Time
+	AdminNotifyEmail     string
+	// ComingSoon lists the methods that can't take money yet.
+	ComingSoon []string
+	// NoLiveRefunds: a live refund must send the money back, and no rail can yet.
+	NoLiveRefunds bool
+	Now           func() time.Time
 }
 
 func New(d Deps, publicURL string) *App {

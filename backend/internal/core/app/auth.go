@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"log"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -11,7 +12,11 @@ import (
 	"riha/internal/core/domain"
 )
 
-const SessionTTL = 14 * 24 * time.Hour
+const (
+	SessionTTL       = 14 * 24 * time.Hour
+	PasswordResetTTL = time.Hour
+	MaxResetsPerHour = 3
+)
 
 var avatarColors = []string{"#FFD21F", "#E2F3DE", "#FFF0D6", "#EDECE6", "#FFE3E1"}
 var localPhone = regexp.MustCompile(`^[0-9]{9}$`)
@@ -69,7 +74,7 @@ func (a *App) Signup(ctx context.Context, in SignupInput) (*domain.User, *domain
 		ID: domain.NewID("acct"), Slug: a.uniqueMerchantSlug(ctx, domain.Slugify(in.BusinessName)), Name: in.BusinessName,
 		Email: in.Email, Phone: "+258" + phone, OwnerName: strings.TrimSpace(in.Name), Status: domain.MerchantLead,
 		StatementDescriptor: domain.Descriptor(in.BusinessName), AvatarColor: avatarColors[int(now.UnixNano())%len(avatarColors)],
-		SigningSecretTest: domain.Token("whsec_", 32), SigningSecretLive: domain.Token("whsec_", 32), SMSNotifications: true, CreatedAt: now,
+		SigningSecretTest: domain.Token("whsec_", 32), SigningSecretLive: domain.Token("whsec_", 32), SMSNotifications: true, EmailNotifications: true, CreatedAt: now,
 	}
 	u := &domain.User{ID: domain.NewID("usr"), Email: in.Email, PasswordHash: hash, Name: m.OwnerName, Phone: m.Phone, Role: domain.RoleMerchant, MerchantID: &m.ID, CreatedAt: now}
 	err = a.Tx.Do(ctx, func(ctx context.Context) error {
@@ -79,7 +84,10 @@ func (a *App) Signup(ctx context.Context, in SignupInput) (*domain.User, *domain
 		if err := a.Users.Create(ctx, u); err != nil {
 			return err
 		}
-		return a.ensurePublishableKeys(ctx, m.ID)
+		if err := a.ensurePublishableKeys(ctx, m.ID); err != nil {
+			return err
+		}
+		return a.mailWelcome(ctx, m)
 	})
 	if err != nil {
 		return nil, nil, err
@@ -144,7 +152,69 @@ func (a *App) ChangePassword(ctx context.Context, u *domain.User, current, next,
 	if err := a.Users.SetPassword(ctx, u.ID, h); err != nil {
 		return err
 	}
-	return a.AuthSessions.DeleteForUser(ctx, u.ID, domain.Hash(keepToken))
+	if err := a.AuthSessions.DeleteForUser(ctx, u.ID, domain.Hash(keepToken)); err != nil {
+		return err
+	}
+	if err := a.mailPasswordChanged(ctx, u); err != nil {
+		log.Printf("email security.password_changed: %v", err)
+	}
+	return nil
+}
+
+// RequestPasswordReset answers the same whether or not the account exists, so
+// the form can't be used to find out who has one.
+func (a *App) RequestPasswordReset(ctx context.Context, email string) error {
+	u, err := a.Users.ByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	if err != nil {
+		return nil
+	}
+	now := a.Now()
+	if n, err := a.Resets.CountSince(ctx, u.ID, now.Add(-time.Hour)); err != nil || n >= MaxResetsPerHour {
+		return err
+	}
+	token := domain.Token("", 40)
+	return a.Tx.Do(ctx, func(ctx context.Context) error {
+		if err := a.Resets.Create(ctx, &domain.PasswordReset{TokenHash: domain.Hash(token), UserID: u.ID, ExpiresAt: now.Add(PasswordResetTTL), CreatedAt: now}); err != nil {
+			return err
+		}
+		return a.mailPasswordReset(ctx, u, token)
+	})
+}
+
+// ResetPassword spends the token and signs out every device, in case someone
+// else was in the account.
+func (a *App) ResetPassword(ctx context.Context, token, next string) error {
+	if err := validPassword(next); err != nil {
+		return err
+	}
+	h, err := a.Hasher.Hash(next)
+	if err != nil {
+		return err
+	}
+	return a.Tx.Do(ctx, func(ctx context.Context) error {
+		now := a.Now()
+		id, err := a.Resets.Take(ctx, domain.Hash(token), now)
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.Invalid("reset_invalid", "token", "Este link já não é válido. Peça um novo.")
+		}
+		if err != nil {
+			return err
+		}
+		u, err := a.Users.ByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err := a.Users.SetPassword(ctx, id, h); err != nil {
+			return err
+		}
+		if err := a.Resets.SpendAll(ctx, id, now); err != nil {
+			return err
+		}
+		if err := a.AuthSessions.DeleteForUser(ctx, id, ""); err != nil {
+			return err
+		}
+		return a.mailPasswordChanged(ctx, u)
+	})
 }
 
 func (a *App) EnsureAdmin(ctx context.Context, email, password string) error {

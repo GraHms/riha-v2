@@ -56,7 +56,7 @@ func setup(t *testing.T) (*app.App, context.Context) {
 		Payouts: r.Payouts, Endpoints: r.Endpoints, Domains: r.Domains, Events: r.Events, Deliveries: r.Deliveries,
 		RequestLogs: r.RequestLogs, Idempotency: r.Idempotency, Audit: r.Audit, Settings: r.Settings, Reports: r.Reports,
 		Rail: mock, Sender: nullSender{}, Files: filestore.Local{Root: t.TempDir()}, Hasher: crypto.Bcrypt{},
-		Renderer: pdf.New(), Mailer: mails,
+		Renderer: pdf.New(), Mailer: mails, Emails: r.Emails, Resets: r.Resets,
 	}, "http://localhost:5173")
 	a.AllowPrivateNetworks = true
 	return a, context.Background()

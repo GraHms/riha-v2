@@ -29,6 +29,22 @@ type AuthSessions interface {
 	Purge(ctx context.Context, before time.Time) error
 }
 
+type Emails interface {
+	Create(ctx context.Context, e *domain.QueuedEmail) error
+	ClaimDue(ctx context.Context, now, lease time.Time, limit int) ([]domain.QueuedEmail, error)
+	Save(ctx context.Context, e *domain.QueuedEmail) error
+	Purge(ctx context.Context, before time.Time) error
+}
+
+type PasswordResets interface {
+	Create(ctx context.Context, r *domain.PasswordReset) error
+	CountSince(ctx context.Context, userID string, since time.Time) (int64, error)
+	// Take spends a valid token and returns its user, or domain.ErrNotFound.
+	Take(ctx context.Context, tokenHash string, now time.Time) (string, error)
+	SpendAll(ctx context.Context, userID string, now time.Time) error
+	Purge(ctx context.Context, before time.Time) error
+}
+
 type MerchantFilter struct {
 	Statuses []string
 	Query    string
@@ -235,6 +251,12 @@ type Reports interface {
 
 type Rail interface {
 	Initiate(ctx context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error)
+}
+
+// RailQuery is implemented by rails that can say what became of a payment whose
+// answer never arrived. It returns false when the operator has no record of it.
+type RailQuery interface {
+	Query(ctx context.Context, reference string) (domain.Outcome, bool, error)
 }
 
 type WebhookSender interface {

@@ -8,7 +8,7 @@ This is the first working version, built from the Claude Design handoff in `proj
 |---|---|
 | API | Go 1.24, gin, GORM, PostgreSQL 16 (`backend/`), ports and adapters |
 | Web | React 19, TypeScript, Vite, react-router (`frontend/`), responsive mobile and desktop |
-| Payment rails | **Mocked** (`backend/internal/adapters/rails`). M-Pesa and e-Mola simulate the PIN prompt on the phone; cards authorise synchronously. |
+| Payment rails | **Live mode: M-Pesa** (`backend/internal/adapters/rails/mpesa.go`). e-Mola and cards show as coming soon, and live refunds are off because no rail can send money back yet. **Test mode: simulated**, and it never reaches an operator. |
 
 ## Backend architecture (ports and adapters)
 
@@ -77,7 +77,9 @@ Configuration (environment variables):
 | `RIHA_STATIC_DIR` | empty | serve a built frontend |
 | `RIHA_UPLOAD_DIR` | `./data/uploads` | KYC documents and bank receipts |
 | `RIHA_OUTBOX_DIR` | `./data/outbox` | emails are written here as `.eml` when SMTP is not configured |
-| `RIHA_SMTP_ADDR`, `RIHA_SMTP_USER`, `RIHA_SMTP_PASSWORD`, `RIHA_MAIL_FROM` | empty | SMTP delivery for payout statements |
+| `RIHA_SMTP_ADDR`, `RIHA_SMTP_USER`, `RIHA_SMTP_PASSWORD`, `RIHA_MAIL_FROM` | empty | SMTP delivery for every email |
+| `RIHA_MPESA_API_KEY`, `RIHA_MPESA_PUBLIC_KEY`, `RIHA_MPESA_SERVICE_PROVIDER_CODE` | empty | M-Pesa for live mode. Production refuses to start without them. `RIHA_MPESA_BASE_URL`, `RIHA_MPESA_C2B_PORT` and `RIHA_MPESA_QUERY_PORT` default to `https://api.vm.co.mz`, `18352` and `18353` |
+| `RIHA_ADMIN_NOTIFY_EMAIL` | empty | where new accounts to review and new payouts are announced; empty sends nothing |
 | `RIHA_ADMIN_EMAIL`, `RIHA_ADMIN_PASSWORD` | empty | create or reset the super admin on start (password of 12 characters or more) |
 | `RIHA_TRUSTED_PROXIES` | none | comma list of proxy IPs or CIDRs allowed to set `X-Forwarded-For` |
 | `RIHA_ALLOW_PRIVATE_NETWORKS` | `true` in development only | allow webhooks and `callback_url` to localhost and private addresses |
@@ -115,6 +117,25 @@ Tests: `make test`. Domain tests are pure. The integration tests (fees, ledger, 
 **Fees.** The platform default is **6%** (`default_fee_bps = 600`, editable in admin). Each merchant can have a negotiated `fee_bps`; `NULL` means the default applies. The fee is snapshotted on each payment at creation, so changing a fee never rewrites history. Fee = round-half-up(amount × bps / 10 000), in centavos. The merchant pays the fee, which is deducted from the credited amount. Refunds debit the full refunded amount and the fee is not returned.
 
 **Money model.** All amounts are integer centavos. The balance is `SUM(ledger_entries.amount)` per merchant and mode. Payments credit the net amount, payouts debit at request time, and rejected or failed payouts and refunds write compensating entries. Balance-changing operations lock the merchant row (`SELECT … FOR UPDATE`) inside a transaction.
+
+## M-Pesa
+
+The request blocks until the customer answers the prompt, so it runs on a goroutine. Each payment stores a `RIHA…` reference before the request goes out. A payment fails only when M-Pesa says so: a timeout, a dropped connection, `INS-1`, `INS-9` or a restart leave it processing, and the sweep asks the query API after 3 minutes. With no record at M-Pesa it ends after 5 minutes, and with no answer at all after 30, logged for a manual check.
+
+## Emails
+
+Every email goes through `email_outbox`: it is written in the same transaction as the change it reports, sent by a worker, and retried on the webhook schedule, so a mail server problem never fails a payment. The body is cleared once sent, because a reset email holds a live link. Payment, refund and payout emails are live mode only.
+
+| Email | Sent to | When |
+|---|---|---|
+| Welcome | Merchant | Sign up |
+| Data received, approved, rejected, more information, suspended, reactivated | Merchant | Verification and admin decisions. Only "more information" quotes the admin's note. |
+| Password reset, password changed | User | Reset links last 1 hour, work once, carry the token in the URL fragment, and at most 3 are sent per account per hour. A reset signs out every device. |
+| Bank account changed, new live API key | Merchant | Always, these are security notices |
+| Payment receipt, refund | Customer | When the session or the checkout form has their email. The dashboard can send a receipt again. |
+| Payment received | Merchant | Can be turned off in Settings |
+| Refund, payout requested, sent, paid, not completed | Merchant | Always |
+| New account to review, new payout | `RIHA_ADMIN_NOTIFY_EMAIL` | Only when set |
 
 ## Public REST API (`/v1`)
 
@@ -163,7 +184,7 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 - A lead or an account under review cannot operate at all, not even in test mode.
 - Admins may approve an account that has no documents. The automatic checks show what is missing.
 - One bank receipt can cover a bulk payout completion, matching a single bank batch transfer.
-- Email delivery stays on the outbox directory for now. SMTP will be configured later through `RIHA_SMTP_ADDR`, `RIHA_SMTP_USER`, `RIHA_SMTP_PASSWORD` and `RIHA_MAIL_FROM`.
+- Email delivery goes to the outbox directory until `RIHA_SMTP_ADDR` is set.
 
 ## Assumptions made for v1 (please confirm)
 
@@ -176,9 +197,9 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 ## Not done yet (production gaps)
 
 - Real M-Pesa (Vodacom OpenAPI), e-Mola and card acquirer integrations, and daily reconciliation against them. They plug in as adapters implementing `ports.Rail`.
-- 2FA, password reset by email/SMS, team members and roles, restricted keys (`rk_`).
+- 2FA, password reset by SMS, team members and roles, restricted keys (`rk_`).
 - Chargebacks and disputes. Payout holds after a NIB change. Two-admin approval above a threshold. Risk rules and alerts (the admin "Risco e alertas" item is a placeholder).
-- Real SMS receipts. SMTP delivery is built but not configured yet, so email goes to `RIHA_OUTBOX_DIR`. Object storage for KYC documents (currently the local disk).
+- Real SMS receipts. Object storage for KYC documents (currently the local disk).
 - The rate limiter and idempotency are per process and in the database; a multi-instance deployment needs a shared limiter.
 - The frontend uses loose `any` types for API payloads (lint warnings). Generating types from an OpenAPI spec would tighten this.
 

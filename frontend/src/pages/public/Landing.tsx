@@ -112,7 +112,7 @@ const stripe = (s: CSSProperties, red: boolean): CSSProperties => ({ position: '
 function Brand({ dark, size, text }: { dark?: boolean; size: number; text: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: size > 30 ? 10 : 9 }}>
-      <img src={dark ? '/assets/riha-icon-light.png' : '/assets/riha-icon-dark.png'} alt="Riha" style={{ width: size, height: size, objectFit: 'contain' }} />
+      <img src={dark ? '/assets/riha-icon-light.png' : '/assets/riha-icon-dark.png'} alt="RIHA" style={{ width: size, height: size, objectFit: 'contain' }} />
       <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: text, letterSpacing: '.2em', color: dark ? '#fff' : '#0B120E' }}>RIHA</span>
     </div>
   )
@@ -138,14 +138,14 @@ function PayCard({ mobile }: { mobile?: boolean }) {
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: '#FFD21F', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 13 }}>CM</div>
-            <div><div style={{ fontWeight: 600, fontSize: 14 }}>Café Maputo</div><div style={{ fontSize: 11.5, color: '#5E6862' }}>pay.riha.co.mz</div></div>
+            <div><div style={{ fontWeight: 600, fontSize: 14 }}>Café Maputo</div><div style={{ fontSize: 11.5, color: '#5E6862' }}>rihagateway.com</div></div>
           </div>
           <div style={{ marginTop: 14, fontSize: 11.5, color: '#5E6862' }}>Total a pagar</div>
           <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, letterSpacing: '-0.03em' }}>1 250,00 <span style={{ fontSize: 15, color: '#5E6862' }}>MT</span></div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 11.5, color: '#5E6862' }}>pay.riha.co.mz</div>
+          <div style={{ fontSize: 11.5, color: '#5E6862' }}>rihagateway.com</div>
           <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em', marginTop: 4 }}>1 250,00 <span style={{ fontSize: 14, color: '#5E6862' }}>MT</span></div>
         </>
       )}
@@ -155,7 +155,7 @@ function PayCard({ mobile }: { mobile?: boolean }) {
           <span style={{ marginLeft: 'auto', width: 16, height: 16, borderRadius: '50%', background: '#0A8205' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, height: 40, padding: '0 10px', borderRadius: 12, border: '1px solid #E4E2DA', fontSize: 13, fontWeight: 500 }}>
-          <span style={{ width: 22, height: 22, borderRadius: 7, background: '#FFF0D6', color: '#B45F00', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>e</span>e-Mola
+          <span style={{ width: 22, height: 22, borderRadius: 7, background: '#FFF0D6', color: '#B45F00', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>e</span>e-Mola<span style={{ marginLeft: 'auto', fontSize: 11, color: '#6B7570' }}>Em breve</span>
         </div>
       </div>
       <div style={{ marginTop: 12, height: 42, borderRadius: 12, background: '#0A8205', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 13.5 }}>Pagar 1 250,00 MT</div>
@@ -174,14 +174,14 @@ function Received({ style }: { style: CSSProperties }) {
 
 const METHODS = [
   { name: 'M-Pesa', sub: 'Vodacom', extra: ' · 84, 85', ico: <div className="lp-method-ico" style={{ background: '#FDE7E6', color: '#C8102E', fontSize: 18 }}>M</div> },
-  { name: 'e-Mola', sub: 'Movitel', extra: ' · 86, 87', ico: <div className="lp-method-ico" style={{ background: '#FFF0D6', color: '#B45F00', fontSize: 19 }}>e</div> },
-  { name: 'Visa', sub: 'Débito e crédito', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
-  { name: 'Mastercard', sub: 'Débito e crédito', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
+  { name: 'e-Mola', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#FFF0D6', color: '#B45F00', fontSize: 19 }}>e</div> },
+  { name: 'Visa', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
+  { name: 'Mastercard', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
 ]
 
 const STEPS = [
   { n: '01', t: 'Crie a conta', d: 'Registe o negócio com o NUIT e o BI. Comece a receber no mesmo dia.' },
-  { n: '02', t: 'Crie um link ou ligue a API', d: 'Partilhe o link por WhatsApp ou SMS, ou envie os clientes da sua loja online para o checkout Riha.' },
+  { n: '02', t: 'Crie um link ou ligue a API', d: 'Partilhe o link por WhatsApp ou SMS, ou envie os clientes da sua loja online para o checkout RIHA.' },
   { n: '03', t: 'Receba e levante', d: 'Veja cada pagamento em tempo real e peça o levantamento para o seu banco. Chega em até 72 horas.' },
 ]
 
@@ -251,7 +251,7 @@ export default function Landing() {
           <div className="lp-hero-grid">
             <div>
               <h1 className="lp-h1">Receba de todo <span style={{ color: '#8EE07F' }}>Moçambique</span>. Num só lugar.</h1>
-              <p className="lp-lead">Crie links de pagamento em segundos ou integre a nossa API. O dinheiro entra no seu saldo Riha e segue para o seu banco em até 72 horas.</p>
+              <p className="lp-lead">Crie links de pagamento em segundos ou integre a nossa API. O dinheiro entra no seu saldo RIHA e segue para o seu banco em até 72 horas.</p>
               <div className="lp-ctas">
                 <Link to="/registo" className="lp-cta lp-cta-green">Criar conta grátis</Link>
                 <Link to="/docs" className="lp-cta lp-cta-ghost">Ver a API<Icon name="arrowRight" size={18} stroke={2} /></Link>
@@ -362,16 +362,16 @@ export default function Landing() {
             <div style={stripe({ top: -40, right: 8, width: 40, height: 300 }, true)} />
             <Link to="/docs" className="lp-plain" style={{ position: 'relative', fontSize: 14, fontWeight: 600, color: '#8EE07F' }}>Programadores</Link>
             <div style={{ position: 'relative', fontFamily: DISPLAY, fontWeight: 700, fontSize: 36, letterSpacing: '-0.03em', marginTop: 10, maxWidth: 420, lineHeight: 1.05 }}>Uma chamada à API. O resto fica connosco.</div>
-            <div style={{ position: 'relative', fontSize: 15.5, lineHeight: 1.55, color: '#B9C3BD', marginTop: 12, maxWidth: 440 }}>Crie um checkout, envie o cliente para a Riha e receba-o de volta com o resultado. Webhooks avisam o seu servidor.</div>
+            <div style={{ position: 'relative', fontSize: 15.5, lineHeight: 1.55, color: '#B9C3BD', marginTop: 12, maxWidth: 440 }}>Crie um checkout, envie o cliente para a RIHA e receba-o de volta com o resultado. Webhooks avisam o seu servidor.</div>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, marginTop: 26 }}>
               <div style={{ flex: 1, minWidth: 0, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)' }}><div style={{ fontSize: 14, fontWeight: 600 }}>A sua loja</div><div style={{ fontSize: 12.5, color: '#93A09A', marginTop: 3 }}>cria o checkout</div></div>
               <Arrow />
-              <div style={{ flex: 1, minWidth: 0, padding: 14, borderRadius: 14, background: '#0A8205' }}><div style={{ fontSize: 14, fontWeight: 600 }}>pay.riha.co.mz</div><div style={{ fontSize: 12.5, color: '#D4F0CE', marginTop: 3 }}>o cliente paga</div></div>
+              <div style={{ flex: 1, minWidth: 0, padding: 14, borderRadius: 14, background: '#0A8205' }}><div style={{ fontSize: 14, fontWeight: 600 }}>rihagateway.com</div><div style={{ fontSize: 12.5, color: '#D4F0CE', marginTop: 3 }}>o cliente paga</div></div>
               <Arrow />
               <div style={{ flex: 1, minWidth: 0, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)' }}><div style={{ fontSize: 14, fontWeight: 600 }}>success_url</div><div style={{ fontSize: 12.5, color: '#93A09A', marginTop: 3 }}>volta à loja</div></div>
             </div>
             <div style={{ position: 'relative', marginTop: 16, padding: 20, borderRadius: 16, background: '#151E19', border: '1px solid rgba(255,255,255,.08)', fontFamily: MONO, fontSize: 13.5, lineHeight: 1.75, color: '#C9D3CD', whiteSpace: 'pre', overflowX: 'auto' }}>
-              {'curl https://api.riha.co.mz/v1/checkout \\\n  -u '}<span style={{ color: '#FFD21F' }}>sk_live_…</span>{': \\\n  -d amount=125000 \\\n  -d currency=MZN \\\n  -d success_url='}<span style={{ color: '#8EE07F' }}>https://loja.co.mz/ok</span>
+              {'curl https://rihagateway.com/v1/checkout \\\n  -u '}<span style={{ color: '#FFD21F' }}>sk_live_…</span>{': \\\n  -d amount=125000 \\\n  -d currency=MZN \\\n  -d success_url='}<span style={{ color: '#8EE07F' }}>https://loja.co.mz/ok</span>
             </div>
             <Link to="/docs" className="lp-plain" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 18, fontSize: 14.5, fontWeight: 600, color: '#fff' }}>Ler a documentação<Icon name="arrowRight" size={16} stroke={2} /></Link>
           </div>
@@ -381,7 +381,7 @@ export default function Landing() {
               <div style={{ fontSize: 15, lineHeight: 1.55, color: '#5E6862', marginTop: 8 }}>Sem site, sem código. Crie no telemóvel e partilhe por WhatsApp, SMS ou QR no balcão.</div>
             </div>
             <div style={{ width: 120, height: 120, flex: 'none', borderRadius: 20, background: '#F4F3EE', display: 'grid', placeItems: 'center' }}>
-              <QR value="https://riha.co.mz/p/cafe-maputo/bolo" size={92} logo={false} />
+              <QR value="https://rihagateway.com/p/cafe-maputo/bolo" size={92} logo={false} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 16 }}>
@@ -407,7 +407,7 @@ export default function Landing() {
                 <div style={{ width: 36, height: 36, flex: 'none', borderRadius: 10, background: '#E2F3DE', color: '#0A6B05', display: 'grid', placeItems: 'center' }}><Icon name="link" size={18} stroke={2} /></div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 13.5 }}>Bolo de chocolate · 1 kg</div>
-                  <div style={{ fontFamily: MONO, fontSize: 11.5, color: '#5E6862', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>riha.co.mz/p/cafe-maputo/bolo</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11.5, color: '#5E6862', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>rihagateway.com/p/cafe-maputo/bolo</div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -419,11 +419,11 @@ export default function Landing() {
               <div style={stripe({ top: -30, right: 20, width: 26, height: 180 }, false)} />
               <div style={stripe({ top: -30, right: -12, width: 26, height: 180 }, true)} />
               <div style={{ position: 'relative', fontFamily: DISPLAY, fontWeight: 700, fontSize: 23, letterSpacing: '-0.025em' }}>API para a sua loja</div>
-              <div style={{ position: 'relative', fontSize: 14.5, lineHeight: 1.5, color: '#B9C3BD', marginTop: 6, maxWidth: 250 }}>Crie um checkout, envie o cliente para a Riha e receba-o de volta com o resultado.</div>
+              <div style={{ position: 'relative', fontSize: 14.5, lineHeight: 1.5, color: '#B9C3BD', marginTop: 6, maxWidth: 250 }}>Crie um checkout, envie o cliente para a RIHA e receba-o de volta com o resultado.</div>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, marginTop: 18 }}>
                 <div style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 12, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)' }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>A sua loja</div><div style={{ fontSize: 10.5, color: '#93A09A', marginTop: 2 }}>cria checkout</div></div>
                 <Arrow size={14} />
-                <div style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 12, background: '#0A8205' }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>Riha</div><div style={{ fontSize: 10.5, color: '#D4F0CE', marginTop: 2 }}>cliente paga</div></div>
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 12, background: '#0A8205' }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>RIHA</div><div style={{ fontSize: 10.5, color: '#D4F0CE', marginTop: 2 }}>cliente paga</div></div>
                 <Arrow size={14} />
                 <div style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 4px', borderRadius: 12, background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.12)' }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>A sua loja</div><div style={{ fontSize: 10.5, color: '#93A09A', marginTop: 2 }}>recebe resultado</div></div>
               </div>
@@ -461,7 +461,7 @@ export default function Landing() {
               <div style={{ fontSize: 15, color: '#5E6862', marginTop: 6 }}>por transação concluída</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 28, borderLeft: '1px solid #EEECE5' }}>
-              <CheckLine>M-Pesa, e-Mola e cartões</CheckLine>
+              <CheckLine>M-Pesa, com e-Mola e cartões em breve</CheckLine>
               <CheckLine>Sem mensalidade</CheckLine>
               <CheckLine>Sem taxa de adesão</CheckLine>
             </div>
@@ -473,7 +473,7 @@ export default function Landing() {
             <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 84, lineHeight: 1, letterSpacing: '-0.05em', marginTop: 10 }}>{fee}</div>
             <div style={{ fontSize: 15, color: '#5E6862', marginTop: 6 }}>por transação concluída</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', margin: '22px 0 0', padding: '18px 0 0', borderTop: '1px solid #EEECE5' }}>
-              <CheckLine size={14.5}>A mesma taxa para M-Pesa, e-Mola e cartões</CheckLine>
+              <CheckLine size={14.5}>A mesma taxa para todos os métodos</CheckLine>
               <CheckLine size={14.5}>Sem mensalidade nem taxa de adesão</CheckLine>
               <CheckLine size={14.5}>Só paga quando recebe</CheckLine>
             </div>
@@ -508,7 +508,7 @@ export default function Landing() {
         <div className="lp-d" style={{ padding: '56px 0 40px', display: 'flex', alignItems: 'flex-start', gap: 64 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
             <Brand size={30} text={17} />
-            <div style={{ fontSize: 13.5, color: '#5E6862' }}>© 2026 Riha · Maputo, Moçambique</div>
+            <div style={{ fontSize: 13.5, color: '#5E6862' }}>© 2026 RIHA · Maputo, Moçambique</div>
           </div>
           <FooterCols gap={10} size={14} />
         </div>
@@ -518,7 +518,7 @@ export default function Landing() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
               <FooterCols gap={9} size={13.5} />
             </div>
-            <div style={{ fontSize: 12.5, color: '#5E6862', paddingTop: 18, borderTop: '1px solid #E4E2DA' }}>© 2026 Riha · Maputo, Moçambique</div>
+            <div style={{ fontSize: 12.5, color: '#5E6862', paddingTop: 18, borderTop: '1px solid #E4E2DA' }}>© 2026 RIHA · Maputo, Moçambique</div>
           </div>
         </div>
       </div>

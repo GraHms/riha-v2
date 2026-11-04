@@ -58,7 +58,7 @@ func (srv *Server) publicLink(c *gin.Context) {
 	}
 	active := l.Active && (l.ExpiresAt == nil || l.ExpiresAt.After(time.Now()))
 	c.JSON(200, gin.H{"name": l.Name, "amount": l.Amount, "custom_amount": l.CustomAmount, "active": active, "type": l.Kind,
-		"payment_method_types": l.Methods, "livemode": l.Livemode, "merchant": publicMerchant(m)})
+		"payment_method_types": srv.A.ActiveMethods(l.Methods), "coming_soon": srv.A.ComingSoon, "livemode": l.Livemode, "merchant": publicMerchant(m)})
 }
 
 var channels = map[string]bool{"whatsapp": true, "sms": true, "qr": true, "outro": true}

@@ -6,6 +6,8 @@ export interface AuthPort {
   signup(input: SignupInput): Promise<Me>
   logout(): Promise<void>
   changePassword(current: string, next: string): Promise<void>
+  forgotPassword(email: string): Promise<void>
+  resetPassword(token: string, password: string): Promise<void>
 }
 
 export interface MerchantPort {
@@ -24,7 +26,7 @@ export interface PaymentsPort {
   exportUrl(filter: PaymentFilter): string
   get(id: string): Promise<Json>
   refund(id: string, amount: number, reason: string): Promise<Json>
-  sendReceipt(id: string): Promise<{ message: string }>
+  sendReceipt(id: string, email?: string): Promise<{ message: string }>
 }
 
 export interface LinksPort {

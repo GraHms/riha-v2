@@ -17,6 +17,7 @@ type ProfileInput struct {
 	OwnerName           *string `json:"owner_name"`
 	StatementDescriptor *string `json:"statement_descriptor"`
 	SMSNotifications    *bool   `json:"sms_notifications"`
+	EmailNotifications  *bool   `json:"email_notifications"`
 }
 
 func set(dst *string, v *string, n int) {
@@ -43,6 +44,9 @@ func (a *App) UpdateProfile(ctx context.Context, m *domain.Merchant, in ProfileI
 	}
 	if in.SMSNotifications != nil {
 		m.SMSNotifications = *in.SMSNotifications
+	}
+	if in.EmailNotifications != nil {
+		m.EmailNotifications = *in.EmailNotifications
 	}
 	return a.Merchants.Save(ctx, m)
 }
@@ -147,6 +151,7 @@ func (a *App) SubmitKyc(ctx context.Context, m *domain.Merchant, actor Actor) er
 			return err
 		}
 		a.Record(ctx, m.ID, actor, "kyc.submitted", m.ID, "")
+		a.mailKycReceived(ctx, m)
 	}
 	return nil
 }
@@ -189,6 +194,7 @@ func (a *App) SaveBankAccount(ctx context.Context, m *domain.Merchant, in BankIn
 		return nil, domain.Invalid("parameter_missing", "holder", "Indique o titular da conta.")
 	}
 	b := a.BankAccount(ctx, m.ID)
+	replaced := b != nil && b.NIB != nib
 	changed := b == nil || b.NIB != nib
 	if b == nil {
 		b = &domain.BankAccount{ID: domain.NewID("ba"), MerchantID: m.ID}
@@ -209,6 +215,9 @@ func (a *App) SaveBankAccount(ctx context.Context, m *domain.Merchant, in BankIn
 	if changed {
 		a.Record(ctx, m.ID, actor, "bank_account.changed", b.ID, b.BankName+" •••• "+nib[16:])
 	}
+	if replaced {
+		a.mailBankChanged(ctx, m, b)
+	}
 	return b, nil
 }
 
@@ -218,6 +227,7 @@ func (a *App) Decide(ctx context.Context, merchantID, decision, note, actor stri
 		return nil, notFound(err, "O comerciante")
 	}
 	now := a.Now()
+	before := m.Status
 	switch decision {
 	case "approve":
 		m.Status, m.ApprovedAt = domain.MerchantActive, &now
@@ -244,6 +254,9 @@ func (a *App) Decide(ctx context.Context, merchantID, decision, note, actor stri
 		_ = a.Tx.Do(ctx, func(ctx context.Context) error {
 			return a.emit(ctx, m.ID, live, "account.updated", m.ID, domain.AccountResource(m), "")
 		})
+	}
+	if m.Status != before {
+		a.mailDecision(ctx, m, decision, note)
 	}
 	return m, nil
 }

@@ -20,6 +20,9 @@ const (
 	FailCustomerCancelled   = "customer_cancelled"
 	FailCardDeclined        = "card_declined"
 	FailOperatorUnavailable = "operator_unavailable"
+	FailPhoneInvalid        = "phone_invalid"
+	FailAccountInactive     = "account_inactive"
+	FailPaymentDeclined     = "payment_declined"
 )
 
 var FailureMessages = map[string]string{
@@ -29,6 +32,9 @@ var FailureMessages = map[string]string{
 	FailCustomerCancelled:   "O cliente cancelou o pedido no telemóvel.",
 	FailCardDeclined:        "Cartão recusado pelo banco emissor.",
 	FailOperatorUnavailable: "O operador não respondeu. Tente de novo dentro de minutos.",
+	FailPhoneInvalid:        "Este número não é uma conta M-Pesa válida.",
+	FailAccountInactive:     "A conta M-Pesa do cliente está inativa. Contacte a assistência M-Pesa.",
+	FailPaymentDeclined:     "O M-Pesa recusou o pagamento. Verifique a conta e tente de novo.",
 }
 
 type ChargeRequest struct {
@@ -40,6 +46,9 @@ type ChargeRequest struct {
 	CardExpiry string
 	CardCVC    string
 	Descriptor string
+	// Live is real money. Reference is what the operator knows the payment by.
+	Live      bool
+	Reference string
 }
 
 type Outcome struct {
@@ -58,6 +67,10 @@ type ChargeResult struct {
 type InputError struct{ Field, Msg string }
 
 func (e *InputError) Error() string { return e.Msg }
+
+// RailReference is the reference an operator sees: letters and digits only, and
+// at most 20 of them, which is all M-Pesa accepts.
+func RailReference() string { return "RIHA" + ShortCode(16) }
 
 var nonDigits = regexp.MustCompile(`\D`)
 

@@ -55,7 +55,7 @@ func (srv *Server) noRoute(c *gin.Context) {
 	case strings.HasPrefix(p, "/api"):
 		c.JSON(404, gin.H{"error": gin.H{"code": "route_not_found", "message": "Rota desconhecida."}})
 	case srv.cfg.StaticDir == "":
-		c.String(404, "Riha API. O frontend corre em "+srv.A.PublicURL)
+		c.String(404, "RIHA API. O frontend corre em "+srv.A.PublicURL)
 	default:
 		f := filepath.Join(srv.cfg.StaticDir, filepath.Clean("/"+p))
 		if st, err := os.Stat(f); err == nil && !st.IsDir() {
@@ -146,7 +146,7 @@ func fail(c *gin.Context, err error) {
 			body["param"] = e.Param
 		}
 		if strings.HasPrefix(c.Request.URL.Path, "/v1") {
-			body["doc_url"] = "https://docs.riha.co.mz/erros#" + e.Code
+			body["doc_url"] = "https://rihagateway.com/docs#erros"
 		}
 		c.AbortWithStatusJSON(e.Status, gin.H{"error": body})
 		return
@@ -156,7 +156,7 @@ func fail(c *gin.Context, err error) {
 		return
 	}
 	log.Printf("internal error %s: %v", c.GetString("request_id"), err)
-	c.AbortWithStatusJSON(500, gin.H{"error": gin.H{"type": "api_error", "code": "internal_error", "message": "Erro interno da Riha. Repita com a mesma Idempotency-Key.", "request_id": c.GetString("request_id")}})
+	c.AbortWithStatusJSON(500, gin.H{"error": gin.H{"type": "api_error", "code": "internal_error", "message": "Erro interno da RIHA. Repita com a mesma Idempotency-Key.", "request_id": c.GetString("request_id")}})
 }
 
 func bad(c *gin.Context, msg string) { fail(c, domain.Invalid("parameter_invalid", "", msg)) }

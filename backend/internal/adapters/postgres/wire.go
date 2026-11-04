@@ -25,6 +25,8 @@ type Repositories struct {
 	Audit        ports.Audit
 	Settings     ports.Settings
 	Reports      ports.Reports
+	Emails       ports.Emails
+	Resets       ports.PasswordResets
 }
 
 func (s *Store) Repositories() Repositories {
@@ -33,6 +35,6 @@ func (s *Store) Repositories() Repositories {
 		Banks: Banks{s}, Keys: Keys{s}, Links: Links{s}, Sessions: CheckoutSessions{s}, Payments: Payments{s},
 		Refunds: Refunds{s}, Ledger: Ledger{s}, Payouts: Payouts{s}, Endpoints: Endpoints{s}, Domains: Domains{s},
 		Events: Events{s}, Deliveries: Deliveries{s}, RequestLogs: RequestLogs{s}, Idempotency: Idempotency{s},
-		Audit: Audit{s}, Settings: Settings{s}, Reports: Reports{s},
+		Audit: Audit{s}, Settings: Settings{s}, Reports: Reports{s}, Emails: Emails{s}, Resets: PasswordResets{s},
 	}
 }

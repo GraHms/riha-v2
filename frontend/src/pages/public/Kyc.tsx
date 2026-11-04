@@ -96,8 +96,8 @@ export default function Kyc() {
   return (
     <AuthLayout step={[2, 2]} back={() => nav('/painel')}>
       <h1 style={{ margin: '26px 0 0', fontFamily: 'var(--display)', fontWeight: 700, fontSize: 32, lineHeight: 1.05, letterSpacing: '-0.03em' }}>Verifique o seu negócio</h1>
-      <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: 'var(--muted)' }}>A sua conta fica como lead até a equipa Riha aprovar. Os documentos são opcionais agora; pode enviá-los mais tarde ou quando a equipa pedir.</p>
-      {kyc.data?.status === 'info_requested' && <div className="form-err" style={{ marginTop: 14, background: 'var(--sun-soft)', color: '#5B4600' }}>A equipa Riha pediu mais documentos{kyc.data.review_note ? `: ${kyc.data.review_note}` : '.'}</div>}
+      <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: 'var(--muted)' }}>A sua conta fica como lead até a equipa RIHA aprovar. Os documentos são opcionais agora; pode enviá-los mais tarde ou quando a equipa pedir.</p>
+      {kyc.data?.status === 'info_requested' && <div className="form-err" style={{ marginTop: 14, background: 'var(--sun-soft)', color: '#5B4600' }}>A equipa RIHA pediu mais documentos{kyc.data.review_note ? `: ${kyc.data.review_note}` : '.'}</div>}
       <span className="label" style={{ margin: '24px 0 8px' }}>Tipo de negócio</span>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: 5, borderRadius: 16, background: 'var(--paper-2)' }}>
         {[['individual', 'Em nome individual'], ['company', 'Empresa (Lda, SA)']].map(([k, l]) => (

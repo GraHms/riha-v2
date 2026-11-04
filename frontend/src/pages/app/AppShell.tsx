@@ -7,7 +7,7 @@ import NewLinkDrawer from './NewLinkDrawer'
 
 export type ShellCtx = { openNewLink: () => void; merchant: Merchant; live: boolean; version: number; bump: () => void; approved: boolean }
 
-export const NOT_APPROVED = 'A sua conta ainda não foi aprovada. Nenhuma operação é possível até a equipa Riha concluir a verificação.'
+export const NOT_APPROVED = 'A sua conta ainda não foi aprovada. Nenhuma operação é possível até a equipa RIHA concluir a verificação.'
 export const useShell = () => useOutletContext<ShellCtx>()
 
 const NAV: [string, string, string][] = [
@@ -47,9 +47,9 @@ export default function AppShell() {
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 16px', background: m.status === 'rejected' || m.status === 'suspended' ? 'var(--red-bg)' : 'var(--sun-soft)', fontSize: 13, fontWeight: 500, color: m.status === 'rejected' || m.status === 'suspended' ? '#8E0609' : '#5B4600', textAlign: 'center' }}>
       {m.status === 'in_review' && 'A sua conta está em verificação. Links, pagamentos, chaves API e levantamentos ficam disponíveis depois da aprovação.'}
       {m.status === 'lead' && <>A sua conta ainda não foi aprovada. Complete a verificação para começar a receber. <Link to="/verificacao" style={{ fontWeight: 700 }}>Verificar agora</Link></>}
-      {m.status === 'info_requested' && <>A equipa Riha pediu mais documentos. <Link to="/verificacao" style={{ fontWeight: 700 }}>Completar</Link></>}
-      {m.status === 'rejected' && 'A verificação foi rejeitada. Contacte o suporte da Riha.'}
-      {m.status === 'suspended' && 'Esta conta está suspensa. Contacte o suporte da Riha.'}
+      {m.status === 'info_requested' && <>A equipa RIHA pediu mais documentos. <Link to="/verificacao" style={{ fontWeight: 700 }}>Completar</Link></>}
+      {m.status === 'rejected' && 'A verificação foi rejeitada. Contacte o suporte da RIHA.'}
+      {m.status === 'suspended' && 'Esta conta está suspensa. Contacte o suporte da RIHA.'}
     </div>
   )
 

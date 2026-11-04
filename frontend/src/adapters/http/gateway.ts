@@ -18,6 +18,8 @@ export function httpGateway(t = new Transport()): Gateway {
       signup: input => post<Me>('/auth/signup', input),
       logout: async () => { await post('/auth/logout') },
       changePassword: async (current_password, new_password) => { await post('/auth/password', { current_password, new_password }) },
+      forgotPassword: async email => { await post('/auth/forgot', { email }) },
+      resetPassword: async (token, password) => { await post('/auth/reset', { token, password }) },
     },
     merchant: {
       updateProfile: patch => send('PATCH', '/merchant', patch),
@@ -34,7 +36,7 @@ export function httpGateway(t = new Transport()): Gateway {
       exportUrl: f => t.url('/payments/export.csv?' + paymentQuery(f)),
       get: id => get('/payments/' + encodeURIComponent(id)),
       refund: (id, amount, reason) => post(`/payments/${encodeURIComponent(id)}/refund`, { amount, reason }),
-      sendReceipt: id => post(`/payments/${encodeURIComponent(id)}/receipt`),
+      sendReceipt: (id, email) => post(`/payments/${encodeURIComponent(id)}/receipt`, { email: email ?? '' }),
     },
     links: {
       list: () => get<{ data: PaymentLink[] }>('/links'),

@@ -47,7 +47,10 @@ func (a *App) RequestPayout(ctx context.Context, merchantID string, live bool, a
 			return err
 		}
 		out = p
-		return a.emit(ctx, merchantID, live, "payout.created", p.ID, domain.PayoutResource(p), "")
+		if err := a.emit(ctx, merchantID, live, "payout.created", p.ID, domain.PayoutResource(p), ""); err != nil {
+			return err
+		}
+		return a.mailPayoutRequested(ctx, p, m)
 	})
 	return out, err
 }
@@ -59,7 +62,8 @@ func (a *App) TransitionPayout(ctx context.Context, id, action, reason, actor st
 		if err != nil {
 			return notFound(err, "O levantamento")
 		}
-		if _, err := a.Merchants.Lock(ctx, p.MerchantID); err != nil {
+		m, err := a.Merchants.Lock(ctx, p.MerchantID)
+		if err != nil {
 			return err
 		}
 		now := a.Now()
@@ -78,9 +82,11 @@ func (a *App) TransitionPayout(ctx context.Context, id, action, reason, actor st
 		}
 		out = p
 		if t.Event != "" {
-			return a.emit(ctx, p.MerchantID, p.Livemode, t.Event, p.ID, domain.PayoutResource(p), "")
+			if err := a.emit(ctx, p.MerchantID, p.Livemode, t.Event, p.ID, domain.PayoutResource(p), ""); err != nil {
+				return err
+			}
 		}
-		return nil
+		return a.mailPayoutState(ctx, p, m)
 	})
 	return out, err
 }
@@ -90,6 +96,9 @@ func (a *App) ListPayouts(ctx context.Context, q ports.PayoutQuery) ([]domain.Pa
 }
 
 func (a *App) Refund(ctx context.Context, merchantID string, live bool, paymentID string, amount int64, reason, actor string) (*domain.Refund, error) {
+	if live && a.NoLiveRefunds {
+		return nil, domain.Invalid("refunds_unavailable", "payment", "Os reembolsos chegam em breve. Por agora, devolva o valor ao cliente diretamente.")
+	}
 	var out *domain.Refund
 	err := a.Tx.Do(ctx, func(ctx context.Context) error {
 		m, err := a.Merchants.Lock(ctx, merchantID)
@@ -136,7 +145,10 @@ func (a *App) Refund(ctx context.Context, merchantID string, live bool, paymentI
 			return err
 		}
 		out = r
-		return a.emit(ctx, merchantID, live, "refund.succeeded", r.ID, domain.RefundResource(r), "")
+		if err := a.emit(ctx, merchantID, live, "refund.succeeded", r.ID, domain.RefundResource(r), ""); err != nil {
+			return err
+		}
+		return a.mailRefund(ctx, r, p, m)
 	})
 	return out, err
 }

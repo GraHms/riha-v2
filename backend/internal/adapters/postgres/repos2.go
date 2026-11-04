@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -212,4 +213,64 @@ func (r Reports) MainMethod(ctx context.Context, merchantID string) (string, err
 	err := r.conn(ctx).Raw(`SELECT method FROM payments WHERE merchant_id = ? AND livemode AND status IN ? GROUP BY method ORDER BY SUM(amount) DESC LIMIT 1`,
 		merchantID, domain.SettledStatuses).Scan(&row).Error
 	return row.Method, err
+}
+
+type Emails struct{ *Store }
+
+func (r Emails) Create(ctx context.Context, e *domain.QueuedEmail) error {
+	return create[emailRecord](r.conn(ctx), e)
+}
+func (r Emails) ClaimDue(ctx context.Context, now, lease time.Time, limit int) ([]domain.QueuedEmail, error) {
+	var out []domain.QueuedEmail
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var rs []emailRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("status = ? AND next_attempt_at <= ?", domain.EmailPending, now).Order("next_attempt_at").Limit(limit).Find(&rs).Error; err != nil {
+			return err
+		}
+		ids := make([]string, len(rs))
+		for i := range rs {
+			ids[i] = rs[i].ID
+		}
+		if len(ids) > 0 {
+			if err := tx.Model(&emailRecord{}).Where("id IN ?", ids).Update("next_attempt_at", lease).Error; err != nil {
+				return err
+			}
+		}
+		out = many[domain.QueuedEmail](rs)
+		return nil
+	})
+	return out, err
+}
+func (r Emails) Save(ctx context.Context, e *domain.QueuedEmail) error {
+	return save[emailRecord](r.conn(ctx), e)
+}
+func (r Emails) Purge(ctx context.Context, before time.Time) error {
+	return r.conn(ctx).Where("status <> ? AND created_at < ?", domain.EmailPending, before).Delete(&emailRecord{}).Error
+}
+
+type PasswordResets struct{ *Store }
+
+func (r PasswordResets) Create(ctx context.Context, p *domain.PasswordReset) error {
+	return create[passwordResetRecord](r.conn(ctx), p)
+}
+func (r PasswordResets) CountSince(ctx context.Context, userID string, since time.Time) (int64, error) {
+	var n int64
+	err := r.conn(ctx).Model(&passwordResetRecord{}).Where("user_id = ? AND created_at >= ?", userID, since).Count(&n).Error
+	return n, err
+}
+func (r PasswordResets) Take(ctx context.Context, tokenHash string, now time.Time) (string, error) {
+	var rec passwordResetRecord
+	err := r.conn(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("token_hash = ? AND used_at IS NULL AND expires_at > ?", tokenHash, now).First(&rec).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", domain.ErrNotFound
+	}
+	return rec.UserID, err
+}
+func (r PasswordResets) SpendAll(ctx context.Context, userID string, now time.Time) error {
+	return r.conn(ctx).Model(&passwordResetRecord{}).Where("user_id = ? AND used_at IS NULL", userID).Update("used_at", now).Error
+}
+func (r PasswordResets) Purge(ctx context.Context, before time.Time) error {
+	return r.conn(ctx).Where("expires_at < ?", before).Delete(&passwordResetRecord{}).Error
 }

@@ -37,7 +37,7 @@ export default function LinkLanding() {
   return (
     <div style={{ minHeight: '100%', display: 'flex', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 30, padding: '0 14px', borderRadius: 10, background: 'var(--paper-2)', fontSize: 13, color: 'var(--text-2)', alignSelf: 'center' }}><Icon name="lock" size={12} stroke={2.4} />pay.riha.co.mz</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 30, padding: '0 14px', borderRadius: 10, background: 'var(--paper-2)', fontSize: 13, color: 'var(--text-2)', alignSelf: 'center' }}><Icon name="lock" size={12} stroke={2.4} />rihagateway.com</div>
         {!link && !err && <div style={{ display: 'grid', placeItems: 'center', flex: 1 }}><Spinner dark /></div>}
         {err && !link?.custom_amount && <div style={{ marginTop: 40, textAlign: 'center' }}><div className="display" style={{ fontSize: 26 }}>Link indisponível</div><p className="muted">{err}</p></div>}
         {link && !link.active && <div style={{ marginTop: 40, textAlign: 'center' }}><div className="display" style={{ fontSize: 26 }}>Este link já não está ativo</div><p className="muted">Peça um novo link a {link.merchant.name}.</p></div>}
