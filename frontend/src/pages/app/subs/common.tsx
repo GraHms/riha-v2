@@ -21,7 +21,7 @@ export const CHARGE_STATUS: Record<string, { t: string; bg: string; fg: string }
   open: { t: 'Link enviado', bg: '#E6ECFB', fg: '#2A4AA8' },
   past_due: { t: 'Em dívida', bg: 'var(--sun-bg)', fg: 'var(--sun-text)' },
   paid: { t: 'Paga', bg: 'var(--green-bg)', fg: 'var(--green-dark)' },
-  paid_outside: { t: 'Paga fora da Riha', bg: '#EDECE6', fg: '#3E4742' },
+  paid_outside: { t: 'Paga fora da RIHA', bg: '#EDECE6', fg: '#3E4742' },
   forfeited: { t: 'Perdida', bg: '#F3E9E9', fg: '#8E0609' },
   skipped: { t: 'Sem cobrança', bg: '#F4F3EE', fg: '#6B746F' },
   canceled: { t: 'Cancelada', bg: '#F4F3EE', fg: '#6B746F' },
@@ -34,7 +34,7 @@ export const PLAN_STATUS: Record<string, { t: string; bg: string; fg: string }> 
 }
 
 export const OUTSIDE_METHODS: [string, string][] = [['cash', 'Dinheiro'], ['transfer', 'Transferência'], ['deposit', 'Depósito'], ['other', 'Outro']]
-export const VIA: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', card: 'Cartão', outside: 'Fora da Riha' }
+export const VIA: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', card: 'Cartão', outside: 'Fora da RIHA' }
 export const CHANNEL: Record<string, string> = { sms: 'SMS', whatsapp: 'WhatsApp', email: 'Email' }
 
 export function StatusPill({ map, s, style }: { map: Record<string, { t: string; bg: string; fg: string }>; s: string; style?: CSSProperties }) {

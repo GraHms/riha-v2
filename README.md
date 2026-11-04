@@ -1,6 +1,6 @@
-# Riha: payment gateway for Mozambique
+# RIHA: payment gateway for Mozambique
 
-Riha combines M-Pesa, e-Mola and bank cards in one gateway. Merchants sign up as a lead, submit their business details (KYC) and, once an admin approves them, create payment links (WhatsApp, SMS, QR) or integrate through a REST API, see their balance, and request payouts to their bank within 72 hours. A super admin approves accounts, processes payouts and sets per-merchant fees.
+RIHA combines M-Pesa, e-Mola and bank cards in one gateway. Merchants sign up as a lead, submit their business details (KYC) and, once an admin approves them, create payment links (WhatsApp, SMS, QR) or integrate through a REST API, see their balance, and request payouts to their bank within 72 hours. A super admin approves accounts, processes payouts and sets per-merchant fees.
 
 This is the first working version, built from the Claude Design handoff in `project/` and `chats/` (see `HANDOFF.md`).
 
@@ -44,7 +44,7 @@ frontend/src/
   core/ports.ts          Gateway interface: auth, merchant, payments, links, payouts, developers, checkout, admin
   core/gateway.tsx       React context that provides the Gateway
   core/useQuery.ts       data hook that calls the Gateway (polling, reload)
-  adapters/http/         Transport (fetch, cookie session, X-Riha-Mode, CSRF header) and httpGateway implementing the ports
+  adapters/http/         Transport (fetch, cookie session, X-RIHA-Mode, CSRF header) and httpGateway implementing the ports
   lib/                   session state and pure formatting helpers
   pages/, components/    UI; pages talk only to the Gateway, never to URLs
 ```
@@ -153,17 +153,17 @@ Every email goes through `email_outbox`: it is written in the same transaction a
 
 A service for anything paid by period: school fees, gyms, tutors, condominiums. It lives under **Serviços › Assinaturas** in the dashboard (`/painel/assinaturas`) and on mobile behind the **+** button.
 
-M-Pesa and e-Mola do not allow automatic debits, so **Riha never charges on its own**. Each period the customer receives a link by SMS or WhatsApp with the amount and their last wallet number filled in, and confirms with the PIN.
+M-Pesa and e-Mola do not allow automatic debits, so **RIHA never charges on its own**. Each period the customer receives a link by SMS or WhatsApp with the amount and their last wallet number filled in, and confirms with the PIN.
 
 **Model.** A *plan* (amount, frequency, fixed day or signup anniversary, months with charges, what happens to a missed month, questions for the customer, optional end date) has price *versions*. A *member* is one person being paid for, identified by payer phone and name, and can hold several *subscriptions* (for example school fee and transport). Each subscription produces one *charge* per period, unique per subscription and period.
 
-**Merchant screens.** Summary (expected per month, members, debt, the month split into received by Riha, paid outside Riha and in debt, what needs attention, upcoming charges), plans, new plan with a live preview of what the customer sees, plan detail with price versions and the subscribe link and QR, change price, members with filters, add one member or import a sheet, member detail with the charge history and a per-charge timeline, mark as paid outside Riha, catalogue, and service settings.
+**Merchant screens.** Summary (expected per month, members, debt, the month split into received by RIHA, paid outside RIHA and in debt, what needs attention, upcoming charges), plans, new plan with a live preview of what the customer sees, plan detail with price versions and the subscribe link and QR, change price, members with filters, add one member or import a sheet, member detail with the charge history and a per-charge timeline, mark as paid outside RIHA, catalogue, and service settings.
 
 **Customer pages.** `/s/:merchant/:plan` subscribe from a plan link; `/a/:merchant` catalogue (one or several plans, paid together); `/i/:token` pay a period, with months in debt added and the option to pay only the oldest; then the paid screen with the next date, a receipt and the subscription summary.
 
 **Lifecycle.** A background worker issues each charge 4 days ahead and walks the reminder schedule: reminder 3 days before, link on the day at 09:00, evening reminder if the link was not opened, past due and a resend at +2 days, a resend on the second channel at +5, a last warning 3 days before the end of the tolerance, and the final action on its last day. Messages are only sent between 08:00 and 20:00 and never on Sunday (Maputo time); a step that falls on a Sunday moves to Monday. If several steps are overdue at once (for example after downtime), their state changes all apply but only the latest one sends a message. Messages go through an outbox table, so a message is never lost or sent twice when a transaction rolls back.
 
-**Paid outside Riha.** Cash, transfer, deposit or other, with date, reference and optional or required proof (PDF, JPG or PNG, SHA-256 stored). It closes the debt and stops the reminders, but writes **no ledger entry**: it never reaches the balance, payouts or fees. Who marked it, when and how is recorded on the charge and in the audit log.
+**Paid outside RIHA.** Cash, transfer, deposit or other, with date, reference and optional or required proof (PDF, JPG or PNG, SHA-256 stored). It closes the debt and stops the reminders, but writes **no ledger entry**: it never reaches the balance, payouts or fees. Who marked it, when and how is recorded on the charge and in the audit log.
 
 **API and events.** `GET/POST /v1/plans`, `GET /v1/plans/:id`, `GET/POST /v1/subscriptions` (POST invites a customer), `GET /v1/subscriptions/:id`, `POST /v1/subscriptions/:id/cancel`, `GET /v1/subscription_charges[/:id]`. Events: `plan.created`, `plan.updated`, `subscription.created`, `subscription.updated`, `subscription.canceled`, `subscription_charge.paid`, `subscription_charge.paid_outside`, `subscription_charge.past_due`.
 
@@ -205,7 +205,7 @@ GET    /v1/events/:id
 - Stripe-style errors: `{"error":{"type","code","param","message","doc_url","request_id"}}`.
 - Rate limit: 100 requests per second per account (in memory, per process).
 - `callback_url` is a dynamic per-session webhook. Its domain must be verified in Settings, otherwise the request fails with `callback_url_not_allowed`. In test mode `localhost` is also accepted.
-- Webhooks go to account endpoints and the session's `callback_url` (session and payment events only). They are signed `Riha-Signature: t=<unix>,v1=hex(HMAC-SHA256(secret, t + "." + body))`. Delivery uses a transactional outbox: the first attempt is immediate, then retries after 5 min, 30 min, 2 h, 5 h, 10 h, 24 h and 72 h.
+- Webhooks go to account endpoints and the session's `callback_url` (session and payment events only). They are signed `RIHA-Signature: t=<unix>,v1=hex(HMAC-SHA256(secret, t + "." + body))`. Delivery uses a transactional outbox: the first attempt is immediate, then retries after 5 min, 30 min, 2 h, 5 h, 10 h, 24 h and 72 h.
 
 ```bash
 curl http://localhost:8080/v1/checkout/sessions -u sk_test_…: \
@@ -247,17 +247,17 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 
 ## Not done yet (production gaps)
 
-- Real M-Pesa (Vodacom OpenAPI), e-Mola and card acquirer integrations, and daily reconciliation against them. They plug in as adapters implementing `ports.Rail`.
+- e-Mola and card acquirer integrations, and daily reconciliation against every rail. They plug in as adapters implementing `ports.Rail`.
 - 2FA, password reset by SMS, team members and roles, restricted keys (`rk_`).
 - Chargebacks and disputes. Payout holds after a NIB change. Two-admin approval above a threshold. Risk rules and alerts (the admin "Risco e alertas" item is a placeholder).
-- Real SMS and WhatsApp providers (both mocked: messages are written to `RIHA_OUTBOX_DIR/messages/messages.jsonl`), a registered SMS sender ID, and delivery receipts. SMTP delivery is built but not configured yet, so email goes to `RIHA_OUTBOX_DIR`.
+- Real SMS and WhatsApp providers (both mocked: messages are written to `RIHA_OUTBOX_DIR/messages/messages.jsonl`), a registered SMS sender ID, and delivery receipts.
 - Subscriptions: team roles for marking payments, customer self-service pause or cancel, card tokenisation for prefilled cards, and the `/docs` page does not yet document the subscription endpoints.
 - The rate limiter and idempotency are per process and in the database; a multi-instance deployment needs a shared limiter.
 - The frontend uses loose `any` types for API payloads (lint warnings). Generating types from an OpenAPI spec would tighten this.
 
 ## File storage (Cloudflare R2)
 
-KYC documents, payout bank receipts and proofs of payments made outside Riha go to a **private** R2 bucket through the S3 API (`internal/adapters/filestore/r2.go`). Files are never served from R2 directly: every download goes through the API, which checks the session and the merchant first, so the bucket needs no public access, custom domain or presigned URLs.
+KYC documents, payout bank receipts and proofs of payments made outside RIHA go to a **private** R2 bucket through the S3 API (`internal/adapters/filestore/r2.go`). Files are never served from R2 directly: every download goes through the API, which checks the session and the merchant first, so the bucket needs no public access, custom domain or presigned URLs.
 
 - Keys are `<prefix>/<folder>/<random id>.<ext>` (folders: merchant id, `payout-receipts`, `outside-proofs`). Original file names stay only in the database. Objects are stored with `Cache-Control: private, no-store` and `Content-Disposition: attachment`. R2 encrypts data at rest.
 - The database stores `r2:<key>`. Files uploaded before the switch keep their local path and are still read from `RIHA_UPLOAD_DIR`, so nothing breaks on migration; copy that folder to the bucket later if the disk goes away.

@@ -15,7 +15,9 @@ export default function Invoice() {
   const g = useGateway()
   const [d, setD] = useState<any>(null)
   const [loadErr, setLoadErr] = useState('')
-  const [view, setView] = useState<'pay' | 'confirm' | 'done' | 'manage'>('pay')
+  const [offline, setOffline] = useState(false)
+  // 'checking': the answer to "pay" was lost, so we don't yet know if a prompt went out.
+  const [view, setView] = useState<'pay' | 'checking' | 'confirm' | 'done' | 'manage'>('pay')
   const [change, setChange] = useState(false)
   const [method, setMethod] = useState('mpesa')
   const [phone, setPhone] = useState('')
@@ -27,31 +29,56 @@ export default function Invoice() {
   const [tick, setTick] = useState(0)
   const start = useRef(0)
   const paidOnly = useRef('')
+  const lostPay = useRef<{ before: string | null } | null>(null)
 
-  const load = async () => {
-    try { const x = await g.publicSubs.invoice(token!); setD(x); return x } catch (e) { setLoadErr(errMsg(e)); return null }
+  // The USSD prompt cuts the phone's data, so a failed check while waiting means nothing.
+  const load = async (quiet = false) => {
+    for (let attempt = 0; ; attempt++) {
+      try { const x = await g.publicSubs.invoice(token!); setD(x); return x } catch (e: any) {
+        if (quiet) return null
+        if (e?.code === 'network_error' && attempt < 2) { await new Promise(r => setTimeout(r, 1500)); continue }
+        setOffline(e?.code === 'network_error'); setLoadErr(errMsg(e)); return null
+      }
+    }
   }
   useEffect(() => {
     load().then(x => {
       if (!x) return
-      setMethod(x.last_method || 'mpesa')
+      if ((x.coming_soon || []).includes(x.last_method)) { setMethod('mpesa'); setChange(true) } else setMethod(x.last_method || 'mpesa')
       if (x.payment?.status === 'processing') { start.current = Date.now(); setView('confirm') }
       else if (x.lines.length === 0 && x.paid.length) setView('done')
     })
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (view !== 'confirm') return
-    const t = setInterval(async () => {
+    if (view !== 'confirm' && view !== 'checking') return
+    let running = false
+    const check = async () => {
+      if (running) return
+      running = true
       setTick(v => v + 1)
-      const x = await load()
-      if (!x?.payment) return
+      const x = await load(true)
+      running = false
+      if (!x) return
+      const lost = lostPay.current
+      if (lost) {
+        lostPay.current = null
+        if ((x.payment?.id ?? null) === lost.before) {
+          setView('pay'); setErr('O pedido não chegou ao M-Pesa. Nada foi cobrado. Tente de novo.')
+          return
+        }
+        start.current = Date.now(); setView('confirm')
+      }
+      if (!x.payment) return
       if (x.payment.status === 'succeeded') setView(x.lines.length === 0 ? 'done' : 'pay')
       else if (x.payment.status === 'failed') { setView('pay'); setErr(x.payment.failure_message || 'O pagamento falhou.') }
-    }, 1500)
-    return () => clearInterval(t)
+    }
+    const t = setInterval(check, 1500)
+    document.addEventListener('visibilitychange', check)
+    window.addEventListener('online', check)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); window.removeEventListener('online', check) }
   }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loadErr) return <Center><div className="display" style={{ fontSize: 24 }}>Link indisponível</div><p className="muted">{loadErr}</p></Center>
+  if (loadErr) return <Center><div className="display" style={{ fontSize: 24 }}>{offline ? 'Sem ligação' : 'Link indisponível'}</div><p className="muted">{loadErr}</p>{offline && <button className="btn btn-ink" style={{ marginTop: 12 }} onClick={() => window.location.reload()}>Tentar de novo</button>}</Center>
   if (!d) return <Center><Spinner dark /></Center>
 
   const lines: any[] = d.lines
@@ -74,8 +101,16 @@ export default function Invoice() {
       if (x.payment?.status === 'processing') { start.current = Date.now(); setTick(0); setView('confirm') }
       else if (x.payment?.status === 'succeeded') setView(x.lines.length === 0 ? 'done' : 'pay')
       else if (x.payment?.status === 'failed') setErr(x.payment.failure_message || 'O pagamento falhou.')
-    } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+    } catch (e: any) {
+      if (e?.code === 'network_error') {
+        // The prompt may have gone out and cut the connection before the answer came back.
+        lostPay.current = { before: d.payment?.id ?? null }
+        setView('checking')
+      } else setErr(errMsg(e))
+    } finally { setBusy(false) }
   }
+
+  if (view === 'checking') return <PayFrame test={d.test_mode}><Center><Spinner dark /><p className="muted" style={{ marginTop: 14 }}>Se recebeu um pedido M-Pesa, responda no telemóvel. Estamos a confirmar.</p></Center></PayFrame>
 
   if (view === 'confirm' && d.payment) {
     const elapsed = start.current ? Math.floor((Date.now() - start.current) / 1000) : 0
@@ -139,7 +174,7 @@ export default function Invoice() {
           <div className="card" style={{ marginTop: 10, padding: '4px 18px' }}>
             {d.paid.map((p: any, i: number) => <div key={i} className="between" style={{ padding: '11px 0', borderBottom: '1px solid var(--line-3)', fontSize: 14 }}><span>{p.plan_name} · {p.label}</span><b className="tnum">{cents(p.amount)}</b></div>)}
             {d.payment && <div className="between" style={{ padding: '11px 0', borderBottom: '1px solid var(--line-3)', fontSize: 14 }}><span className="muted">Referência</span><span className="mono">{d.payment.reference}</span></div>}
-            <div className="between" style={{ padding: '11px 0', fontSize: 14 }}><span className="muted">Método</span><span>{first.outside ? 'Pago fora da Riha' : `${first.method} · ${first.paid_at}`}</span></div>
+            <div className="between" style={{ padding: '11px 0', fontSize: 14 }}><span className="muted">Método</span><span>{first.outside ? 'Pago fora da RIHA' : `${first.method} · ${first.paid_at}`}</span></div>
           </div>
         )}
         <div style={{ flex: 1, minHeight: 24 }} />
@@ -176,10 +211,15 @@ export default function Invoice() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-          {['mpesa', 'emola', 'card'].map(m => (
+          {['mpesa', 'emola', 'card'].filter(m => !(d.coming_soon || []).includes(m)).map(m => (
             <button key={m} onClick={() => setMethod(m)} className="card" style={{ padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', border: method === m ? '2px solid var(--ink)' : '1px solid var(--line)', margin: method === m ? 0 : 1 }}>
               <MethodIcon method={m} /><span style={{ flex: 1, fontWeight: 600 }}>{METHOD_NAME[m]}</span><span style={{ width: 20, height: 20, borderRadius: '50%', border: method === m ? '6px solid var(--ink)' : '1.5px solid #C9C7BE' }} />
             </button>
+          ))}
+          {(d.coming_soon || []).map((m: string) => (
+            <div key={m} className="card" aria-disabled="true" style={{ padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'center', opacity: 0.55 }}>
+              <MethodIcon method={m} /><span style={{ flex: 1, fontWeight: 600 }}>{METHOD_NAME[m]}</span><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Em breve</span>
+            </div>
           ))}
           {method !== 'card' && <div className="phone-input"><span className="cc">+258</span><input inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder={method === 'emola' ? '86 123 4567' : '84 123 4567'} aria-label="Número" /></div>}
           {method === 'card' && <div className="grid-2" style={{ gap: 8 }}>

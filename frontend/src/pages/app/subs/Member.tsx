@@ -173,7 +173,7 @@ function MarkPaid({ multi, member, charges, initial, requireProof, receipt, onCl
   const total = sorted.filter(c => sel[c.id]).reduce((a, c) => a + c.amount, 0)
   const go = async () => {
     setBusy(true); setErr('')
-    try { await g.subscriptions.markPaidOutside(member.id, { charge_ids: Object.keys(sel).filter(k => sel[k]), method, date, reference: ref, proof }); toast('Marcado como pago fora da Riha'); onDone() }
+    try { await g.subscriptions.markPaidOutside(member.id, { charge_ids: Object.keys(sel).filter(k => sel[k]), method, date, reference: ref, proof }); toast('Marcado como pago fora da RIHA'); onDone() }
     catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   return (
@@ -203,7 +203,7 @@ function MarkPaid({ multi, member, charges, initial, requireProof, receipt, onCl
         <div className="card" style={{ marginTop: 14, padding: 14, fontSize: 13, lineHeight: 1.7 }}>
           <div>Os lembretes param e {member.name.split(' ')[0]} volta a Ativa.</div>
           {receipt && <div>{member.payer_name ? 'O encarregado' : 'O cliente'} recebe um recibo por {CHANNEL[member.channel] || 'SMS'}.</div>}
-          <div style={{ fontWeight: 700 }}>Não entra no saldo Riha nem nos levantamentos, e não paga taxa.</div>
+          <div style={{ fontWeight: 700 }}>Não entra no saldo RIHA nem nos levantamentos, e não paga taxa.</div>
         </div>
         {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
       </div>

@@ -6,7 +6,7 @@ export function PayFrame({ children, test }: { children: ReactNode; test?: boole
     <div style={{ minHeight: '100%', background: 'var(--paper)', display: 'flex', justifyContent: 'center', padding: '18px 16px 32px' }}>
       <div style={{ width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: '#EDECE6', fontSize: 12.5, color: 'var(--text-2)' }}><Icon name="lock" size={12} stroke={2.4} />pay.riha.co.mz</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: '#EDECE6', fontSize: 12.5, color: 'var(--text-2)' }}><Icon name="lock" size={12} stroke={2.4} />{window.location.host}</span>
           {test && <span style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: 999, background: 'var(--sun-bg)', fontSize: 12.5, fontWeight: 600, color: 'var(--sun-text)' }}>Modo de teste</span>}
         </div>
         {children}

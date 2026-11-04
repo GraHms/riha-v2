@@ -44,7 +44,7 @@ type MonthBreakdown struct {
 	Month          time.Time `json:"-"`
 	Label          string    `json:"label"`
 	Expected       int64     `json:"expected"`
-	Riha           int64     `json:"riha"`
+	RIHA           int64     `json:"riha"`
 	RihaCount      int64     `json:"riha_count"`
 	Outside        int64     `json:"outside"`
 	OutsideCount   int64     `json:"outside_count"`
@@ -142,7 +142,7 @@ func (a *App) SubscriptionOverview(ctx context.Context, m *domain.Merchant, live
 	for _, s := range sums {
 		switch s.Status {
 		case domain.ChargePaid:
-			o.Month.Riha, o.Month.RihaCount = s.Total, s.Count
+			o.Month.RIHA, o.Month.RihaCount = s.Total, s.Count
 		case domain.ChargePaidOutside:
 			o.Month.Outside, o.Month.OutsideCount = s.Total, s.Count
 		case domain.ChargePastDue:

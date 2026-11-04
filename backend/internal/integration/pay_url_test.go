@@ -13,6 +13,34 @@ import (
 	"riha/internal/core/app"
 )
 
+// Customers open these from a text message, and previews and browsers need a real
+// answer. They must also stay out of search, because they name a customer.
+func TestSubscriptionPagesAreRealPages(t *testing.T) {
+	a, _ := setup(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/index.html", []byte(`<html><head><!--seo:head--><title>x</title><!--/seo:head--></head><body><div id="root"></div></body></html>`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	engine := httpapi.New(a, httpapi.Config{StaticDir: dir})
+	for _, path := range []string{"/i/qualquertoken", "/s/loja/plano", "/a/loja"} {
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code != 200 || !strings.Contains(w.Body.String(), "noindex") {
+			t.Fatalf("%s: %d, noindex %v", path, w.Code, strings.Contains(w.Body.String(), "noindex"))
+		}
+	}
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/nao/existe/mesmo", nil))
+	if w.Code != 404 {
+		t.Fatalf("other paths stay real 404s: %d", w.Code)
+	}
+	w = httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/robots.txt", nil))
+	if !strings.Contains(w.Body.String(), "Disallow: /i/") {
+		t.Fatalf("robots: %s", w.Body.String())
+	}
+}
+
 // Links are handed out on the payment address, while the same pages stay
 // reachable on the main site for links already shared.
 func TestLinksUseThePaymentAddress(t *testing.T) {

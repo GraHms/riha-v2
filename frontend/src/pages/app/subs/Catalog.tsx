@@ -35,7 +35,7 @@ export default function Catalog() {
       <style>{`@media (max-width:1000px){.cat-grid{grid-template-columns:1fr!important}}`}</style>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
         <div className="card" style={{ padding: 16, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div id="cat-qr" style={{ padding: 6, borderRadius: 12, boxShadow: 'inset 0 0 0 1px #EEECE5' }}><QR value={url || 'https://riha.co.mz'} size={96} logo={false} /></div>
+          <div id="cat-qr" style={{ padding: 6, borderRadius: 12, boxShadow: 'inset 0 0 0 1px #EEECE5' }}><QR value={url || window.location.origin} size={96} logo={false} /></div>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>Link do catálogo</div>
             <div className="mono" style={{ fontSize: 14, marginTop: 4, wordBreak: 'break-all' }}>{url.replace(/^https?:\/\//, '')}</div>

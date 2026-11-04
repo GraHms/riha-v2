@@ -79,6 +79,12 @@ func (srv *Server) metaFor(c context.Context, path string) pageMeta {
 		return srv.linkMeta(c, seg[1], seg[2])
 	case seg[0] == "c" && len(seg) == 2:
 		return srv.sessionMeta(c, seg[1])
+	// These pages name a customer or belong to whoever was sent the link, so they
+	// stay out of search and their previews say nothing about the person.
+	case seg[0] == "i" && len(seg) == 2:
+		return private("Pagamento")
+	case (seg[0] == "s" && len(seg) == 3) || (seg[0] == "a" && len(seg) == 2):
+		return private("Assinatura")
 	}
 	m := private("Página não encontrada")
 	m.status = http.StatusNotFound
@@ -202,7 +208,7 @@ func (srv *Server) servePage(c *gin.Context) {
 
 func (srv *Server) robots(c *gin.Context) {
 	c.Header("Cache-Control", "public, max-age=3600")
-	c.String(200, "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /painel\nDisallow: /verificacao\nDisallow: /api/\nDisallow: /v1/\n\nSitemap: %s\n", srv.url("/sitemap.xml"))
+	c.String(200, "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /painel\nDisallow: /verificacao\nDisallow: /i/\nDisallow: /api/\nDisallow: /v1/\n\nSitemap: %s\n", srv.url("/sitemap.xml"))
 }
 
 func (srv *Server) sitemap(c *gin.Context) {

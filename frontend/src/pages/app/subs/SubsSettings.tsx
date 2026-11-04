@@ -58,7 +58,7 @@ export default function SubsSettings() {
             <div className="between" style={{ padding: '12px 20px', gap: 12 }}><span style={{ color: 'var(--muted)', fontSize: 14 }}>Horário</span><span style={{ fontSize: 14 }}>08:00 a 20:00 · sem domingos</span></div>
           </div>
           <div className="card" style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line-3)' }}><b>Pagamentos fora da Riha</b><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>Fecham a cobrança. Não entram no saldo, nos levantamentos nem nas taxas.</div></div>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line-3)' }}><b>Pagamentos fora da RIHA</b><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>Fecham a cobrança. Não entram no saldo, nos levantamentos nem nas taxas.</div></div>
             <div className="between" style={{ padding: '12px 20px', borderBottom: '1px solid var(--line-3)' }}><span style={{ fontSize: 14 }}>Exigir comprovativo</span><Toggle on={s.require_proof} label="Exigir comprovativo" onChange={v => setS({ ...s, require_proof: v })} /></div>
             <div className="between" style={{ padding: '12px 20px', borderBottom: '1px solid var(--line-3)' }}><span style={{ fontSize: 14 }}>Enviar recibo ao cliente por SMS</span><Toggle on={s.receipt_sms} label="Enviar recibo" onChange={v => setS({ ...s, receipt_sms: v })} /></div>
             <div className="between" style={{ padding: '12px 20px' }}><span style={{ fontSize: 14 }}>Quem pode marcar</span><span style={{ fontSize: 14, fontWeight: 600 }}>Dono da conta</span></div>

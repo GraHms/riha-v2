@@ -32,7 +32,7 @@ export default function Summary() {
         <div className="card card-pad" style={{ marginBottom: 14, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div style={{ fontWeight: 700, fontSize: 16 }}>Comece por criar um plano</div>
-            <div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>Propinas, mensalidades ou sessões. A Riha envia um link de pagamento a cada cliente em cada período; nada é cobrado sem a confirmação dele.</div>
+            <div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>Propinas, mensalidades ou sessões. A RIHA envia um link de pagamento a cada cliente em cada período; nada é cobrado sem a confirmação dele.</div>
           </div>
           <button className="btn btn-green" onClick={() => nav('/painel/assinaturas/planos/novo')}><Icon name="plus" size={16} stroke={2.4} />Novo plano</button>
         </div>
@@ -48,7 +48,7 @@ export default function Summary() {
         </div>
         <div className="only-wide"><Stat label="Membros ativos" value={o.members} unit="" sub={o.invites ? `${o.invites} convites por aceitar` : 'Sem convites pendentes'} /></div>
         <div className="only-wide"><Stat label="Em dívida" value={money(o.debt)} sub={`${o.debt_members} ${o.debt_members === 1 ? 'membro' : 'membros'}`} /></div>
-        <div className="only-wide"><Stat label={`Recebido pela Riha em ${mo.label.toLowerCase()}`} value={money(mo.received_in_riha)} sub="No saldo" tone="var(--green-text)" /></div>
+        <div className="only-wide"><Stat label={`Recebido pela RIHA em ${mo.label.toLowerCase()}`} value={money(mo.received_in_riha)} sub="No saldo" tone="var(--green-text)" /></div>
       </div>
       <div className="sum-quick">
         {[['plus', 'Novo plano', () => nav('/painel/assinaturas/planos/novo')], ['userPlus', 'Adicionar membro', () => sx.openAdd('one')], ['grid', 'Partilhar catálogo', () => nav('/painel/assinaturas/catalogo')]].map(([ic, l, f]) => (
@@ -74,8 +74,8 @@ export default function Summary() {
               <div style={{ width: pct(mo.debt + mo.open) + '%', background: 'var(--sun)' }} />
             </div>
             <div className="grid-3" style={{ gap: 14, marginTop: 16 }}>
-              <div><div style={{ fontSize: 13, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--green)' }} />Recebido pela Riha</div><div className="display tnum" style={{ fontSize: 22, marginTop: 4 }}>{money(mo.riha)}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>{mo.riha_count} cobranças. No saldo e nos levantamentos.</div></div>
-              <div><div style={{ fontSize: 13, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'repeating-linear-gradient(135deg,#9AA39E 0 2px,#D7D5CD 2px 4px)' }} />Pago fora da Riha</div><div className="display tnum" style={{ fontSize: 22, marginTop: 4, color: 'var(--text-2)' }}>{money(mo.outside)}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>{mo.outside_count} cobranças marcadas. Não entra no saldo Riha.</div></div>
+              <div><div style={{ fontSize: 13, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--green)' }} />Recebido pela RIHA</div><div className="display tnum" style={{ fontSize: 22, marginTop: 4 }}>{money(mo.riha)}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>{mo.riha_count} cobranças. No saldo e nos levantamentos.</div></div>
+              <div><div style={{ fontSize: 13, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'repeating-linear-gradient(135deg,#9AA39E 0 2px,#D7D5CD 2px 4px)' }} />Pago fora da RIHA</div><div className="display tnum" style={{ fontSize: 22, marginTop: 4, color: 'var(--text-2)' }}>{money(mo.outside)}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>{mo.outside_count} cobranças marcadas. Não entra no saldo RIHA.</div></div>
               <div><div style={{ fontSize: 13, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--sun)' }} />Em dívida</div><div className="display tnum" style={{ fontSize: 22, marginTop: 4 }}>{money(mo.debt + mo.open)}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>{mo.debt_count + mo.open_count} cobranças. Lembretes a correr.</div></div>
             </div>
           </div>

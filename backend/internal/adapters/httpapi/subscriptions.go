@@ -657,6 +657,7 @@ func (srv *Server) publicInvoice(c *gin.Context) {
 	}
 	out := gin.H{"merchant": merchantBrand(v.Merchant), "member": gin.H{"name": v.Member.Name, "fields": fields},
 		"status": v.Charge.Status, "label": v.Charge.Label, "lines": lines, "total": v.Total, "needs_consent": v.NeedsConsent, "agreements": nonNil(v.Agreements),
+		"coming_soon": srv.A.ComingSoon,
 		"last_method": domain.FirstNonEmpty(v.Member.LastMethod, domain.WalletFor(v.Member.Phone)), "has_last": v.Member.LastMethod != "",
 		"phone_masked": domain.MaskPhone(domain.FirstNonEmpty(v.Member.LastPhone, v.Member.Phone)), "channel": v.Member.Channel,
 		"paid": paid, "next_due": "", "next_amount": v.NextAmount, "skipped": nonNil(v.Skipped), "test_mode": !v.Member.Livemode}

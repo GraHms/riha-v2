@@ -6,16 +6,19 @@ import { Login, Signup, ForgotPassword, ResetPassword } from './pages/public/Aut
 import Checkout from './pages/public/Checkout'
 import LinkLanding from './pages/public/LinkLanding'
 import { Spinner } from './components/ui'
-import SubsShell from './pages/app/subs/SubsShell'
-import Summary from './pages/app/subs/Summary'
-import { PlanDetail, PlanForm, PlansList } from './pages/app/subs/Plans'
-import Members from './pages/app/subs/Members'
-import Member from './pages/app/subs/Member'
-import Catalog from './pages/app/subs/Catalog'
-import SubsSettings from './pages/app/subs/SubsSettings'
-import { CatalogPage, PlanPage } from './pages/public/subs/Subscribe'
-import Invoice from './pages/public/subs/Invoice'
 
+const SubsShell = lazy(() => import('./pages/app/subs/SubsShell'))
+const Summary = lazy(() => import('./pages/app/subs/Summary'))
+const PlanDetail = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlanDetail })))
+const PlanForm = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlanForm })))
+const PlansList = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlansList })))
+const Members = lazy(() => import('./pages/app/subs/Members'))
+const Member = lazy(() => import('./pages/app/subs/Member'))
+const Catalog = lazy(() => import('./pages/app/subs/Catalog'))
+const SubsSettings = lazy(() => import('./pages/app/subs/SubsSettings'))
+const CatalogPage = lazy(() => import('./pages/public/subs/Subscribe').then(m => ({ default: m.CatalogPage })))
+const PlanPage = lazy(() => import('./pages/public/subs/Subscribe').then(m => ({ default: m.PlanPage })))
+const Invoice = lazy(() => import('./pages/public/subs/Invoice'))
 const Kyc = lazy(() => import('./pages/public/Kyc'))
 const AppShell = lazy(() => import('./pages/app/AppShell'))
 const Overview = lazy(() => import('./pages/app/Overview'))
