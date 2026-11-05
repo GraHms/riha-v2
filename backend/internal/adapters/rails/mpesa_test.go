@@ -164,7 +164,7 @@ func TestMpesaQuery(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]string{"output_ResponseCode": c.code, "output_ResponseTransactionStatus": c.status})
 		}}
 		m, _ := newMpesa(t, f)
-		o, known, err := m.Query(context.Background(), "RIHAX")
+		o, known, err := m.Query(context.Background(), domain.StatusQuery{Reference: "RIHAX"})
 		if err != nil || known != c.known || o.Success != c.success || o.FailureCode != c.failure {
 			t.Fatalf("%s: %+v %v %v", c.status, o, known, err)
 		}
@@ -172,7 +172,7 @@ func TestMpesaQuery(t *testing.T) {
 	// A bad key says nothing about the payment: it must be an error, not "no record".
 	f := &mpesaFake{query: func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(401); w.Write([]byte("{}")) }}
 	m, _ := newMpesa(t, f)
-	if _, known, err := m.Query(context.Background(), "RIHAX"); err == nil || known {
+	if _, known, err := m.Query(context.Background(), domain.StatusQuery{Reference: "RIHAX"}); err == nil || known {
 		t.Fatal("a refused query must be an error")
 	}
 }

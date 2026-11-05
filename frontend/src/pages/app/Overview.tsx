@@ -51,8 +51,8 @@ export default function Overview() {
   const change = (o: any) => (o && o.previous > 0 ? Math.round(((o.received - o.previous) / o.previous) * 100) : null)
   const ch = change(d)
   const bars: number[] = d?.bars?.map((b: any) => b.amount) || []
-  const bm = d?.by_method || { mpesa: 0, emola: 0, card: 0 }
-  const totalM = bm.mpesa + bm.emola + bm.card || 1
+  const bm = { mpesa: 0, emola: 0, bim: 0, card: 0, ...(d?.by_method || {}) }
+  const totalM = bm.mpesa + bm.emola + bm.bim + bm.card || 1
   const pct = (v: number) => Math.round((v / totalM) * 100)
   const first = d?.bars?.[0]?.date, mid = d?.bars?.[Math.floor(bars.length / 2)]?.date
   const inTransit = d?.in_transit > 0
@@ -106,7 +106,7 @@ export default function Overview() {
             <div className="card" style={{ borderRadius: 24, padding: 22 }}>
               <div className="h2">Por método</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
-                {([['mpesa', 'M-Pesa', 'var(--mpesa)'], ['emola', 'e-Mola', 'var(--emola-bar)'], ['card', 'Cartão', 'var(--ink)']] as const).map(([k, l, c]) => (
+                {([['mpesa', 'M-Pesa', 'var(--mpesa)'], ['emola', 'e-Mola', 'var(--emola-bar)'], ['bim', 'bim', 'var(--bim-bar)'], ['card', 'Cartão', 'var(--ink)']] as const).map(([k, l, c]) => (
                   <div key={k}><div className="between" style={{ fontSize: 13.5 }}><span style={{ fontWeight: 600 }}>{l}</span><span className="muted tnum">{fmt(bm[k])} MT</span></div><div className="bar-track" style={{ marginTop: 7 }}><div className="bar-fill" style={{ width: pct(bm[k]) + '%', background: c }} /></div></div>
                 ))}
               </div>
@@ -130,12 +130,13 @@ export default function Overview() {
             {change(mobile) !== null && <span className="pill" style={{ fontSize: 12.5, padding: '5px 9px', background: change(mobile)! >= 0 ? 'var(--green-bg)' : 'var(--red-bg)', color: change(mobile)! >= 0 ? 'var(--green-dark)' : 'var(--red-dark)' }}>{change(mobile)! >= 0 ? '+' : ''}{change(mobile)}%</span>}
           </div>
           <div style={{ marginTop: 14 }}>{mobile && <Bars values={mobile.bars.map((b: any) => b.amount)} height={96} gap={8} radius={8} labels={mobile.bars.map((b: any, i: number) => (i === 6 ? 'Hoje' : weekday(b.date).slice(0, 3)))} />}</div>
-          {mobile && (() => { const m = mobile.by_method; const t = m.mpesa + m.emola + m.card || 1; const p = (v: number) => Math.round((v / t) * 100); return (
+          {mobile && (() => { const m = { bim: 0, ...mobile.by_method }; const t = m.mpesa + m.emola + m.bim + m.card || 1; const p = (v: number) => Math.round((v / t) * 100); return (
             <>
-              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2, marginTop: 16 }}><div style={{ width: p(m.mpesa) + '%', background: 'var(--mpesa)' }} /><div style={{ width: p(m.emola) + '%', background: 'var(--emola-bar)' }} /><div style={{ width: p(m.card) + '%', background: 'var(--ink)' }} /></div>
+              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 2, marginTop: 16 }}><div style={{ width: p(m.mpesa) + '%', background: 'var(--mpesa)' }} /><div style={{ width: p(m.emola) + '%', background: 'var(--emola-bar)' }} /><div style={{ width: p(m.bim) + '%', background: 'var(--bim-bar)' }} /><div style={{ width: p(m.card) + '%', background: 'var(--ink)' }} /></div>
               <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 12, color: 'var(--text-2)', flexWrap: 'wrap' }}>
                 <span className="row" style={{ gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--mpesa)' }} />M-Pesa {p(m.mpesa)}%</span>
                 <span className="row" style={{ gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--emola-bar)' }} />e-Mola {p(m.emola)}%</span>
+                <span className="row" style={{ gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--bim-bar)' }} />bim {p(m.bim)}%</span>
                 <span className="row" style={{ gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--ink)' }} />Cartão {p(m.card)}%</span>
               </div>
             </>) })()}

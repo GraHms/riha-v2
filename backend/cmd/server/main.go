@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"riha/internal/adapters/pdf"
 	"riha/internal/adapters/postgres"
 	"riha/internal/adapters/rails"
+	"riha/internal/adapters/rails/mtoca"
 	"riha/internal/adapters/sheets"
 	"riha/internal/adapters/webhooks"
 	"riha/internal/config"
@@ -37,17 +39,17 @@ func main() {
 	if err := store.Migrate(); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	rail, realMoney, err := paymentRail(cfg)
+	payments, err := paymentRail(cfg)
 	if err != nil {
 		log.Fatalf("payments: %v", err)
 	}
 	deps := Deps(store, cfg)
-	deps.Rail = rail
+	deps.Rail = payments.Rail
 	a := app.New(deps, cfg.PublicURL)
 	a.PayURL = cfg.PayURL
 	a.AllowPrivateNetworks = cfg.AllowPrivateNetworks
-	if realMoney {
-		a.ComingSoon = []string{domain.MethodEmola, domain.MethodCard}
+	if payments.RealMoney {
+		a.ComingSoon = payments.ComingSoon
 		a.NoLiveRefunds = true
 	}
 	a.AdminNotifyEmail = cfg.AdminNotifyEmail
@@ -102,22 +104,85 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 	}
 }
 
-// paymentRail sends live money to M-Pesa, while test mode stays on the simulator.
-// Production can't start on the simulator: it would pass fake money off as real.
-func paymentRail(cfg config.Config) (ports.Rail, bool, error) {
-	test := rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond)
-	if cfg.MpesaAPIKey == "" {
-		if cfg.Env == "production" {
-			return nil, false, errors.New("production needs RIHA_MPESA_API_KEY, RIHA_MPESA_PUBLIC_KEY and RIHA_MPESA_SERVICE_PROVIDER_CODE")
+// paymentSetup is the rail, the methods it can't take yet, and whether it moves real money.
+type paymentSetup struct {
+	Rail       ports.Rail
+	ComingSoon []string
+	RealMoney  bool
+}
+
+// paymentRail picks a rail per mode and method. Live M-Pesa goes direct unless
+// RIHA_MPESA_VIA_MTOCA is on. With RIHA_MTOCA_ENABLED, the wallets on mtoca use its
+// production API for live payments and its dev API for test payments. Anything else
+// in test mode is simulated. Production can't start on the simulator alone: it would
+// pass fake money off as real.
+func paymentRail(cfg config.Config) (paymentSetup, error) {
+	sim := rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond)
+	test := rails.Router{ByMethod: map[string]ports.Rail{}, Fallback: sim}
+	live := rails.Router{ByMethod: map[string]ports.Rail{}}
+	if cfg.MtocaEnabled {
+		if err := checkMtocaURLs(cfg); err != nil {
+			return paymentSetup{}, err
 		}
-		return test, false, nil
+		channels := map[string]string{}
+		for method, channel := range cfg.MtocaChannels {
+			if domain.IsWallet(method) && (method != domain.MethodMpesa || cfg.MpesaViaMtoca) {
+				channels[method] = channel
+			}
+		}
+		liveClient, err := mtoca.New(mtoca.Config{BaseURL: cfg.MtocaLiveURL, Token: cfg.MtocaLiveToken, Channels: channels, Debug: cfg.MtocaDebug})
+		if err != nil {
+			return paymentSetup{}, err
+		}
+		testClient, err := mtoca.New(mtoca.Config{BaseURL: cfg.MtocaTestURL, Token: cfg.MtocaTestToken, Channels: channels, Debug: cfg.MtocaDebug})
+		if err != nil {
+			return paymentSetup{}, err
+		}
+		for method, channel := range channels {
+			live.ByMethod[method], test.ByMethod[method] = liveClient, testClient
+			log.Printf("payments: %s goes through mtoca channel %s", method, channel)
+		}
 	}
-	live, err := rails.NewMpesa(rails.MpesaConfig{BaseURL: cfg.MpesaBaseURL, C2BPort: cfg.MpesaC2BPort, QueryPort: cfg.MpesaQueryPort, APIKey: cfg.MpesaAPIKey,
-		PublicKey: cfg.MpesaPublicKey, ServiceProviderCode: cfg.MpesaProviderCode})
-	if err != nil {
-		return nil, false, err
+	if live.ByMethod[domain.MethodMpesa] == nil {
+		if cfg.MpesaAPIKey != "" {
+			direct, err := rails.NewMpesa(rails.MpesaConfig{BaseURL: cfg.MpesaBaseURL, C2BPort: cfg.MpesaC2BPort, QueryPort: cfg.MpesaQueryPort, APIKey: cfg.MpesaAPIKey,
+				PublicKey: cfg.MpesaPublicKey, ServiceProviderCode: cfg.MpesaProviderCode})
+			if err != nil {
+				return paymentSetup{}, err
+			}
+			live.ByMethod[domain.MethodMpesa] = direct
+		} else if cfg.Env == "production" {
+			return paymentSetup{}, errors.New("production needs RIHA_MPESA_API_KEY, RIHA_MPESA_PUBLIC_KEY and RIHA_MPESA_SERVICE_PROVIDER_CODE, or RIHA_MPESA_VIA_MTOCA")
+		}
 	}
-	return rails.Modes{Test: test, Live: live}, true, nil
+	if len(live.ByMethod) == 0 {
+		return paymentSetup{Rail: sim}, nil
+	}
+	var soon []string
+	for _, method := range domain.AllMethods {
+		if live.ByMethod[method] == nil {
+			soon = append(soon, method)
+		}
+	}
+	return paymentSetup{Rail: rails.Modes{Test: test, Live: live}, ComingSoon: soon, RealMoney: true}, nil
+}
+
+// checkMtocaURLs refuses the mix-ups that move money wrongly: test payments on the
+// production API charge people, and live payments on dev credit merchants for nothing.
+func checkMtocaURLs(cfg config.Config) error {
+	liveURL, testURL := strings.TrimRight(cfg.MtocaLiveURL, "/"), strings.TrimRight(cfg.MtocaTestURL, "/")
+	if liveURL == testURL {
+		return errors.New("RIHA_MTOCA_LIVE_URL and RIHA_MTOCA_TEST_URL must differ")
+	}
+	if cfg.Env == "production" {
+		if !strings.HasPrefix(liveURL, "https://") || strings.Contains(liveURL, ".dev.") {
+			return errors.New("RIHA_MTOCA_LIVE_URL must be mtoca's production API, over https")
+		}
+		if !strings.Contains(testURL, ".dev.") {
+			return errors.New("RIHA_MTOCA_TEST_URL must be mtoca's dev API")
+		}
+	}
+	return nil
 }
 
 func mailer(cfg config.Config) ports.Mailer {

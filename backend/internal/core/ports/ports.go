@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -253,10 +254,21 @@ type Rail interface {
 	Initiate(ctx context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error)
 }
 
+// ErrNoStatusCheck means this rail can't be asked about a payment, as with the simulator.
+var ErrNoStatusCheck = errors.New("rail has no status check")
+
+// ErrStillPending means the operator has the payment and no final answer yet.
+var ErrStillPending = errors.New("payment still pending at the operator")
+
 // RailQuery is implemented by rails that can say what became of a payment whose
 // answer never arrived. It returns false when the operator has no record of it.
 type RailQuery interface {
-	Query(ctx context.Context, reference string) (domain.Outcome, bool, error)
+	Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error)
+}
+
+// RailPreparer is implemented by rails with their own rules for what a payment carries.
+type RailPreparer interface {
+	Needs(method string, live bool) domain.RailNeeds
 }
 
 type WebhookSender interface {

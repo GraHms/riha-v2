@@ -211,7 +211,7 @@ export default function Invoice() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-          {['mpesa', 'emola', 'card'].filter(m => !(d.coming_soon || []).includes(m)).map(m => (
+          {['mpesa', 'emola', 'bim', 'card'].filter(m => !(d.coming_soon || []).includes(m)).map(m => (
             <button key={m} onClick={() => setMethod(m)} className="card" style={{ padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', border: method === m ? '2px solid var(--ink)' : '1px solid var(--line)', margin: method === m ? 0 : 1 }}>
               <MethodIcon method={m} /><span style={{ flex: 1, fontWeight: 600 }}>{METHOD_NAME[m]}</span><span style={{ width: 20, height: 20, borderRadius: '50%', border: method === m ? '6px solid var(--ink)' : '1.5px solid #C9C7BE' }} />
             </button>
@@ -221,7 +221,7 @@ export default function Invoice() {
               <MethodIcon method={m} /><span style={{ flex: 1, fontWeight: 600 }}>{METHOD_NAME[m]}</span><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Em breve</span>
             </div>
           ))}
-          {method !== 'card' && <div className="phone-input"><span className="cc">+258</span><input inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder={method === 'emola' ? '86 123 4567' : '84 123 4567'} aria-label="Número" /></div>}
+          {method !== 'card' && <div className="phone-input"><span className="cc">+258</span><input inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder={method === 'emola' ? '86 123 4567' : method === 'bim' ? '82 123 4567' : '84 123 4567'} aria-label="Número" /></div>}
           {method === 'card' && <div className="grid-2" style={{ gap: 8 }}>
             <input className="input" style={{ gridColumn: '1/-1' }} inputMode="numeric" placeholder="Número do cartão" value={card.number} onChange={e => setCard({ ...card, number: e.target.value })} />
             <input className="input" placeholder="MM / AA" value={card.exp} onChange={e => setCard({ ...card, exp: e.target.value })} />

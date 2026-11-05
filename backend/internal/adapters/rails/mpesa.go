@@ -171,7 +171,7 @@ func (m *Mpesa) send(ref string, body []byte, onComplete func(domain.Outcome)) {
 // common. It asks whether that holds, so they don't wait for the sweep to try again.
 func (m *Mpesa) afterTimeout(ref string, onComplete func(domain.Outcome)) {
 	time.Sleep(mpesaTimeoutCheckDelay)
-	o, known, err := m.Query(context.Background(), ref)
+	o, known, err := m.Query(context.Background(), domain.StatusQuery{Reference: ref})
 	switch {
 	case err != nil:
 		log.Printf("mpesa %s: query after timeout failed, the sweep will ask again: %v", ref, err)
@@ -216,7 +216,8 @@ var mpesaFailures = map[string]string{
 }
 
 // Query asks M-Pesa about a reference. It returns false when M-Pesa has no answer.
-func (m *Mpesa) Query(ctx context.Context, ref string) (domain.Outcome, bool, error) {
+func (m *Mpesa) Query(ctx context.Context, sq domain.StatusQuery) (domain.Outcome, bool, error) {
+	ref := sq.Reference
 	ctx, cancel := context.WithTimeout(ctx, mpesaQueryTimeout)
 	defer cancel()
 	q := url.Values{"input_ThirdPartyReference": {ref}, "input_QueryReference": {ref}, "input_ServiceProviderCode": {m.cfg.ServiceProviderCode}}
@@ -263,9 +264,23 @@ func (m Modes) Initiate(ctx context.Context, req domain.ChargeRequest, onComplet
 	return m.Test.Initiate(ctx, req, onComplete)
 }
 
-func (m Modes) Query(ctx context.Context, ref string) (domain.Outcome, bool, error) {
-	if q, ok := m.Live.(ports.RailQuery); ok {
-		return q.Query(ctx, ref)
+func (m Modes) pick(live bool) ports.Rail {
+	if live {
+		return m.Live
 	}
-	return domain.Outcome{}, false, nil
+	return m.Test
+}
+
+func (m Modes) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
+	if r, ok := m.pick(q.Live).(ports.RailQuery); ok {
+		return r.Query(ctx, q)
+	}
+	return domain.Outcome{}, false, ports.ErrNoStatusCheck
+}
+
+func (m Modes) Needs(method string, live bool) domain.RailNeeds {
+	if r, ok := m.pick(live).(ports.RailPreparer); ok {
+		return r.Needs(method, live)
+	}
+	return domain.RailNeeds{Reference: domain.RailReference()}
 }

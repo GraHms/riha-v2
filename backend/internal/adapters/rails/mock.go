@@ -35,18 +35,11 @@ func walletOutcome(phone string) (domain.Outcome, time.Duration) {
 
 func (m *Mock) Initiate(_ context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error) {
 	switch req.Method {
-	case domain.MethodMpesa, domain.MethodEmola:
+	case domain.MethodMpesa, domain.MethodEmola, domain.MethodBim:
+		if e := domain.WalletNumberError(req.Method, req.Phone); e != nil {
+			return domain.ChargeResult{}, e
+		}
 		phone := domain.NormalizeMZPhone(req.Phone)
-		if len(phone) != 9 {
-			return domain.ChargeResult{}, &domain.InputError{Field: "phone", Msg: "Número inválido. Use 9 dígitos, por exemplo 84 123 4567."}
-		}
-		pre := phone[:2]
-		if req.Method == domain.MethodMpesa && pre != "84" && pre != "85" {
-			return domain.ChargeResult{}, &domain.InputError{Field: "phone", Msg: "Números M-Pesa começam por 84 ou 85."}
-		}
-		if req.Method == domain.MethodEmola && pre != "86" && pre != "87" {
-			return domain.ChargeResult{}, &domain.InputError{Field: "phone", Msg: "Números e-Mola começam por 86 ou 87."}
-		}
 		out, mult := walletOutcome(phone)
 		if mult == 0 {
 			return domain.ChargeResult{Outcome: out, Last4: phone[5:]}, nil

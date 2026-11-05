@@ -98,14 +98,20 @@ const css = `
 function usePricing() {
   const g = useGateway()
   const [bps, setBps] = useState(600)
+  // Until the server answers, promise only what is certain.
+  const [soon, setSoon] = useState<string[]>(['emola', 'bim'])
   useEffect(() => {
     let alive = true
     g.checkout.pricing()
-      .then(d => { if (alive && typeof d?.default_fee_bps === 'number') setBps(d.default_fee_bps) })
+      .then(d => {
+        if (!alive) return
+        if (typeof d?.default_fee_bps === 'number') setBps(d.default_fee_bps)
+        setSoon(d?.coming_soon ?? [])
+      })
       .catch(() => {})
     return () => { alive = false }
   }, [g])
-  return bpsLabel(bps)
+  return { fee: bpsLabel(bps), soon }
 }
 
 const stripe = (s: CSSProperties, red: boolean): CSSProperties => ({ position: 'absolute', transform: 'skewX(22deg)', background: red ? '#FF0F15' : '#0A8205', pointerEvents: 'none', opacity: 0.7, filter: stripeBlur(Number(s.width)), ...s })
@@ -174,8 +180,9 @@ function Received({ style }: { style: CSSProperties }) {
 }
 
 const METHODS = [
-  { name: 'M-Pesa', sub: 'Vodacom', extra: ' · 84, 85', ico: <div className="lp-method-ico" style={{ background: '#FDE7E6', color: '#C8102E', fontSize: 18 }}>M</div> },
-  { name: 'e-Mola', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#FFF0D6', color: '#B45F00', fontSize: 19 }}>e</div> },
+  { name: 'M-Pesa', method: 'mpesa', sub: 'Vodacom', extra: ' · 84, 85', ico: <div className="lp-method-ico" style={{ background: '#FDE7E6', color: '#C8102E', fontSize: 18 }}>M</div> },
+  { name: 'e-Mola', method: 'emola', sub: 'Movitel', extra: ' · 86, 87', ico: <div className="lp-method-ico" style={{ background: '#FFF0D6', color: '#B45F00', fontSize: 19 }}>e</div> },
+  { name: 'bim', method: 'bim', sub: 'Millennium bim', extra: '', ico: <div className="lp-method-ico" style={{ background: '#FCE3F0', color: '#A3005C', fontSize: 19 }}>b</div> },
   { name: 'Visa', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
   { name: 'Mastercard', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
 ]
@@ -210,7 +217,7 @@ function FooterCols({ gap, size }: { gap: number; size: number }) {
 }
 
 export default function Landing() {
-  const fee = usePricing()
+  const { fee, soon } = usePricing()
 
   return (
     <div className="lp">
@@ -306,7 +313,7 @@ export default function Landing() {
         <div className="lp-methods">
           <div>
             <div className="lp-eyebrow">Métodos de pagamento</div>
-            <h2 className="lp-h2">Receba como os seus clientes já pagam: por M-Pesa.</h2>
+            <h2 className="lp-h2">Receba como os seus clientes já pagam: pelo telemóvel.</h2>
           </div>
           <div className="lp-methods-grid">
             {METHODS.map(m => (
@@ -314,7 +321,7 @@ export default function Landing() {
                 {m.ico}
                 <div>
                   <div className="lp-method-name">{m.name}</div>
-                  <div className="lp-method-sub">{m.sub}{m.extra && <span className="lp-mi">{m.extra}</span>}</div>
+                  <div className="lp-method-sub">{m.method && soon.includes(m.method) ? 'Em breve' : <>{m.sub}{m.extra && <span className="lp-mi">{m.extra}</span>}</>}</div>
                 </div>
               </div>
             ))}
@@ -462,7 +469,7 @@ export default function Landing() {
               <div style={{ fontSize: 15, color: '#5E6862', marginTop: 6 }}>por transação concluída</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 28, borderLeft: '1px solid #EEECE5' }}>
-              <CheckLine>M-Pesa, com e-Mola e cartões em breve</CheckLine>
+              <CheckLine>Carteiras móveis, sem integrações à parte</CheckLine>
               <CheckLine>Sem mensalidade</CheckLine>
               <CheckLine>Sem taxa de adesão</CheckLine>
             </div>

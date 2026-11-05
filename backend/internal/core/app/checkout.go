@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"riha/internal/core/domain"
+	"riha/internal/core/ports"
 )
 
 type Customer struct {
@@ -256,13 +257,18 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	p := &domain.Payment{
 		ID: domain.NewID("pay"), Reference: domain.PaymentReference(), MerchantID: m.ID, Livemode: cs.Livemode, SessionID: cs.ID,
 		Status: domain.PaymentProcessing, Amount: cs.Amount, FeeBps: bps, Fee: fee, Net: net, Method: in.Method,
-		CustomerName: domain.FirstNonEmpty(domain.Trim(in.Name, 200), cs.CustomerName), CustomerEmail: domain.FirstNonEmpty(in.Email, cs.CustomerEmail), RailReference: domain.RailReference(),
+		CustomerName: domain.FirstNonEmpty(domain.Trim(in.Name, 200), cs.CustomerName), CustomerEmail: domain.FirstNonEmpty(in.Email, cs.CustomerEmail),
 		Description: cs.Description, ClientReferenceID: cs.ClientReferenceID, Metadata: cs.Metadata, Origin: cs.Origin,
 		PayerIP: in.PayerIP, PayerUserAgent: domain.Trim(in.PayerUA, 300), CreatedAt: a.Now(),
 	}
+	needs := a.railNeeds(in.Method, cs.Livemode)
+	p.RailReference = needs.Reference
 	if in.Method != domain.MethodCard {
 		if ph := domain.NormalizeMZPhone(in.Phone); len(ph) == 9 {
 			p.PhonePrefix, p.PhoneLast4 = ph[:2], ph[5:]
+			if needs.KeepPhone {
+				p.PayerPhone = ph
+			}
 		}
 	}
 	err = a.Tx.Do(ctx, func(ctx context.Context) error {
@@ -285,7 +291,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		return nil, err
 	}
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
-		PaymentID: p.ID, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
+		PaymentID: p.ID, Description: p.Description, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
 		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor,
 		Live: p.Livemode, Reference: p.RailReference,
 	}, func(o domain.Outcome) {
@@ -317,6 +323,13 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	return a.Payments.ByID(ctx, p.ID)
 }
 
+func (a *App) railNeeds(method string, live bool) domain.RailNeeds {
+	if r, ok := a.Rail.(ports.RailPreparer); ok {
+		return r.Needs(method, live)
+	}
+	return domain.RailNeeds{Reference: domain.RailReference()}
+}
+
 func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Outcome) error {
 	return a.Tx.Do(ctx, func(ctx context.Context) error {
 		p, err := a.Payments.Lock(ctx, paymentID)
@@ -335,6 +348,8 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			return err
 		}
 		now := a.Now()
+		// The whole number was only kept to ask the operator about this payment.
+		p.PayerPhone = ""
 		if o.Success {
 			p.Status, p.OperatorReference, p.SucceededAt = domain.PaymentSucceeded, o.OperatorReference, &now
 			if err := a.Payments.Save(ctx, p); err != nil {
@@ -422,7 +437,7 @@ func (a *App) cleanMethods(in []string) ([]string, error) {
 	}
 	out := a.ActiveMethods(methods)
 	if len(out) == 0 {
-		return nil, domain.Invalid("payment_method_unavailable", "payment_method_types", "Estes métodos chegam em breve. Por agora só aceitamos M-Pesa.")
+		return nil, domain.Invalid("payment_method_unavailable", "payment_method_types", "Estes métodos ainda não estão disponíveis.")
 	}
 	return out, nil
 }

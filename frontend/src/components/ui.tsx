@@ -84,6 +84,7 @@ export function MethodIcon({ method, size = 36, radius = 11 }: { method: string;
   const s: CSSProperties = { width: size, height: size, borderRadius: radius, fontSize: Math.round(size * 0.4) }
   if (method === 'mpesa') return <span className="method-ico" style={{ ...s, background: 'var(--mpesa-bg)', color: 'var(--mpesa)' }}>M</span>
   if (method === 'emola') return <span className="method-ico" style={{ ...s, background: 'var(--emola-bg)', color: 'var(--emola)', fontSize: Math.round(size * 0.44) }}>e</span>
+  if (method === 'bim') return <span className="method-ico" style={{ ...s, background: 'var(--bim-bg)', color: 'var(--bim)', fontSize: Math.round(size * 0.42) }}>b</span>
   if (method === 'bank') return <span className="method-ico" style={{ ...s, background: 'var(--paper)', color: 'var(--ink)' }}><Icon name="bank" size={Math.round(size * 0.46)} /></span>
   return <span className="method-ico" style={{ ...s, background: 'var(--ink)', color: '#fff' }}><Icon name="card" size={Math.round(size * 0.46)} stroke={2} /></span>
 }

@@ -8,10 +8,29 @@ import (
 const (
 	MethodMpesa = "mpesa"
 	MethodEmola = "emola"
+	MethodBim   = "bim"
 	MethodCard  = "card"
 )
 
-var AllMethods = []string{MethodMpesa, MethodEmola, MethodCard}
+var AllMethods = []string{MethodMpesa, MethodEmola, MethodBim, MethodCard}
+
+var MethodNames = map[string]string{MethodMpesa: "M-Pesa", MethodEmola: "e-Mola", MethodBim: "bim", MethodCard: "Cartão"}
+
+func IsWallet(m string) bool { return m == MethodMpesa || m == MethodEmola || m == MethodBim }
+
+func WalletNumberError(method, phone string) *InputError {
+	p := NormalizeMZPhone(phone)
+	if len(p) != 9 || p[0] != '8' || !strings.ContainsRune("234567", rune(p[1])) {
+		return &InputError{Field: "phone", Msg: "Número inválido. Use 9 dígitos, por exemplo 84 123 4567."}
+	}
+	switch {
+	case method == MethodMpesa && p[1] != '4' && p[1] != '5':
+		return &InputError{Field: "phone", Msg: "Números M-Pesa começam por 84 ou 85."}
+	case method == MethodEmola && p[1] != '6' && p[1] != '7':
+		return &InputError{Field: "phone", Msg: "Números e-Mola começam por 86 ou 87."}
+	}
+	return nil
+}
 
 const (
 	FailPinIncorrect        = "pin_incorrect"
@@ -23,6 +42,8 @@ const (
 	FailPhoneInvalid        = "phone_invalid"
 	FailAccountInactive     = "account_inactive"
 	FailPaymentDeclined     = "payment_declined"
+	FailRejected            = "payment_rejected"
+	FailCanceled            = "payment_canceled"
 )
 
 var FailureMessages = map[string]string{
@@ -35,17 +56,20 @@ var FailureMessages = map[string]string{
 	FailPhoneInvalid:        "Este número não é uma conta M-Pesa válida.",
 	FailAccountInactive:     "A conta M-Pesa do cliente está inativa. Contacte a assistência M-Pesa.",
 	FailPaymentDeclined:     "O M-Pesa recusou o pagamento. Verifique a conta e tente de novo.",
+	FailRejected:            "O pagamento foi recusado. Confirme o saldo e tente de novo.",
+	FailCanceled:            "O pagamento foi cancelado.",
 }
 
 type ChargeRequest struct {
-	PaymentID  string
-	Method     string
-	Amount     int64
-	Phone      string
-	CardNumber string
-	CardExpiry string
-	CardCVC    string
-	Descriptor string
+	PaymentID   string
+	Description string
+	Method      string
+	Amount      int64
+	Phone       string
+	CardNumber  string
+	CardExpiry  string
+	CardCVC     string
+	Descriptor  string
 	// Live is real money. Reference is what the operator knows the payment by.
 	Live      bool
 	Reference string
@@ -63,6 +87,26 @@ type ChargeResult struct {
 	Brand   string
 	Last4   string
 }
+
+type StatusQuery struct {
+	PaymentID   string
+	Live        bool
+	Reference   string
+	Method      string
+	Amount      int64
+	Phone       string
+	Description string
+}
+
+// RailNeeds is what a rail asks a payment to carry before it is charged.
+type RailNeeds struct {
+	Reference string
+	// KeepPhone: the rail needs the whole number to ask about the payment later.
+	KeepPhone bool
+}
+
+// OperationNumber is the reference mtoca takes: 12 digits, not starting with 0.
+func OperationNumber() string { return randFrom("123456789", 1) + randFrom("0123456789", 11) }
 
 type InputError struct{ Field, Msg string }
 

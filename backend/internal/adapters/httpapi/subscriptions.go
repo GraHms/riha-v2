@@ -633,7 +633,7 @@ func (srv *Server) publicSubscribe(c *gin.Context) {
 	c.JSON(200, gin.H{"token": tok})
 }
 
-var methodNames = map[string]string{domain.MethodMpesa: "M-Pesa", domain.MethodEmola: "e-Mola", domain.MethodCard: "Cartão"}
+var methodNames = domain.MethodNames
 
 func (srv *Server) publicInvoice(c *gin.Context) {
 	v, err := srv.A.Invoice(ctx(c), c.Param("token"), true)

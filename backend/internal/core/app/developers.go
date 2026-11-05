@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strings"
 	"time"
@@ -247,13 +248,15 @@ const (
 func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 	timedOut := domain.Outcome{FailureCode: domain.FailCustomerTimeout}
 	rail, ok := a.Rail.(ports.RailQuery)
-	if !ok || !p.Livemode || p.RailReference == "" {
+	if !ok || p.RailReference == "" {
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
 		return
 	}
 	age := a.Now().Sub(p.CreatedAt)
-	o, known, err := rail.Query(ctx, p.RailReference)
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, Method: p.Method, Amount: p.Amount, Phone: p.PayerPhone, Description: p.Description})
 	switch {
+	case errors.Is(err, ports.ErrNoStatusCheck):
+		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case err == nil && known:
 		_ = a.CompletePayment(ctx, p.ID, o)
 	case err == nil && age >= railNoRecordAfter:
@@ -261,6 +264,7 @@ func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 	case err != nil && age >= railGiveUpAfter:
 		log.Printf("payment %s (%s): no answer from the operator after %s, closed unconfirmed, check it by hand: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
+	case errors.Is(err, ports.ErrStillPending):
 	case err != nil:
 		log.Printf("payment %s (%s): query failed: %v", p.ID, p.RailReference, err)
 	}

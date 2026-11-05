@@ -3,7 +3,7 @@ import { SUPPORT_PHONE, SUPPORT_TEL } from '../../lib/support'
 import { useParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
-import { fmt, fullDate, METHOD_NAME } from '../../lib/format'
+import { fmt, fullDate, METHOD_NAME, METHOD_SUB } from '../../lib/format'
 import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 
 type Session = {
@@ -151,7 +151,7 @@ export default function Checkout() {
   const amount = fmt(s.amount)
   const wallet = method !== 'card'
   const walletName = METHOD_NAME[method]
-  const walletPrefix = method === 'emola' ? '86' : '84'
+  const walletPrefix = method === 'emola' ? '86' : method === 'bim' ? '82' : '84'
   const ref = s.client_reference_id ? (/^\d+$/.test(s.client_reference_id) ? `Encomenda #${s.client_reference_id}` : s.client_reference_id) : s.description
   const expired = s.status === 'expired'
   const elapsed = startRef.current ? Math.floor((Date.now() - startRef.current) / 1000) : 0
@@ -181,7 +181,7 @@ export default function Checkout() {
   return (
     <div className="co">
       <style>{CSS}</style>
-      {!s.livemode && <div className="testbar" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 5 }}>Modo de teste · use 84 xxx 0000 para simular PIN errado, ou o cartão 4242 4242 4242 4242</div>}
+      {!s.livemode && <div className="testbar" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 5 }}>{method === 'mpesa' ? 'Modo de teste · use 84 xxx 0000 para simular PIN errado' : 'Modo de teste'}</div>}
       <aside className="co-side">
         <div className="stripe g" style={{ bottom: -80, left: 80, width: 70, height: 520 }} />
         <div className="stripe r" style={{ bottom: -80, left: 170, width: 70, height: 520 }} />
@@ -223,7 +223,7 @@ export default function Checkout() {
                     {s.payment_method_types.map(m => (
                       <button key={m} type="button" onClick={() => { setMethod(m); setErr(null) }} className={'co-m' + (method === m ? ' on' : '')} aria-pressed={method === m}>
                         <MethodIcon method={m} size={38} />
-                        <span className="co-m-txt"><span className="co-m-name">{METHOD_NAME[m]}</span><span className="co-m-sub">{m === 'mpesa' ? 'Vodacom · 84, 85' : m === 'emola' ? 'Movitel · 86, 87' : 'Visa, Mastercard'}</span></span>
+                        <span className="co-m-txt"><span className="co-m-name">{METHOD_NAME[m]}</span><span className="co-m-sub">{METHOD_SUB[m]}</span></span>
                         <span className="co-radio"><span /></span>
                       </button>
                     ))}

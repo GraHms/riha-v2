@@ -40,6 +40,14 @@ type Config struct {
 	R2Bucket             string
 	R2Prefix             string
 	R2Endpoint           string
+	MtocaEnabled         bool
+	MtocaLiveURL         string
+	MtocaTestURL         string
+	MtocaLiveToken       string
+	MtocaTestToken       string
+	MtocaChannels        map[string]string
+	MtocaDebug           bool
+	MpesaViaMtoca        bool
 }
 
 func env(k, def string) string {
@@ -101,6 +109,14 @@ func Load() Config {
 		R2Bucket:             env("RIHA_R2_BUCKET", ""),
 		R2Prefix:             env("RIHA_R2_PREFIX", ""),
 		R2Endpoint:           env("RIHA_R2_ENDPOINT", ""),
+		MtocaEnabled:         flag("RIHA_MTOCA_ENABLED", false),
+		MtocaLiveURL:         env("RIHA_MTOCA_LIVE_URL", "https://api.payments.mtoca.net"),
+		MtocaTestURL:         env("RIHA_MTOCA_TEST_URL", "https://api.payments.dev.mtoca.net"),
+		MtocaLiveToken:       env("RIHA_MTOCA_LIVE_TOKEN", ""),
+		MtocaTestToken:       env("RIHA_MTOCA_TEST_TOKEN", ""),
+		MtocaChannels:        pairs(env("RIHA_MTOCA_CHANNELS", "mpesa=MPESA,emola=EMOLA,bim=BIM")),
+		MtocaDebug:           flag("RIHA_MTOCA_DEBUG", false),
+		MpesaViaMtoca:        flag("RIHA_MPESA_VIA_MTOCA", false),
 	}
 }
 
@@ -112,4 +128,15 @@ func storage(dev bool) string {
 		return "r2"
 	}
 	return "local"
+}
+
+func pairs(s string) map[string]string {
+	out := map[string]string{}
+	for _, kv := range strings.Split(s, ",") {
+		k, v, ok := strings.Cut(strings.TrimSpace(kv), "=")
+		if ok && strings.TrimSpace(k) != "" && strings.TrimSpace(v) != "" {
+			out[strings.ToLower(strings.TrimSpace(k))] = strings.TrimSpace(v)
+		}
+	}
+	return out
 }

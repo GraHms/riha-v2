@@ -545,7 +545,7 @@ func (a *App) PayInvoice(ctx context.Context, token string, in InvoicePay) (*dom
 		ids = append(ids, l.Charge.ID)
 	}
 	cs, err := a.CreateSession(ctx, v.Merchant, v.Member.Livemode, SessionParams{
-		Amount: total, Description: domain.Trim(strings.Join(labels, " + "), 300), PaymentMethodTypes: []string{domain.MethodMpesa, domain.MethodEmola, domain.MethodCard},
+		Amount: total, Description: domain.Trim(strings.Join(labels, " + "), 300), PaymentMethodTypes: domain.AllMethods,
 		ClientReferenceID: v.Member.ID, Customer: &Customer{Name: v.Member.Name, Phone: "+258" + domain.NormalizeMZPhone(phone)},
 		Metadata: map[string]any{"subscription_charges": strings.Join(ids, ",")},
 		Origin:   domain.Origin{SourceType: domain.SourceSubscription, IP: in.IP, UserAgent: in.UA, Channel: v.Member.Channel, CreatedBy: "subscription"},
@@ -674,7 +674,7 @@ func (a *App) chargesFailed(ctx context.Context, cs *domain.CheckoutSession, p *
 	if err != nil {
 		return err
 	}
-	label := map[string]string{domain.MethodMpesa: "M-Pesa", domain.MethodEmola: "e-Mola", domain.MethodCard: "Cartão"}[p.Method]
+	label := domain.MethodNames[p.Method]
 	for _, c := range charges {
 		if !c.Unpaid() {
 			continue

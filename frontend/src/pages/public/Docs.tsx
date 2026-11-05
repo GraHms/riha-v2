@@ -466,7 +466,7 @@ const FAILS: [string, string, string][] = [
 const FLOW = [
   { n: '01 · Servidor', t: 'Cria a sessão', d: 'POST /v1/checkout/sessions → url', mono: true },
   { n: '02 · Browser', t: 'Redireciona o cliente', d: '303 → pay.rihagateway.com/c/cs_…', mono: true },
-  { n: '03 · RIHA', t: 'O cliente paga', d: 'Confirma com o PIN M-Pesa', mono: false, green: true },
+  { n: '03 · RIHA', t: 'O cliente paga', d: 'Confirma com o PIN no telemóvel', mono: false, green: true },
   { n: '04 · Servidor a servidor', t: 'Evento assinado', d: 'POST callback_url + endpoints', mono: true, dark: true },
   { n: '05 · Browser', t: 'Volta à loja', d: 'success_url?session_id=cs_…', mono: true },
 ]
@@ -574,7 +574,7 @@ export default function Docs() {
           <section id="teste" className="docs-sec">
             <div>
               <H2>Modo de teste</H2>
-              <P>Com uma chave <C>sk_test_</C> (ou o painel em modo de teste) os pagamentos são simulados. Em produção, os pagamentos são reais. O resultado depende dos últimos quatro dígitos do telefone M-Pesa (84, 85) usado no checkout.</P>
+              <P>Com uma chave <C>sk_test_</C> (ou o painel em modo de teste) os pagamentos M-Pesa são simulados, e e-Mola e bim, quando ativos, usam o ambiente de testes do nosso parceiro. Em produção, os pagamentos são reais. No M-Pesa, o resultado depende dos últimos quatro dígitos do telefone (84, 85) usado no checkout.</P>
               <Eyebrow>M-Pesa</Eyebrow>
               <Table>
                 {FAILS.map(([d, code, t]) => <Row key={d} k={<>84 123 <b style={{ fontWeight: 600 }}>{d}</b></>} w={150}><C s={13}>{code}</C> · {t}</Row>)}
@@ -650,7 +650,7 @@ export default function Docs() {
               <Param name="client_reference_id" type="string">O seu identificador interno, como o número da encomenda. Volta em todos os eventos e aparece no painel.</Param>
               <Param name="customer" type="object"><C s={13}>name</C>, <C s={13}>phone</C> (formato E.164, +258…) e <C s={13}>email</C>. O telefone pré-preenche o número M-Pesa no checkout.</Param>
               <Param name="line_items" type="array">Lista de <C s={13}>name</C>, <C s={13}>quantity</C> e <C s={13}>unit_amount</C>, mostrada no checkout e no recibo. A soma tem de ser igual a amount.</Param>
-              <Param name="payment_method_types" type="array">Por agora só <C s={13}>mpesa</C>. <C s={13}>emola</C> e <C s={13}>card</C> chegam em breve.</Param>
+              <Param name="payment_method_types" type="array"><C s={13}>mpesa</C>, <C s={13}>emola</C> ou <C s={13}>bim</C>. Métodos ainda não ativos são ignorados, e <C s={13}>card</C> chega em breve.</Param>
               <Param name="metadata" type="object">Até 20 pares chave-valor (chave até 40 caracteres, valor até 500). Não é mostrado ao cliente. Copiado para o Payment.</Param>
               <Param name="expires_at" type="timestamp">Entre 15 minutos e 24 horas. Por omissão, 1 hora.</Param>
               <Param name="description · locale" type="string · pt-MZ | en" last>Texto mostrado no checkout e no recibo. Idioma do checkout.</Param>

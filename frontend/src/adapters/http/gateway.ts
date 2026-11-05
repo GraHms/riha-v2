@@ -71,7 +71,7 @@ export function httpGateway(t = new Transport()): Gateway {
       pay: (id, input) => post<CheckoutSession>(`/public/checkout/${encodeURIComponent(id)}/pay`, input),
       link: (m, s) => get<PublicLink>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}`),
       openLink: (m, s, amount, channel) => post<{ id: string }>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}/sessions`, { amount, channel }),
-      pricing: () => get<{ default_fee_bps: number }>('/public/pricing'),
+      pricing: () => get<{ default_fee_bps: number; coming_soon?: string[] | null }>('/public/pricing'),
     },
     subscriptions: {
       overview: () => get('/subscriptions/overview'),

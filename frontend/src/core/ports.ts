@@ -65,7 +65,7 @@ export interface CheckoutPort {
   pay(id: string, input: Json): Promise<CheckoutSession>
   link(merchant: string, slug: string): Promise<PublicLink>
   openLink(merchant: string, slug: string, amount: number, channel: string): Promise<{ id: string }>
-  pricing(): Promise<{ default_fee_bps: number }>
+  pricing(): Promise<{ default_fee_bps: number; coming_soon?: string[] | null }>
 }
 
 export interface AdminPort {

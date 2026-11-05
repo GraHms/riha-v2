@@ -57,7 +57,8 @@ export function initials(name: string) {
   return (parts.slice(0, 2).map(w => w[0]).join('') || name.slice(0, 1)).toUpperCase()
 }
 
-export const METHOD_NAME: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', card: 'Cartão' }
+export const METHOD_NAME: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', bim: 'bim', card: 'Cartão' }
+export const METHOD_SUB: Record<string, string> = { mpesa: 'Vodacom · 84, 85', emola: 'Movitel · 86, 87', bim: 'Millennium bim', card: 'Visa, Mastercard' }
 
 export function methodLine(p: { method: string; phone_prefix?: string; phone_last4?: string; card_brand?: string; card_last4?: string }) {
   if (p.method === 'card') return `${p.card_brand || 'Cartão'} · •• ${p.card_last4 || ''}`

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"riha/internal/adapters/httpapi"
+	"riha/internal/adapters/rails"
 	"riha/internal/core/app"
 	"riha/internal/core/domain"
 )
@@ -329,8 +330,8 @@ func (r *answerRail) Initiate(_ context.Context, q domain.ChargeRequest, _ func(
 	return domain.ChargeResult{Async: true, Last4: "4567"}, nil
 }
 
-func (r *answerRail) Query(_ context.Context, ref string) (domain.Outcome, bool, error) {
-	r.queries = append(r.queries, ref)
+func (r *answerRail) Query(_ context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
+	r.queries = append(r.queries, q.Reference)
 	return r.outcome, r.known, r.err
 }
 
@@ -338,8 +339,10 @@ func TestRealMoneyRules(t *testing.T) {
 	a, ctx := setup(t)
 	m := approved(t, a, ctx, "Loja", "loja@sol.co.mz")
 	rail := &answerRail{}
-	a.Rail = rail
-	a.ComingSoon = []string{domain.MethodEmola, domain.MethodCard}
+	sim := rails.NewMock(0)
+	sim.After = func(time.Duration, func()) {}
+	a.Rail = rails.Modes{Test: sim, Live: rail}
+	a.ComingSoon = []string{domain.MethodEmola, domain.MethodBim, domain.MethodCard}
 	a.NoLiveRefunds = true
 	now := a.Now
 	at := func(d time.Duration) { a.Now = func() time.Time { return now().Add(d) } }
