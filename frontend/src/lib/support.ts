@@ -1,2 +1,2 @@
-export const SUPPORT_PHONE = '+258 84 825 5237'
-export const SUPPORT_TEL = 'tel:+258848255237'
+export const SUPPORT_EMAIL = 'support@rihagateway.com'
+export const SUPPORT_MAILTO = 'mailto:support@rihagateway.com'

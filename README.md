@@ -286,7 +286,7 @@ mtoca passes payments on to Millennium bim's OpenPaymentBroker, and only answers
 
 ```bash
 cd backend
-go run ./cmd/mtoca-check -phone 258848255237 -amount 10.00
+go run ./cmd/mtoca-check -phone 258841234567 -amount 10.00
 go run ./cmd/mtoca-check -status-only -op 123456789012 -nep <vendorTransactionId_NEP>
 ```
 

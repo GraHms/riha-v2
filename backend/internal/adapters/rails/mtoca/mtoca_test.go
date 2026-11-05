@@ -101,7 +101,7 @@ type run struct {
 func charge(t *testing.T, c *Client) (domain.ChargeResult, run) {
 	t.Helper()
 	r := run{done: make(chan domain.Outcome, 1), ids: make(chan string, 1)}
-	res, err := c.Initiate(context.Background(), domain.ChargeRequest{PaymentID: "pay_1", Reference: "123456789012", Description: "Propina de novembro", Method: "mpesa", Amount: 10050, Phone: "84 825 5237", OnRailID: func(id string) { r.ids <- id }}, func(o domain.Outcome) { r.done <- o })
+	res, err := c.Initiate(context.Background(), domain.ChargeRequest{PaymentID: "pay_1", Reference: "123456789012", Description: "Propina de novembro", Method: "mpesa", Amount: 10050, Phone: "84 123 4567", OnRailID: func(id string) { r.ids <- id }}, func(o domain.Outcome) { r.done <- o })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func wait(t *testing.T, done chan domain.Outcome) domain.Outcome {
 func TestPaidAfterPolling(t *testing.T) {
 	f := &fake{reply: map[string]any{"paymentStatus": ""}}
 	res, r := charge(t, client(t, f))
-	if !res.Async || res.Last4 != "5237" {
+	if !res.Async || res.Last4 != "4567" {
 		t.Fatalf("result %+v", res)
 	}
 	if id := <-r.ids; id != nep {
@@ -138,7 +138,7 @@ func TestPaidAfterPolling(t *testing.T) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	cr := f.creates[0]
-	if cr["operationNumber"] != "123456789012" || cr["channel"] != "MPESA" || cr["amount"] != 100.5 || cr["phoneNumber"] != "258848255237" || cr["description"] != "Propina de novembro" {
+	if cr["operationNumber"] != "123456789012" || cr["channel"] != "MPESA" || cr["amount"] != 100.5 || cr["phoneNumber"] != "258841234567" || cr["description"] != "Propina de novembro" {
 		t.Fatalf("create body %v", cr)
 	}
 }

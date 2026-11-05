@@ -17,7 +17,7 @@ import (
 
 func main() {
 	base := flag.String("url", "https://api.payments.dev.mtoca.net", "API base URL")
-	phone := flag.String("phone", "", "payer number, for example 258848255237")
+	phone := flag.String("phone", "", "payer number, for example 258841234567")
 	amount := flag.String("amount", "10.00", "amount in MT, for example 10.00")
 	channel := flag.String("channel", "BIM", "mtoca channel")
 	desc := flag.String("desc", "RIHA teste de integracao", "description")
@@ -35,7 +35,7 @@ func main() {
 	}
 	digits := domain.NormalizeMZPhone(*phone)
 	if len(digits) != 9 && !*statusOnly {
-		fail("use -phone with a Mozambican number, for example 258848255237")
+		fail("use -phone with a Mozambican number, for example 258841234567")
 	}
 	if *op == "" {
 		if *statusOnly {

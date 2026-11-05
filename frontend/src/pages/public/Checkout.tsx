@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { SUPPORT_PHONE, SUPPORT_TEL } from '../../lib/support'
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../../lib/support'
 import { useParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
@@ -402,7 +402,7 @@ export default function Checkout() {
               <h1 className="display" style={{ margin: '14px 0 0', fontSize: 28 }}>{prompt.title}</h1>
               <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: 'var(--muted)', maxWidth: 320 }}>{prompt.steps(<b style={{ color: 'var(--ink)' }}>{waitingPhone}</b>)}</p>
               {noAnswer ? (
-                <div role="alert" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>Ainda não temos resposta. Se o dinheiro saiu da sua conta, não pague outra vez: ligue para <a href={SUPPORT_TEL} style={{ color: 'inherit', fontWeight: 700 }}>{SUPPORT_PHONE}</a>{waitingRef || attemptRef.current ? <> com o código abaixo</> : null}.</div>
+                <div role="alert" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>Ainda não temos resposta. Se o dinheiro saiu da sua conta, não pague outra vez: escreva para <a href={SUPPORT_MAILTO} style={{ color: 'inherit', fontWeight: 700 }}>{SUPPORT_EMAIL}</a>{waitingRef || attemptRef.current ? <> com o código abaixo</> : null}.</div>
               ) : conn === 'down' ? (
                 <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}><b>Sem contacto com o servidor.</b> O resultado pode já existir. Não precisa de fazer nada: continuamos a tentar e mostramos assim que o telemóvel voltar a ter internet.</div>
               ) : conn === 'trying' ? (
@@ -458,7 +458,7 @@ function Secure({ dark }: { dark?: boolean }) {
       Pagamento seguro por<img src={dark ? '/assets/riha-icon-light.png' : '/assets/riha-icon-dark.png'} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />
       <span style={{ fontFamily: 'var(--display)', fontWeight: 800, letterSpacing: '.18em', color: dark ? '#fff' : 'var(--ink)' }}>RIHA</span>
     </div>
-    <div style={{ marginTop: 6, textAlign: dark ? 'left' : 'center', fontSize: 12.5, color: dark ? '#93A09A' : 'var(--muted)' }}>Precisa de ajuda? <a href={SUPPORT_TEL} style={{ color: 'inherit', fontWeight: 600 }}>{SUPPORT_PHONE}</a></div>
+    <div style={{ marginTop: 6, textAlign: dark ? 'left' : 'center', fontSize: 12.5, color: dark ? '#93A09A' : 'var(--muted)' }}>Precisa de ajuda? <a href={SUPPORT_MAILTO} style={{ color: 'inherit', fontWeight: 600 }}>{SUPPORT_EMAIL}</a></div>
     </>
   )
 }

@@ -75,7 +75,7 @@ func TestMtocaRecoveredBySweep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := a.Pay(ctx, cs.ID, app.PayInput{Method: "mpesa", Phone: "848255237"})
+	p, err := a.Pay(ctx, cs.ID, app.PayInput{Method: "mpesa", Phone: "841234567"})
 	if err != nil {
 		t.Fatal(err)
 	}

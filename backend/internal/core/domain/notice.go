@@ -56,7 +56,7 @@ type Notice struct {
 }
 
 const footerLine = "RIHA · Maputo, Moçambique"
-const footerAuto = "Este é um email automático. Para ajuda, ligue para +258 84 825 5237."
+const footerAuto = "Este é um email automático. Para ajuda, escreva para support@rihagateway.com."
 
 var maputoTime = time.FixedZone("CAT", 2*3600)
 

@@ -30,7 +30,7 @@ func TestNoticeRefusesScriptLinks(t *testing.T) {
 
 func TestEmailsSayWhereToGetHelp(t *testing.T) {
 	e := Notice{Title: "x"}.Email()
-	if !strings.Contains(e.Text, "+258 84 825 5237") || !strings.Contains(e.HTML, "258 84 825 5237") {
+	if !strings.Contains(e.Text, "support@rihagateway.com") || !strings.Contains(e.HTML, "support@rihagateway.com") {
 		t.Fatalf("%s", e.Text)
 	}
 }
