@@ -735,7 +735,7 @@ var reservedSlugs = map[string]bool{"www": true, "pay": true, "api": true, "app"
 	"email": true, "smtp": true, "imap": true, "pop": true, "webmail": true, "ftp": true, "status": true, "help": true, "ajuda": true, "suporte": true,
 	"support": true, "blog": true, "cdn": true, "static": true, "assets": true, "media": true, "img": true, "dev": true, "test": true, "teste": true,
 	"staging": true, "sandbox": true, "riha": true, "rihagateway": true, "checkout": true, "pagar": true, "pagamentos": true, "secure": true,
-	"seguro": true, "login": true, "entrar": true, "conta": true, "contas": true, "registo": true, "ns1": true, "ns2": true, "mx": true, "m": true, "og": true}
+	"seguro": true, "login": true, "entrar": true, "conta": true, "contas": true, "registo": true, "ns1": true, "ns2": true, "mx": true, "m": true, "og": true, "tickets": true, "bilhetes": true}
 
 func ReservedSlug(s string) bool { return reservedSlugs[s] }
 

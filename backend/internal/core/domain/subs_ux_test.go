@@ -72,7 +72,7 @@ func TestAgreementNamesTheDay(t *testing.T) {
 }
 
 func TestCatalogSlug(t *testing.T) {
-	for in, ok := range map[string]bool{"escola-primavera": true, "ab": false, "Escola": true, "pay": false, "www": false, "-x-y": false, "a--b": false, "çafé": false, "x1y": true} {
+	for in, ok := range map[string]bool{"escola-primavera": true, "ab": false, "Escola": true, "pay": false, "www": false, "tickets": false, "-x-y": false, "a--b": false, "çafé": false, "x1y": true} {
 		_, err := CleanCatalogSlug(in)
 		if (err == nil) != ok {
 			t.Errorf("%q: %v", in, err)

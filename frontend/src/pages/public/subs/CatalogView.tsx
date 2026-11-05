@@ -10,7 +10,7 @@ export type Page = { title?: string; description?: string; cover_url?: string; a
 export type Merchant = { name: string; initials: string; color?: string }
 export type CustomerPlan = {
   id: string; name: string; amount: number; interval: string; highlights?: string[]; when_text?: string; duration_label?: string
-  months_off?: string; dates?: { label: string; period: string }[]; first_today?: boolean; first_period?: string
+  months_off?: string; fields?: string[]; dates?: { label: string; period: string }[]; first_today?: boolean; first_period?: string
 }
 
 export const per = (i: string) => (i === 'week' ? 'semana' : i === 'quarter' ? 'trimestre' : i === 'year' ? 'ano' : 'mês')

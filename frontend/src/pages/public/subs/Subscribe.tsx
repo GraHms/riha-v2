@@ -49,10 +49,10 @@ export function CatalogPage({ catalog }: { catalog?: string }) {
   )
 }
 
-function SubscribeForm({ merchantSlug, merchant, page, plans, test, onBack }: { merchantSlug: string; merchant: any; page?: any; plans: CustomerPlan[] & any[]; test: boolean; onBack?: () => void }) {
+function SubscribeForm({ merchantSlug, merchant, page, plans, test, onBack }: { merchantSlug: string; merchant: any; page?: any; plans: CustomerPlan[]; test: boolean; onBack?: () => void }) {
   const g = useGateway()
   const nav = useNavigate()
-  const fields = useMemo(() => { const s: string[] = []; plans.forEach(p => p.fields.forEach((f: string) => !s.includes(f) && s.push(f))); return s }, [plans])
+  const fields = useMemo(() => { const s: string[] = []; plans.forEach(p => (p.fields || []).forEach((f: string) => !s.includes(f) && s.push(f))); return s }, [plans])
   const [vals, setVals] = useState<Record<string, string>>({})
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
