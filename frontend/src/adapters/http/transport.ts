@@ -18,7 +18,7 @@ export class Transport {
   onUnauthorized = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn) } }
   url = (path: string) => this.base + path
 
-  async request<T>(path: string, opts: { method?: string; body?: unknown; form?: FormData; timeoutMs?: number } = {}): Promise<T> {
+  async request<T>(path: string, opts: { method?: string; body?: unknown; form?: FormData; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
     const headers: Record<string, string> = { 'X-Requested-With': 'riha', 'X-Riha-Mode': this.mode }
     let body: BodyInit | undefined
     if (opts.form) body = opts.form
@@ -28,6 +28,7 @@ export class Transport {
     // A network cut can leave a request open with no error at all, so it must end by itself.
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), opts.timeoutMs ?? (opts.form ? 120_000 : 25_000))
+    opts.signal?.addEventListener('abort', () => abort.abort())
     let res: Response
     let text: string
     try {

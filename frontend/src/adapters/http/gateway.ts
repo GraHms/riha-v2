@@ -68,7 +68,7 @@ export function httpGateway(t = new Transport()): Gateway {
     },
     checkout: {
       // A status check is small and repeats: a slow one is better given up and tried again.
-      session: id => t.request<CheckoutSession>('/public/checkout/' + encodeURIComponent(id), { timeoutMs: 8_000 }),
+      session: (id, signal) => t.request<CheckoutSession>('/public/checkout/' + encodeURIComponent(id), { timeoutMs: 8_000, signal }),
       pay: (id, input) => post<CheckoutSession>(`/public/checkout/${encodeURIComponent(id)}/pay`, input),
       link: (m, s) => get<PublicLink>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}`),
       openLink: (m, s, amount, channel) => post<{ id: string }>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}/sessions`, { amount, channel }),

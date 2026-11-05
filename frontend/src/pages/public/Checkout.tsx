@@ -83,9 +83,9 @@ export default function Checkout() {
   // Set when the answer to "pay" was lost: the payment before it, to tell them apart.
   const lostPay = useRef<{ before: string | null } | null>(null)
 
-  const refresh = async () => {
+  const refresh = async (signal?: AbortSignal) => {
     try {
-      const d = await g.checkout.session(id!)
+      const d = await g.checkout.session(id!, signal)
       setS(d)
       setConn('ok')
       setCheckedAt(new Date())
@@ -137,10 +137,14 @@ export default function Checkout() {
   useEffect(() => {
     if (view !== 'confirm') return
     let inFlight: Promise<void> | null = null
+    let current: AbortController | null = null
+    let freshAt = 0
     let failures = 0
     let nextCheck = 0
-    const run = async () => {
-      const d = await refresh()
+    const run = async (signal: AbortSignal) => {
+      const d = await refresh(signal)
+      // A check replaced by a newer one says nothing about the connection.
+      if (signal.aborted) return
       if (!d) {
         // Keep trying, but less often, for as long as the page is open.
         failures += 1
@@ -163,18 +167,37 @@ export default function Checkout() {
       if (d.status === 'complete' || d.payment.status === 'succeeded') setView('done')
       else if (d.payment.status === 'failed') { setView('pay'); setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 }) }
     }
-    const check = (force = false) => {
-      if (inFlight) return inFlight
-      if (!force && (document.hidden || Date.now() < nextCheck)) return Promise.resolve()
-      inFlight = run().finally(() => { inFlight = null })
-      return inFlight
+    const start = () => {
+      current = new AbortController()
+      const mine: Promise<void> = run(current.signal).finally(() => { if (inFlight === mine) inFlight = null })
+      inFlight = mine
+      return mine
     }
-    checkNow.current = () => { nextCheck = 0; return check(true) }
+    const check = () => {
+      if (inFlight || document.hidden || Date.now() < nextCheck) return inFlight ?? Promise.resolve()
+      return start()
+    }
+    // A check open when the phone froze the page, or when its address changed, can stay
+    // stuck on a dead connection. So coming back replaces it instead of waiting for it,
+    // even if the timer fired one a moment ago. Only the wake-up signals, which come
+    // together, count as repeats.
+    const fresh = () => {
+      if (inFlight && Date.now() - freshAt < 500) return inFlight
+      freshAt = Date.now()
+      current?.abort()
+      nextCheck = 0
+      return start()
+    }
+    checkNow.current = fresh
     const t = setInterval(() => { setTick(x => x + 1); check() }, 1500)
     // Back from entering the PIN, or back online: answer at once instead of at the next tick.
     // The browser's own "online" can be wrong, as on a phone showing LTE with no data,
     // so these only bring the next check forward: the check itself is the real test.
-    const now = () => { nextCheck = 0; check() }
+    const now = () => {
+      if (document.hidden) return
+      setManualCheck(true)
+      fresh().finally(() => setManualCheck(false))
+    }
     const offline = () => setConn('down')
     document.addEventListener('visibilitychange', now)
     window.addEventListener('online', now)
@@ -183,6 +206,7 @@ export default function Checkout() {
     window.addEventListener('offline', offline)
     return () => {
       clearInterval(t)
+      current?.abort()
       document.removeEventListener('visibilitychange', now)
       window.removeEventListener('online', now)
       window.removeEventListener('focus', now)
@@ -392,7 +416,7 @@ export default function Checkout() {
               </div>
               {waitingRef ? <RefCode label="Referência" code={waitingRef} /> : attemptRef.current ? <RefCode label="Código do pedido" code={attemptRef.current} /> : null}
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 24 }}>
-                <button className="btn btn-outline btn-block" style={{ height: 52, borderRadius: 15, fontSize: 15 }} disabled={manualCheck} onClick={checkResult}>{manualCheck ? 'A verificar…' : 'Verificar o resultado agora'}</button>
+                <button className="btn btn-outline btn-block" style={{ height: 52, borderRadius: 15, fontSize: 15 }} onClick={checkResult}>{manualCheck ? 'A verificar…' : 'Verificar o resultado agora'}</button>
                 {checkedAt && <div className="muted" style={{ fontSize: 12.5, textAlign: 'center' }}>Última resposta do servidor às {checkedAt.toLocaleTimeString('pt-PT')}</div>}
                 {s.payment?.status !== 'processing' && <button className="btn btn-ghost" onClick={() => setView('pay')}>Mudar método de pagamento</button>}
               </div>

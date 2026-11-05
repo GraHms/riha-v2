@@ -61,7 +61,7 @@ export interface DevelopersPort {
 }
 
 export interface CheckoutPort {
-  session(id: string): Promise<CheckoutSession>
+  session(id: string, signal?: AbortSignal): Promise<CheckoutSession>
   pay(id: string, input: Json): Promise<CheckoutSession>
   link(merchant: string, slug: string): Promise<PublicLink>
   openLink(merchant: string, slug: string, amount: number, channel: string): Promise<{ id: string }>
