@@ -180,9 +180,9 @@ function Received({ style }: { style: CSSProperties }) {
 }
 
 const METHODS = [
-  { name: 'M-Pesa', method: 'mpesa', sub: 'Vodacom', extra: ' · 84, 85', ico: <div className="lp-method-ico" style={{ background: '#FDE7E6', color: '#C8102E', fontSize: 18 }}>M</div> },
-  { name: 'e-Mola', method: 'emola', sub: 'Movitel', extra: ' · 86, 87', ico: <div className="lp-method-ico" style={{ background: '#FFF0D6', color: '#B45F00', fontSize: 19 }}>e</div> },
-  { name: 'bim', method: 'bim', sub: 'Millennium bim', extra: '', ico: <div className="lp-method-ico" style={{ background: '#FCE3F0', color: '#A3005C', fontSize: 19 }}>b</div> },
+  { name: 'M-Pesa', method: 'mpesa', sub: 'Vodacom', extra: ' · 84, 85', ico: <img className="lp-method-ico" src="/assets/methods/mpesa.png" alt="" /> },
+  { name: 'e-Mola', method: 'emola', sub: 'Movitel', extra: ' · 86, 87', ico: <img className="lp-method-ico" src="/assets/methods/emola.png" alt="" /> },
+  { name: 'Bim IZI', method: 'bim', sub: 'Millennium bim', extra: '', ico: <img className="lp-method-ico" src="/assets/methods/bim.png" alt="" /> },
   { name: 'Visa', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
   { name: 'Mastercard', sub: 'Em breve', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
 ]

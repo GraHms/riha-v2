@@ -4,11 +4,15 @@ import { Icon, MethodIcon, Spinner } from '../../../components/ui'
 import { useGateway } from '../../../core/gateway'
 import { errMsg } from '../../../core/model'
 import { METHOD_NAME } from '../../../lib/format'
+import { walletPrompt } from '../../../lib/walletPrompt'
 import { money, MonthStrip } from '../../app/subs/common'
 import { Center, MerchantHead, PayFrame } from './PayFrame'
 
 const WALLET_TIMEOUT = 180
 const cents = (c: number) => money(c) + ',' + String(Math.abs(c) % 100).padStart(2, '0')
+
+// The invoice's payment names its method for display, as in M-Pesa.
+const walletKey = (name: string) => Object.keys(METHOD_NAME).find(k => k === name || METHOD_NAME[k] === name) ?? name
 
 export default function Invoice() {
   const { token } = useParams()
@@ -110,7 +114,7 @@ export default function Invoice() {
     } finally { setBusy(false) }
   }
 
-  if (view === 'checking') return <PayFrame test={d.test_mode}><Center><Spinner dark /><p className="muted" style={{ marginTop: 14 }}>Se recebeu um pedido M-Pesa, responda no telemóvel. Estamos a confirmar.</p></Center></PayFrame>
+  if (view === 'checking') return <PayFrame test={d.test_mode}><Center><Spinner dark /><p className="muted" style={{ marginTop: 14 }}>Se recebeu um pedido no telemóvel, responda ao pedido. Estamos a confirmar.</p></Center></PayFrame>
 
   if (view === 'confirm' && d.payment) {
     const elapsed = start.current ? Math.floor((Date.now() - start.current) / 1000) : 0
@@ -120,11 +124,10 @@ export default function Invoice() {
       <PayFrame test={d.test_mode}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 40 }}>
           <div style={{ width: 210, padding: 16, borderRadius: 16, background: '#2B2F2D', color: '#fff', textAlign: 'left', boxShadow: '0 24px 40px -18px rgba(0,0,0,.6)' }}>
-            <div style={{ fontSize: 12, lineHeight: 1.5, color: '#E6E9E7' }}>{d.payment.method}: Confirma o pagamento de <b>{cents(d.payment.amount)} MT</b> a {d.merchant.name}? Introduza o PIN:</div>
-            <div style={{ height: 30, marginTop: 10, borderBottom: '1.5px solid var(--lime)', fontSize: 16, letterSpacing: '.4em', display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>••••</div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: '#E6E9E7' }}>{walletPrompt(walletKey(d.payment.method)).screen(cents(d.payment.amount))}</div>
           </div>
-          <h1 className="display" style={{ margin: '26px 0 0', fontSize: 26 }}>Confirme no seu telemóvel</h1>
-          <p style={{ margin: '8px 0 0', fontSize: 15, color: 'var(--muted)', lineHeight: 1.5 }}>Introduza o PIN {d.payment.method} para concluir.</p>
+          <h1 className="display" style={{ margin: '26px 0 0', fontSize: 26 }}>{walletPrompt(walletKey(d.payment.method)).title}</h1>
+          <p style={{ margin: '8px 0 0', fontSize: 15, color: 'var(--muted)', lineHeight: 1.5 }}>{walletPrompt(walletKey(d.payment.method)).steps(<b>o seu número</b>)}</p>
           <div className="card" style={{ width: '100%', marginTop: 22, padding: 16, textAlign: 'left' }}>
             <div className="between" style={{ fontSize: 13.5 }}><span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sun)' }} />A aguardar confirmação</span><span className="mono muted">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span></div>
             <div style={{ height: 6, borderRadius: 3, background: '#EEECE5', marginTop: 12, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (elapsed / WALLET_TIMEOUT) * 100)}%`, height: '100%', background: 'var(--green)', transition: 'width 1s linear' }} /></div>
@@ -229,7 +232,7 @@ export default function Invoice() {
           </div>}
         </div>
       )}
-      {method !== 'card' && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 8 }}>Vai receber um pedido no telemóvel para confirmar com o seu PIN.</div>}
+      {method !== 'card' && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 8 }}>{walletPrompt(method).before}</div>}
       {d.needs_consent && (
         <label style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: 14, borderRadius: 16, background: '#fff', border: '1px solid var(--line)', marginTop: 14, cursor: 'pointer' }}>
           <input type="checkbox" checked={accept} onChange={e => setAccept(e.target.checked)} style={{ width: 20, height: 20, marginTop: 2, accentColor: 'var(--green)', flex: 'none' }} />

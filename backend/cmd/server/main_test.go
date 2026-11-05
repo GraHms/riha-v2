@@ -175,7 +175,8 @@ func TestProductionRefusesMixedUpSettings(t *testing.T) {
 			c.MtocaLiveURL, c.MtocaTestURL = "https://api.payments.dev.mtoca.net", "https://other.dev.mtoca.net"
 		},
 		"live not https":   func(c *config.Config) { c.MtocaLiveURL = "http://api.payments.mtoca.net" },
-		"test on real api": func(c *config.Config) { c.MtocaTestURL = "https://other.mtoca.net" },
+		"test on real api": func(c *config.Config) { c.MtocaTestURL = "https://api.payments.mtoca.net/test" },
+		"public http":      func(c *config.Config) { c.MtocaLiveURL = "http://1.1.1.1:8080" },
 	}
 	for name, change := range cases {
 		cfg := base(t)
@@ -194,5 +195,11 @@ func TestProductionRefusesMixedUpSettings(t *testing.T) {
 	cfg.MtocaEnabled = true
 	if _, err := paymentRail(cfg); err != nil {
 		t.Errorf("the real addresses must start: %v", err)
+	}
+	for _, live := range []string{"http://mtoca:8080", "http://172.30.5.2:8080"} {
+		cfg.MtocaLiveURL, cfg.MtocaTestURL = live, "http://mtoca-dev:8080"
+		if _, err := paymentRail(cfg); err != nil {
+			t.Errorf("%s is private and must start: %v", live, err)
+		}
 	}
 }

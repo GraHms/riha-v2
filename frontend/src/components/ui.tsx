@@ -1,4 +1,5 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { METHOD_NAME } from '../lib/format'
 import { QRCodeSVG } from 'qrcode.react'
 
 const P: Record<string, ReactNode> = {
@@ -82,9 +83,7 @@ export function Stripes({ top = -40, right = 0, w = 44, h = 320, gap = 12, fade 
 
 export function MethodIcon({ method, size = 36, radius = 11 }: { method: string; size?: number; radius?: number }) {
   const s: CSSProperties = { width: size, height: size, borderRadius: radius, fontSize: Math.round(size * 0.4) }
-  if (method === 'mpesa') return <span className="method-ico" style={{ ...s, background: 'var(--mpesa-bg)', color: 'var(--mpesa)' }}>M</span>
-  if (method === 'emola') return <span className="method-ico" style={{ ...s, background: 'var(--emola-bg)', color: 'var(--emola)', fontSize: Math.round(size * 0.44) }}>e</span>
-  if (method === 'bim') return <span className="method-ico" style={{ ...s, background: 'var(--bim-bg)', color: 'var(--bim)', fontSize: Math.round(size * 0.42) }}>b</span>
+  if (method === 'mpesa' || method === 'emola' || method === 'bim') return <img className="method-ico" src={`/assets/methods/${method}.png`} alt={METHOD_NAME[method]} width={size} height={size} style={{ ...s, display: 'block', objectFit: 'cover', flex: 'none' }} />
   if (method === 'bank') return <span className="method-ico" style={{ ...s, background: 'var(--paper)', color: 'var(--ink)' }}><Icon name="bank" size={Math.round(size * 0.46)} /></span>
   return <span className="method-ico" style={{ ...s, background: 'var(--ink)', color: '#fff' }}><Icon name="card" size={Math.round(size * 0.46)} stroke={2} /></span>
 }

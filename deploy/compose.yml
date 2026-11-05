@@ -21,7 +21,7 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     stop_grace_period: 30s
-    networks: [private, apps]
+    networks: [private, apps, mtoca]
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "5" }
@@ -35,4 +35,8 @@ networks:
       config:
         - subnet: 172.30.2.0/24
   apps:
+    external: true
+  # mtoca has no login, so only RIHA shares a network with it.
+  mtoca:
+    name: mtoca_private
     external: true

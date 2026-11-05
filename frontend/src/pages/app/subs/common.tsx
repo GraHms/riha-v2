@@ -34,7 +34,7 @@ export const PLAN_STATUS: Record<string, { t: string; bg: string; fg: string }> 
 }
 
 export const OUTSIDE_METHODS: [string, string][] = [['cash', 'Dinheiro'], ['transfer', 'Transferência'], ['deposit', 'Depósito'], ['other', 'Outro']]
-export const VIA: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', bim: 'bim', card: 'Cartão', outside: 'Fora da RIHA' }
+export const VIA: Record<string, string> = { mpesa: 'M-Pesa', emola: 'e-Mola', bim: 'Bim IZI', card: 'Cartão', outside: 'Fora da RIHA' }
 export const CHANNEL: Record<string, string> = { sms: 'SMS', whatsapp: 'WhatsApp', email: 'Email' }
 
 export function StatusPill({ map, s, style }: { map: Record<string, { t: string; bg: string; fg: string }>; s: string; style?: CSSProperties }) {

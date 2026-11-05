@@ -17,8 +17,8 @@ import (
 
 const nep = "8d2e0220af6b4c1d918e2868746e7560"
 
-// fake answers as mtoca's production API did on 2026-11-05: 201s, the id on create,
-// "+258" refused, and any status field beyond the two it takes refused.
+// fake answers as mtoca does: 201s, the id on create, "+258" refused, and any status
+// field beyond the two it takes refused. The id is optional on status.
 type fake struct {
 	mu       sync.Mutex
 	creates  []map[string]any
@@ -29,6 +29,7 @@ type fake struct {
 	message  string
 	noID     bool
 	hang     time.Duration
+	unknown  bool
 }
 
 func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -62,8 +63,12 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(out)
 	case "/api/payments/status":
 		f.statuses = append(f.statuses, b)
-		if len(b) != 2 || b["transactionID_NEP"] == nil || b["operationNumber"] == nil {
+		if b["operationNumber"] == nil || len(b) > 2 || (len(b) == 2 && b["transactionID_NEP"] == nil) {
 			fail(400, "invalid or missing field")
+			return
+		}
+		if f.unknown {
+			fail(404, "not found")
 			return
 		}
 		if f.status != 0 {
@@ -159,7 +164,11 @@ func TestStatusCodes(t *testing.T) {
 	}{
 		{map[string]any{"paymentStatus": "R", "rejectionReason": "01"}, false, domain.FailCustomerTimeout},
 		{map[string]any{"paymentStatus": "R", "rejectionReason": "02"}, false, domain.FailRejected},
-		{map[string]any{"paymentStatus": "R", "rejectionReason": "99"}, false, domain.FailRejected},
+		{map[string]any{"paymentStatus": "R", "rejectionReason": "98"}, false, domain.FailRejected},
+		{map[string]any{"paymentStatus": "R", "rejectionReason": "03"}, false, domain.FailNotCompleted},
+		{map[string]any{"paymentStatus": "R", "rejectionReason": "99"}, false, domain.FailOperatorUnavailable},
+		// The full answer real bim gave for an M-Pesa prompt that wasn't confirmed.
+		{map[string]any{"amount": 1.0, "brokerStatus": "OK", "cancelationStatus": "", "errorCode": "", "errorMessage": "", "operationNumber": "463874452715", "paymentStatus": "R", "paymentTimestamp": "", "paymentType": "M", "rejectionReason": "03", "rejectionTimestamp": "2026-11-05T08:47:03Z", "transactionID_NEP": "75a00ea625234f09b54a7db88fd22647"}, false, domain.FailNotCompleted},
 		{map[string]any{"paymentStatus": "C", "cancelationStatus": "S"}, false, domain.FailCanceled},
 		{map[string]any{"paymentStatus": "P", "transactionID_NEP": nep}, true, ""},
 	}
@@ -188,8 +197,6 @@ func TestRefusedCreate(t *testing.T) {
 	}{
 		{400, "invalid field", domain.FailRejected},
 		{409, "Saldo insuficiente", domain.FailRejected},
-		{409, "EOF", domain.FailOperatorUnavailable},
-		{409, `Post "https://x": context deadline exceeded`, domain.FailOperatorUnavailable},
 		{401, "no", domain.FailOperatorUnavailable},
 		{429, "slow", domain.FailOperatorUnavailable},
 	}
@@ -204,29 +211,45 @@ func TestRefusedCreate(t *testing.T) {
 	}
 }
 
-// With no answer there is no id to ask with: the outcome is left for the sweep to close.
-func TestLostAnswerIsNotCalledAFailure(t *testing.T) {
-	for name, f := range map[string]*fake{"5xx": {create: 503, message: "bad gateway"}, "timeout": {hang: 400 * time.Millisecond}, "no id": {noID: true}} {
+// A lost answer is never a failure: mtoca still knows, by the operation number.
+func TestLostAnswerIsFoundByOperationNumber(t *testing.T) {
+	cases := map[string]func() *fake{
+		"5xx":     func() *fake { return &fake{create: 502, message: "bad gateway"} },
+		"timeout": func() *fake { return &fake{hang: 400 * time.Millisecond} },
+		"no id":   func() *fake { return &fake{noID: true} },
+	}
+	for name, make := range cases {
+		f := make()
+		f.reply = map[string]any{"paymentStatus": "N"}
 		_, r := charge(t, client(t, f))
 		select {
 		case o := <-r.done:
 			t.Fatalf("%s: the customer may have paid, so it must not end here: %+v", name, o)
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(250 * time.Millisecond):
 		}
 		f.mu.Lock()
-		if len(f.statuses) != 0 {
-			t.Fatalf("%s: no id to ask with: %v", name, f.statuses)
+		if len(f.statuses) == 0 || f.statuses[0]["transactionID_NEP"] != nil || f.statuses[0]["operationNumber"] != "123456789012" {
+			t.Fatalf("%s: must ask by operation number: %v", name, f.statuses)
 		}
 		f.mu.Unlock()
+		f = make()
+		f.reply = map[string]any{"paymentStatus": "P"}
+		_, r = charge(t, client(t, f))
+		if o := wait(t, r.done); !o.Success || o.OperatorReference != "123456789012" {
+			t.Fatalf("%s: the payment must be credited: %+v", name, o)
+		}
 	}
 }
 
 func TestQuery(t *testing.T) {
 	f := &fake{reply: map[string]any{}}
 	c := client(t, f)
+	f.unknown = true
 	if _, known, err := c.Query(context.Background(), domain.StatusQuery{Reference: "1", Method: "mpesa"}); known || err != nil {
-		t.Fatalf("no id reads as no record: %v %v", known, err)
+		t.Fatalf("only a 404 reads as no record: %v %v", known, err)
 	}
+	f.unknown = false
+	f.statuses = nil
 	q := domain.StatusQuery{Reference: "999", RailID: nep, Method: "mpesa"}
 	for i := 0; i < 2; i++ {
 		// Pending must not read as "no record", which closes the payment after 5 minutes.
@@ -237,9 +260,22 @@ func TestQuery(t *testing.T) {
 	if len(f.statuses) != 1 {
 		t.Fatalf("second check within 30 s must not hit the api, got %d calls", len(f.statuses))
 	}
+	if _, _, err := c.Query(context.Background(), domain.StatusQuery{Reference: "999", RailID: nep, Method: "mpesa", Urgent: true}); !errors.Is(err, ports.ErrStillPending) {
+		t.Fatalf("urgent: %v", err)
+	}
+	time.Sleep(2100 * time.Millisecond)
+	before := len(f.statuses)
+	_, _, _ = c.Query(context.Background(), domain.StatusQuery{Reference: "999", RailID: nep, Method: "mpesa", Urgent: true})
+	if len(f.statuses) != before+1 {
+		t.Fatal("a callback must get an answer straight away")
+	}
 	f.status = 409
 	if _, known, err := c.Query(context.Background(), domain.StatusQuery{Reference: "998", RailID: nep, Method: "mpesa"}); known || err == nil || errors.Is(err, ports.ErrStillPending) {
 		t.Fatalf("a failed check is an error: %v %v", known, err)
+	}
+	f.status = 502
+	if _, known, err := c.Query(context.Background(), domain.StatusQuery{Reference: "997", RailID: nep, Method: "mpesa"}); known || !errors.Is(err, ports.ErrStillPending) {
+		t.Fatalf("a 5xx means nobody knows yet: %v %v", known, err)
 	}
 }
 

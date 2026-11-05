@@ -72,10 +72,11 @@ type createBody struct {
 	Description     string          `json:"description"`
 }
 
-// statusBody is all the status call takes: it refuses any other field.
+// statusBody is all the status call takes: it refuses any other field. Without the
+// id, mtoca answers from what the create call left behind.
 type statusBody struct {
 	OperationNumber string `json:"operationNumber"`
-	TransactionID   string `json:"transactionID_NEP"`
+	TransactionID   string `json:"transactionID_NEP,omitempty"`
 }
 
 func amount(c int64) json.RawMessage { return json.RawMessage(fmt.Sprintf("%d.%02d", c/100, c%100)) }
@@ -175,6 +176,10 @@ func sub(m map[string]any, k string) map[string]any {
 var rejectionFailures = map[string]string{
 	"01": domain.FailCustomerTimeout,
 	"02": domain.FailRejected,
+	// Bim doesn't say what this means. It came for a cancelled prompt, an ignored one
+	// and one without enough balance, so nothing more specific would be true.
+	"03": domain.FailNotCompleted,
+	"99": domain.FailOperatorUnavailable,
 }
 
 func Interpret(m map[string]any) (domain.Outcome, bool) {
@@ -221,46 +226,30 @@ func (c *Client) create(b createBody, req domain.ChargeRequest, onComplete func(
 	case errors.As(err, &he) && he.Status < 500:
 		code := failureFor(he)
 		log.Printf("mtoca create op=%s refused, read as %s: %v", b.OperationNumber, code, err)
-		if code == domain.FailOperatorUnavailable {
-			log.Printf("mtoca create op=%s may have reached the operator, CHECK BY HAND whether the customer paid", b.OperationNumber)
-		}
 		onComplete(domain.Outcome{FailureCode: code})
 		return
 	case err != nil:
-		// With no id the status call can't be asked, so the sweep closes this one.
-		log.Printf("mtoca create op=%s lost its answer, CHECK BY HAND whether the customer paid: %v", b.OperationNumber, err)
+		// mtoca keeps the outcome, so the operation number is enough to find it.
+		log.Printf("mtoca create op=%s lost its answer, asking by operation number: %v", b.OperationNumber, err)
+		c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, Method: req.Method}, onComplete)
 		return
 	}
 	id := field(m, "vendorTransactionId_NEP", "transactionID_NEP")
-	if id == "" {
-		log.Printf("mtoca create op=%s answered with no transaction id, CHECK BY HAND whether the customer paid", b.OperationNumber)
-		return
-	}
-	if req.OnRailID != nil {
+	if id != "" && req.OnRailID != nil {
 		req.OnRailID(id)
 	}
 	c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, RailID: id, Method: req.Method}, onComplete)
 }
 
-// failureFor reads a create call that mtoca refused. mtoca answers 409 to bim's
-// refusals and to its own lost connections alike, and only the message tells them apart.
+// failureFor reads a create call that mtoca refused. mtoca answers 409 only when bim
+// said no, and a 5xx, which doesn't get here, when nobody knows.
 func failureFor(he *HTTPError) string {
 	switch he.Status {
-	case http.StatusBadRequest, http.StatusUnprocessableEntity:
-		return domain.FailRejected
-	case http.StatusConflict:
-		var body struct {
-			Message string `json:"message"`
-		}
-		if json.Unmarshal([]byte(he.Body), &body) != nil || lost.MatchString(body.Message) {
-			return domain.FailOperatorUnavailable
-		}
+	case http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusConflict:
 		return domain.FailRejected
 	}
 	return domain.FailOperatorUnavailable
 }
-
-var lost = regexp.MustCompile(`(?i)\bEOF\b|timeout|deadline|connection|no such host|invalid character|\btls\b|broken pipe`)
 
 func (c *Client) poll(q domain.StatusQuery, onComplete func(domain.Outcome)) {
 	deadline := time.Now().Add(c.cfg.PollFor)
@@ -287,11 +276,9 @@ func (c *Client) query(ctx context.Context, q domain.StatusQuery) (domain.Outcom
 	if err != nil {
 		return domain.Outcome{}, false, err
 	}
-	// An empty status can mean bim doesn't know the payment or that its answer was
-	// unreadable, because mtoca reports both the same way. So it stays pending.
 	out, final := Interpret(m)
 	if final && out.Success && out.OperatorReference == "" {
-		out.OperatorReference = q.RailID
+		out.OperatorReference = domain.FirstNonEmpty(q.RailID, q.Reference)
 	}
 	return out, final, nil
 }
@@ -300,14 +287,14 @@ func (c *Client) query(ctx context.Context, q domain.StatusQuery) (domain.Outcom
 func (c *Client) NewReference(string, bool) string { return domain.OperationNumber() }
 
 // Query answers the sweep. Pending is an error, not "no record": mtoca knows the
-// payment, so the customer can still confirm it. With no id nothing can be asked,
-// because the create call is still waiting or its answer is gone.
+// payment, so the customer can still confirm it. A 404 is the only "no record".
 func (c *Client) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
-	if q.RailID == "" {
-		return domain.Outcome{}, false, nil
+	wait := 30 * time.Second
+	if q.Urgent {
+		wait = 2 * time.Second
 	}
 	c.mu.Lock()
-	if t, ok := c.seen[q.Reference]; ok && time.Since(t) < 30*time.Second {
+	if t, ok := c.seen[q.Reference]; ok && time.Since(t) < wait {
 		c.mu.Unlock()
 		return domain.Outcome{}, false, ports.ErrStillPending
 	}
@@ -317,6 +304,16 @@ func (c *Client) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcom
 	}
 	c.mu.Unlock()
 	out, final, err := c.query(ctx, q)
+	var he *HTTPError
+	if errors.As(err, &he) {
+		switch {
+		case he.Status == http.StatusNotFound:
+			return domain.Outcome{}, false, nil
+		case he.Status >= 500:
+			// mtoca can't say yet, or the create answer was lost, so nobody knows.
+			return domain.Outcome{}, false, fmt.Errorf("%w: %v", ports.ErrStillPending, err)
+		}
+	}
 	if err == nil && !final {
 		return out, false, ports.ErrStillPending
 	}

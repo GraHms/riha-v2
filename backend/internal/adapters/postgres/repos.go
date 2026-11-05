@@ -242,6 +242,9 @@ func (r Payments) ByID(ctx context.Context, id string) (*domain.Payment, error) 
 func (r Payments) Lock(ctx context.Context, id string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Clauses(forUpdate).Where("id = ?", id))
 }
+func (r Payments) ByRailReference(ctx context.Context, ref string) (*domain.Payment, error) {
+	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("rail_reference = ?", ref))
+}
 func (r Payments) ByReference(ctx context.Context, ref string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("reference = ?", ref))
 }
@@ -299,6 +302,10 @@ func (r Payments) Count(ctx context.Context, q ports.PaymentQuery) (int64, error
 	err := r.query(ctx, q).Count(&n).Error
 	return n, err
 }
+func (r Payments) RecentlyTimedOut(ctx context.Context, since time.Time, limit int) ([]domain.Payment, error) {
+	return find[paymentRecord, domain.Payment](r.conn(ctx).Where("livemode AND status = ? AND failure_code IN ? AND rail_reference <> '' AND failed_at >= ?", domain.PaymentFailed, []string{domain.FailCustomerTimeout, domain.FailNotCompleted}, since).Order("failed_at DESC").Limit(limit))
+}
+
 func (r Payments) StaleProcessing(ctx context.Context, before time.Time, limit int) ([]domain.Payment, error) {
 	return find[paymentRecord, domain.Payment](r.conn(ctx).Where("status = ? AND created_at < ?", domain.PaymentProcessing, before).Limit(limit))
 }

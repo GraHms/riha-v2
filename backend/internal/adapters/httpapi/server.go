@@ -46,6 +46,7 @@ func New(a *app.App, cfg Config) *gin.Engine {
 	r.Use(gin.Recovery(), requestID(), securityHeaders(cfg.CookieSecure), bodyLimit(), accessLog())
 	r.MaxMultipartMemory = 8 << 20
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
+	r.Any("/callbacks/bim", srv.throttle(srv.limiter, "callback"), srv.railCallback)
 	r.GET("/robots.txt", srv.robots)
 	r.GET("/sitemap.xml", srv.sitemap)
 	r.GET("/og/*rest", srv.throttle(srv.limiter, "og"), srv.ogImage)

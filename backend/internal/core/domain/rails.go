@@ -14,7 +14,7 @@ const (
 
 var AllMethods = []string{MethodMpesa, MethodEmola, MethodBim, MethodCard}
 
-var MethodNames = map[string]string{MethodMpesa: "M-Pesa", MethodEmola: "e-Mola", MethodBim: "bim", MethodCard: "Cartão"}
+var MethodNames = map[string]string{MethodMpesa: "M-Pesa", MethodEmola: "e-Mola", MethodBim: "Bim IZI", MethodCard: "Cartão"}
 
 func IsWallet(m string) bool { return m == MethodMpesa || m == MethodEmola || m == MethodBim }
 
@@ -44,6 +44,7 @@ const (
 	FailPaymentDeclined     = "payment_declined"
 	FailRejected            = "payment_rejected"
 	FailCanceled            = "payment_canceled"
+	FailNotCompleted        = "payment_not_completed"
 )
 
 var FailureMessages = map[string]string{
@@ -58,6 +59,7 @@ var FailureMessages = map[string]string{
 	FailPaymentDeclined:     "O M-Pesa recusou o pagamento. Verifique a conta e tente de novo.",
 	FailRejected:            "O pagamento foi recusado. Confirme o saldo e tente de novo.",
 	FailCanceled:            "O pagamento foi cancelado.",
+	FailNotCompleted:        "O pagamento não foi concluído. Confirme o saldo e tente de novo.",
 }
 
 type ChargeRequest struct {
@@ -97,6 +99,8 @@ type StatusQuery struct {
 	Reference string
 	RailID    string
 	Method    string
+	// Urgent is for a callback: the operator just said something changed.
+	Urgent bool
 }
 
 // OperationNumber is the reference mtoca takes: 12 digits, not starting with 0.

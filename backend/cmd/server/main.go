@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -181,14 +183,29 @@ func checkMtocaURLs(cfg config.Config) error {
 		return errors.New("RIHA_MTOCA_LIVE_URL and RIHA_MTOCA_TEST_URL must differ")
 	}
 	if cfg.Env == "production" {
-		if !strings.HasPrefix(liveURL, "https://") || strings.Contains(liveURL, ".dev.") {
-			return errors.New("RIHA_MTOCA_LIVE_URL must be mtoca's production API, over https")
+		if strings.Contains(liveURL, ".dev.") {
+			return errors.New("RIHA_MTOCA_LIVE_URL must be mtoca's production API")
 		}
-		if !strings.Contains(testURL, ".dev.") {
-			return errors.New("RIHA_MTOCA_TEST_URL must be mtoca's dev API")
+		if !strings.HasPrefix(liveURL, "https://") && !privateHost(liveURL) {
+			return errors.New("RIHA_MTOCA_LIVE_URL must use https, unless it's on a private network")
+		}
+		if strings.Contains(testURL, "api.payments.mtoca.net") {
+			return errors.New("RIHA_MTOCA_TEST_URL must not be mtoca's production API")
 		}
 	}
 	return nil
+}
+
+// privateHost is a container name on the Docker network, or a private address.
+func privateHost(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	if ip := net.ParseIP(u.Hostname()); ip != nil {
+		return ip.IsPrivate() || ip.IsLoopback()
+	}
+	return !strings.Contains(u.Hostname(), ".")
 }
 
 func mailer(cfg config.Config) ports.Mailer {

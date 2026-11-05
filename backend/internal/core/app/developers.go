@@ -241,6 +241,11 @@ const (
 	railNoRecordAfter = 5 * time.Minute
 	// After this long without any answer from the operator, stop waiting.
 	railGiveUpAfter = 30 * time.Minute
+	// After this long still pending, the customer has moved on: an error on their
+	// phone doesn't reach the status call, and they can't retry until this ends.
+	railPendingGiveUpAfter = 10 * time.Minute
+	// How long a payment closed as timed out is still asked about, in case it was paid late.
+	railLateCheckFor = 24 * time.Hour
 )
 
 // settleStale ends a payment whose answer never came. Real money only ends on what
@@ -265,9 +270,33 @@ func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 	case err != nil && age >= railGiveUpAfter:
 		log.Printf("payment %s (%s): no answer from the operator after %s, closed unconfirmed, check it by hand: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
+	case errors.Is(err, ports.ErrStillPending) && age >= railPendingGiveUpAfter:
+		log.Printf("payment %s (%s): no final answer after %s, closed as timed out, CHECK BY HAND if the customer says they paid: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
+		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case errors.Is(err, ports.ErrStillPending):
 	case err != nil:
 		log.Printf("payment %s (%s): query failed: %v", p.ID, p.RailReference, err)
+	}
+}
+
+// CheckClosedPayments looks for customers who paid after their payment was closed as
+// timed out. Crediting it could pay a merchant twice if the customer already retried,
+// so this only says so.
+func (a *App) CheckClosedPayments(ctx context.Context) {
+	rail, ok := a.Rail.(ports.RailQuery)
+	if !ok {
+		return
+	}
+	closed, err := a.Payments.RecentlyTimedOut(ctx, a.Now().Add(-railLateCheckFor), 200)
+	if err != nil {
+		log.Printf("late payments: %v", err)
+		return
+	}
+	for i := range closed {
+		p := &closed[i]
+		if o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method}); err == nil && known && o.Success {
+			log.Printf("payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND and credit or refund it", p.ID, p.RailReference, p.Amount, o.OperatorReference)
+		}
 	}
 }
 
@@ -295,6 +324,7 @@ func (a *App) RunWorkers(ctx context.Context) {
 		}
 	})
 	tick(10*time.Second, func() { a.Sweep(ctx) })
+	tick(5*time.Minute, func() { a.CheckClosedPayments(ctx) })
 	tick(15*time.Second, func() { a.BillingTick(ctx) })
 	tick(2*time.Second, func() { a.SendQueued(ctx) })
 }

@@ -25,14 +25,19 @@ export class Transport {
     else if (opts.body !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(opts.body) }
     // A phone drops requests when the page goes to the background, as when a
     // customer leaves to enter their PIN: the browser's own message means nothing to them.
+    // A network cut can leave a request open with no error at all, so it must end by itself.
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), opts.form ? 120_000 : 25_000)
     let res: Response
     let text: string
     try {
-      res = await fetch(this.base + path, { method: opts.method || (body ? 'POST' : 'GET'), headers, body, credentials: 'same-origin' })
+      res = await fetch(this.base + path, { method: opts.method || (body ? 'POST' : 'GET'), headers, body, credentials: 'same-origin', signal: abort.signal })
       text = await res.text()
     } catch {
+      clearTimeout(timer)
       throw { code: 'network_error', message: 'Sem ligação. Verifique a internet e tente de novo.', status: 0 } satisfies ApiError
     }
+    clearTimeout(timer)
     let data: unknown = null
     try { data = text ? JSON.parse(text) : null } catch { data = null }
     if (!res.ok) {
