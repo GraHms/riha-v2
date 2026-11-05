@@ -222,7 +222,7 @@ type Payment struct {
 	CardLast4         string
 	OperatorReference string
 	RailReference     string
-	PayerPhone        string
+	RailID            string
 	FailureCode       string
 	FailureMessage    string
 	CustomerName      string

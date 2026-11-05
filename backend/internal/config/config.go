@@ -48,6 +48,7 @@ type Config struct {
 	MtocaChannels        map[string]string
 	MtocaDebug           bool
 	MpesaViaMtoca        bool
+	MtocaTestOn          bool
 }
 
 func env(k, def string) string {
@@ -117,6 +118,7 @@ func Load() Config {
 		MtocaChannels:        pairs(env("RIHA_MTOCA_CHANNELS", "mpesa=MPESA,emola=EMOLA,bim=BIM")),
 		MtocaDebug:           flag("RIHA_MTOCA_DEBUG", false),
 		MpesaViaMtoca:        flag("RIHA_MPESA_VIA_MTOCA", false),
+		MtocaTestOn:          flag("RIHA_MTOCA_TEST_ON", true),
 	}
 }
 

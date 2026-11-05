@@ -23,7 +23,8 @@ func main() {
 	desc := flag.String("desc", "RIHA teste de integracao", "description")
 	op := flag.String("op", "", "operation number (default: a new random one)")
 	token := flag.String("token", os.Getenv("RIHA_MTOCA_TOKEN"), "bearer token, if the API needs one")
-	statusOnly := flag.Bool("status-only", false, "only check the status of -op")
+	statusOnly := flag.Bool("status-only", false, "only check the status of -op and -nep")
+	nep := flag.String("nep", "", "transaction id from the create call, for -status-only")
 	every := flag.Duration("every", 3*time.Second, "status polling interval")
 	wait := flag.Duration("for", 3*time.Minute, "how long to poll")
 	prd := flag.Bool("i-know-this-is-production", false, "allow the production URL")
@@ -33,7 +34,7 @@ func main() {
 		fail("refusing to call production without -i-know-this-is-production")
 	}
 	digits := domain.NormalizeMZPhone(*phone)
-	if len(digits) != 9 {
+	if len(digits) != 9 && !*statusOnly {
 		fail("use -phone with a Mozambican number, for example 258848255237")
 	}
 	if *op == "" {
@@ -43,23 +44,27 @@ func main() {
 		*op = domain.OperationNumber()
 	}
 	amt := json.RawMessage(strings.Replace(*amount, ",", ".", 1))
-	body := func(ph string) map[string]any {
-		return map[string]any{"operationNumber": *op, "channel": *channel, "amount": amt, "phoneNumber": ph, "description": *desc}
-	}
+	id := *nep
 	fmt.Printf("operationNumber: %s\n\n", *op)
 	if !*statusOnly {
-		if _, final := call(*base+"/api/payments", body("+258"+digits), *token); final {
+		m, final := call(*base+"/api/payments", map[string]any{"operationNumber": *op, "channel": *channel, "amount": amt, "phoneNumber": "258" + digits, "description": *desc}, *token)
+		if final {
 			return
 		}
+		id, _ = m["vendorTransactionId_NEP"].(string)
+		fmt.Printf("vendorTransactionId_NEP: %s\n\n", id)
 	}
+	if id == "" {
+		fail("no transaction id, so the status can't be asked. For -status-only pass -nep")
+	}
+	status := map[string]any{"operationNumber": *op, "transactionID_NEP": id}
 	deadline := time.Now().Add(*wait)
-	for time.Now().Before(deadline) {
-		time.Sleep(*every)
-		if _, final := call(*base+"/api/payments/status", body("258"+digits), *token); final || *statusOnly {
+	for {
+		if _, final := call(*base+"/api/payments/status", status, *token); final || *statusOnly || time.Now().After(deadline) {
 			return
 		}
+		time.Sleep(*every)
 	}
-	fmt.Println("no final status before the deadline; run again with -status-only -op", *op)
 }
 
 func call(url string, b map[string]any, token string) (map[string]any, bool) {
@@ -71,7 +76,7 @@ func call(url string, b map[string]any, token string) (map[string]any, bool) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	fmt.Printf("%s  POST %s\n  → %s\n", time.Now().Format("15:04:05"), url, raw)
-	res, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	res, err := (&http.Client{Timeout: 5 * time.Minute}).Do(req)
 	if err != nil {
 		fmt.Printf("  ✗ %v\n\n", err)
 		return nil, false

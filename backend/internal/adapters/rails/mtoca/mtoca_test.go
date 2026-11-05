@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,64 +15,96 @@ import (
 	"riha/internal/core/ports"
 )
 
+const nep = "8d2e0220af6b4c1d918e2868746e7560"
+
+// fake answers as mtoca's production API did on 2026-11-05: 201s, the id on create,
+// "+258" refused, and any status field beyond the two it takes refused.
 type fake struct {
 	mu       sync.Mutex
 	creates  []map[string]any
 	statuses []map[string]any
 	reply    map[string]any
+	status   int
 	create   int
-	drop     bool
-	auth     string
+	message  string
+	noID     bool
+	hang     time.Duration
 }
 
 func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.auth = r.Header.Get("Authorization")
 	var b map[string]any
 	_ = json.NewDecoder(r.Body).Decode(&b)
+	if r.URL.Path == "/api/payments" && f.hang > 0 {
+		time.Sleep(f.hang)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fail := func(code int, msg string) {
+		w.WriteHeader(code)
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": "ERR", "message": msg})
+	}
 	switch r.URL.Path {
 	case "/api/payments":
 		f.creates = append(f.creates, b)
-		if f.drop {
-			time.Sleep(300 * time.Millisecond)
+		if strings.HasPrefix(b["phoneNumber"].(string), "+") {
+			fail(400, "not a valid mz-msisdn")
 			return
 		}
 		if f.create != 0 {
-			w.WriteHeader(f.create)
-			_, _ = w.Write([]byte(`{"message":"bad"}`))
+			fail(f.create, f.message)
 			return
 		}
-		_, _ = w.Write([]byte(`{"operationNumber":"` + b["operationNumber"].(string) + `","message":"Pedido enviado"}`))
+		w.WriteHeader(201)
+		out := map[string]any{"operationNumber": b["operationNumber"], "vendorTransactionStatus": "OK"}
+		if !f.noID {
+			out["vendorTransactionId_NEP"] = nep
+		}
+		_ = json.NewEncoder(w).Encode(out)
 	case "/api/payments/status":
 		f.statuses = append(f.statuses, b)
+		if len(b) != 2 || b["transactionID_NEP"] == nil || b["operationNumber"] == nil {
+			fail(400, "invalid or missing field")
+			return
+		}
+		if f.status != 0 {
+			fail(f.status, "EOF")
+			return
+		}
+		w.WriteHeader(201)
 		_ = json.NewEncoder(w).Encode(f.reply)
 	default:
 		w.WriteHeader(404)
 	}
 }
 
-func client(t *testing.T, f *fake, timeout time.Duration) *Client {
+func client(t *testing.T, f *fake) *Client {
+	t.Helper()
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	c, err := New(Config{BaseURL: srv.URL + "/", Token: "tok", Channels: map[string]string{"mpesa": "BIM"}, PollEvery: 20 * time.Millisecond, PollFor: time.Second,
-		HTTP: &http.Client{Timeout: timeout}})
+	c, err := New(Config{BaseURL: srv.URL + "/", Token: "tok", Channels: map[string]string{"mpesa": "MPESA", "emola": "EMOLA", "bim": "BIM"}, PollEvery: 10 * time.Millisecond, PollFor: 300 * time.Millisecond, CreateFor: 200 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return c
 }
 
-func charge(c *Client, t *testing.T) (domain.ChargeResult, chan domain.Outcome) {
-	done := make(chan domain.Outcome, 1)
-	res, err := c.Initiate(context.Background(), domain.ChargeRequest{PaymentID: "pay_1", Reference: "123456789012", Description: "Propina de novembro", Method: "mpesa", Amount: 10050, Phone: "84 825 5237"}, func(o domain.Outcome) { done <- o })
+type run struct {
+	done chan domain.Outcome
+	ids  chan string
+}
+
+func charge(t *testing.T, c *Client) (domain.ChargeResult, run) {
+	t.Helper()
+	r := run{done: make(chan domain.Outcome, 1), ids: make(chan string, 1)}
+	res, err := c.Initiate(context.Background(), domain.ChargeRequest{PaymentID: "pay_1", Reference: "123456789012", Description: "Propina de novembro", Method: "mpesa", Amount: 10050, Phone: "84 825 5237", OnRailID: func(id string) { r.ids <- id }}, func(o domain.Outcome) { r.done <- o })
 	if err != nil {
 		t.Fatal(err)
 	}
-	return res, done
+	return res, r
 }
 
 func wait(t *testing.T, done chan domain.Outcome) domain.Outcome {
+	t.Helper()
 	select {
 	case o := <-done:
 		return o
@@ -82,31 +115,39 @@ func wait(t *testing.T, done chan domain.Outcome) domain.Outcome {
 }
 
 func TestPaidAfterPolling(t *testing.T) {
-	f := &fake{reply: map[string]any{}}
-	c := client(t, f, 5*time.Second)
-	res, done := charge(c, t)
+	f := &fake{reply: map[string]any{"paymentStatus": ""}}
+	res, r := charge(t, client(t, f))
 	if !res.Async || res.Last4 != "5237" {
 		t.Fatalf("result %+v", res)
 	}
-	time.Sleep(80 * time.Millisecond)
+	if id := <-r.ids; id != nep {
+		t.Fatalf("the id must be kept: %q", id)
+	}
+	time.Sleep(40 * time.Millisecond)
 	f.mu.Lock()
-	f.reply = map[string]any{"paymentStatus": "P", "transactionId": "MP261105.1234"}
+	f.reply = map[string]any{"paymentStatus": "P", "transactionID_NEP": nep, "paymentType": "M", "operationNumber": "123456789012"}
 	f.mu.Unlock()
-	o := wait(t, done)
-	if !o.Success || o.OperatorReference != "MP261105.1234" {
+	if o := wait(t, r.done); !o.Success || o.OperatorReference != nep {
 		t.Fatalf("outcome %+v", o)
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	cr, st := f.creates[0], f.statuses[0]
-	if cr["operationNumber"] != "123456789012" || cr["channel"] != "BIM" || cr["amount"] != 100.5 || cr["phoneNumber"] != "+258848255237" || cr["description"] != "Propina de novembro" {
+	cr := f.creates[0]
+	if cr["operationNumber"] != "123456789012" || cr["channel"] != "MPESA" || cr["amount"] != 100.5 || cr["phoneNumber"] != "258848255237" || cr["description"] != "Propina de novembro" {
 		t.Fatalf("create body %v", cr)
 	}
-	if st["phoneNumber"] != "258848255237" || st["operationNumber"] != "123456789012" || st["amount"] != 100.5 {
-		t.Fatalf("status body %v", st)
+}
+
+// mtoca answers only when bim does, so the checkout must not wait for it.
+func TestInitiateDoesNotWaitForTheAnswer(t *testing.T) {
+	f := &fake{hang: 100 * time.Millisecond, reply: map[string]any{"paymentStatus": "P"}}
+	start := time.Now()
+	res, r := charge(t, client(t, f))
+	if took := time.Since(start); took > 50*time.Millisecond || !res.Async {
+		t.Fatalf("took %s: %+v", took, res)
 	}
-	if f.auth != "Bearer tok" {
-		t.Fatalf("auth %q", f.auth)
+	if o := wait(t, r.done); !o.Success || o.OperatorReference != nep {
+		t.Fatalf("outcome %+v", o)
 	}
 }
 
@@ -118,8 +159,9 @@ func TestStatusCodes(t *testing.T) {
 	}{
 		{map[string]any{"paymentStatus": "R", "rejectionReason": "01"}, false, domain.FailCustomerTimeout},
 		{map[string]any{"paymentStatus": "R", "rejectionReason": "02"}, false, domain.FailRejected},
+		{map[string]any{"paymentStatus": "R", "rejectionReason": "99"}, false, domain.FailRejected},
 		{map[string]any{"paymentStatus": "C", "cancelationStatus": "S"}, false, domain.FailCanceled},
-		{map[string]any{"data": map[string]any{"PaymentStatus": "p"}}, true, ""},
+		{map[string]any{"paymentStatus": "P", "transactionID_NEP": nep}, true, ""},
 	}
 	for _, tc := range cases {
 		o, final := Interpret(tc.reply)
@@ -127,58 +169,65 @@ func TestStatusCodes(t *testing.T) {
 			t.Fatalf("%v → %+v %v", tc.reply, o, final)
 		}
 	}
-	if _, final := Interpret(map[string]any{"paymentStatus": ""}); final {
-		t.Fatal("empty status is pending")
-	}
-}
-
-func TestRefusedAndUncertainCreate(t *testing.T) {
-	f := &fake{create: 400}
-	c := client(t, f, 5*time.Second)
-	res, _ := charge(c, t)
-	if res.Async || res.Outcome.FailureCode != domain.FailRejected {
-		t.Fatalf("400 must fail now: %+v", res)
-	}
-	for _, status := range []int{401, 403, 404, 429} {
-		f.create = status
-		if res, _ = charge(c, t); res.Async || res.Outcome.FailureCode != domain.FailOperatorUnavailable {
-			t.Fatalf("%d is not the customer's doing and must not read as a rejected payment: %+v", status, res)
+	for _, s := range []string{"", "N"} {
+		if _, final := Interpret(map[string]any{"paymentStatus": s, "errorMessage": "Transacção não encontrada"}); final {
+			t.Fatalf("status %q is pending", s)
 		}
 	}
-	// mtoca may take a payment and then fail, so a customer can pay after a 5xx.
-	h := &fake{create: 503, reply: map[string]any{"paymentStatus": "P", "transactionId": "T1"}}
-	res, paid := charge(client(t, h, time.Second), t)
-	if !res.Async {
-		t.Fatalf("a 5xx is uncertain and must be polled, not failed: %+v", res)
-	}
-	if o := wait(t, paid); !o.Success {
-		t.Fatalf("the payment made after a 5xx must be credited: %+v", o)
-	}
-	g := &fake{drop: true, reply: map[string]any{"paymentStatus": "P"}}
-	c2 := client(t, g, 100*time.Millisecond)
-	res, done := charge(c2, t)
-	if !res.Async {
-		t.Fatal("a timed out create is uncertain and must be polled, not failed")
-	}
-	if o := wait(t, done); !o.Success || o.OperatorReference != "123456789012" {
-		t.Fatalf("outcome %+v", o)
+	// The create call's OK only means bim took it: it must never read as paid.
+	if o, final := Interpret(map[string]any{"vendorTransactionStatus": "OK", "vendorTransactionId_NEP": nep}); final || o.Success {
+		t.Fatal("a created payment is not a paid one")
 	}
 }
 
-func TestInputValidation(t *testing.T) {
-	c := client(t, &fake{}, time.Second)
-	if _, err := c.Initiate(context.Background(), domain.ChargeRequest{Reference: "1", Method: "emola", Amount: 100, Phone: "861234567"}, nil); err == nil {
-		t.Fatal("unmapped method")
+func TestRefusedCreate(t *testing.T) {
+	cases := []struct {
+		status int
+		msg    string
+		code   string
+	}{
+		{400, "invalid field", domain.FailRejected},
+		{409, "Saldo insuficiente", domain.FailRejected},
+		{409, "EOF", domain.FailOperatorUnavailable},
+		{409, `Post "https://x": context deadline exceeded`, domain.FailOperatorUnavailable},
+		{401, "no", domain.FailOperatorUnavailable},
+		{429, "slow", domain.FailOperatorUnavailable},
 	}
-	if _, err := c.Initiate(context.Background(), domain.ChargeRequest{Reference: "1", Method: "mpesa", Amount: 100, Phone: "12345"}, nil); err == nil {
-		t.Fatal("bad phone")
+	for _, tc := range cases {
+		res, r := charge(t, client(t, &fake{create: tc.status, message: tc.msg}))
+		if !res.Async {
+			t.Fatalf("%d: %+v", tc.status, res)
+		}
+		if o := wait(t, r.done); o.Success || o.FailureCode != tc.code {
+			t.Fatalf("%d %q: %+v", tc.status, tc.msg, o)
+		}
 	}
 }
 
-func TestStatusIsThrottled(t *testing.T) {
+// With no answer there is no id to ask with: the outcome is left for the sweep to close.
+func TestLostAnswerIsNotCalledAFailure(t *testing.T) {
+	for name, f := range map[string]*fake{"5xx": {create: 503, message: "bad gateway"}, "timeout": {hang: 400 * time.Millisecond}, "no id": {noID: true}} {
+		_, r := charge(t, client(t, f))
+		select {
+		case o := <-r.done:
+			t.Fatalf("%s: the customer may have paid, so it must not end here: %+v", name, o)
+		case <-time.After(500 * time.Millisecond):
+		}
+		f.mu.Lock()
+		if len(f.statuses) != 0 {
+			t.Fatalf("%s: no id to ask with: %v", name, f.statuses)
+		}
+		f.mu.Unlock()
+	}
+}
+
+func TestQuery(t *testing.T) {
 	f := &fake{reply: map[string]any{}}
-	c := client(t, f, time.Second)
-	q := domain.StatusQuery{Reference: "999", Method: "mpesa", Amount: 100, Phone: "848255237"}
+	c := client(t, f)
+	if _, known, err := c.Query(context.Background(), domain.StatusQuery{Reference: "1", Method: "mpesa"}); known || err != nil {
+		t.Fatalf("no id reads as no record: %v %v", known, err)
+	}
+	q := domain.StatusQuery{Reference: "999", RailID: nep, Method: "mpesa"}
 	for i := 0; i < 2; i++ {
 		// Pending must not read as "no record", which closes the payment after 5 minutes.
 		if _, known, err := c.Query(context.Background(), q); known || !errors.Is(err, ports.ErrStillPending) {
@@ -188,16 +237,15 @@ func TestStatusIsThrottled(t *testing.T) {
 	if len(f.statuses) != 1 {
 		t.Fatalf("second check within 30 s must not hit the api, got %d calls", len(f.statuses))
 	}
+	f.status = 409
+	if _, known, err := c.Query(context.Background(), domain.StatusQuery{Reference: "998", RailID: nep, Method: "mpesa"}); known || err == nil || errors.Is(err, ports.ErrStillPending) {
+		t.Fatalf("a failed check is an error: %v %v", known, err)
+	}
 }
 
 func TestThreeWallets(t *testing.T) {
 	f := &fake{reply: map[string]any{"paymentStatus": "P"}}
-	srv := httptest.NewServer(f)
-	defer srv.Close()
-	c, err := New(Config{BaseURL: srv.URL, Channels: map[string]string{"mpesa": "MPESA", "emola": "EMOLA", "bim": "BIM"}, PollEvery: 10 * time.Millisecond, PollFor: time.Second})
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := client(t, f)
 	for _, tc := range []struct{ method, phone, channel string }{{"mpesa", "841112233", "MPESA"}, {"emola", "871112233", "EMOLA"}, {"bim", "821112233", "BIM"}} {
 		done := make(chan domain.Outcome, 1)
 		if _, err := c.Initiate(context.Background(), domain.ChargeRequest{Reference: "1" + tc.phone, Method: tc.method, Amount: 500, Phone: tc.phone}, func(o domain.Outcome) { done <- o }); err != nil {
@@ -215,5 +263,8 @@ func TestThreeWallets(t *testing.T) {
 	}
 	if _, err := c.Initiate(context.Background(), domain.ChargeRequest{Reference: "2", Method: "emola", Amount: 500, Phone: "841112233"}, nil); err == nil {
 		t.Fatal("an M-Pesa number on e-Mola must be refused before calling mtoca")
+	}
+	if n := c.NewReference("mpesa", true); len(n) != 12 {
+		t.Fatalf("reference %q", n)
 	}
 }

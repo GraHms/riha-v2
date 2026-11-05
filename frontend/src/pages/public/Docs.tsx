@@ -574,7 +574,7 @@ export default function Docs() {
           <section id="teste" className="docs-sec">
             <div>
               <H2>Modo de teste</H2>
-              <P>Com uma chave <C>sk_test_</C> (ou o painel em modo de teste) os pagamentos M-Pesa são simulados, e e-Mola e bim, quando ativos, usam o ambiente de testes do nosso parceiro. Em produção, os pagamentos são reais. No M-Pesa, o resultado depende dos últimos quatro dígitos do telefone (84, 85) usado no checkout.</P>
+              <P>Com uma chave <C>sk_test_</C> (ou o painel em modo de teste) os pagamentos são simulados. Em produção, os pagamentos são reais. No M-Pesa, o resultado depende dos últimos quatro dígitos do telefone (84, 85) usado no checkout.</P>
               <Eyebrow>M-Pesa</Eyebrow>
               <Table>
                 {FAILS.map(([d, code, t]) => <Row key={d} k={<>84 123 <b style={{ fontWeight: 600 }}>{d}</b></>} w={150}><C s={13}>{code}</C> · {t}</Row>)}

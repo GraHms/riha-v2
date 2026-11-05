@@ -266,9 +266,9 @@ type RailQuery interface {
 	Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error)
 }
 
-// RailPreparer is implemented by rails with their own rules for what a payment carries.
-type RailPreparer interface {
-	Needs(method string, live bool) domain.RailNeeds
+// RailReferencer is implemented by rails with their own rules for a payment's reference.
+type RailReferencer interface {
+	NewReference(method string, live bool) string
 }
 
 type WebhookSender interface {

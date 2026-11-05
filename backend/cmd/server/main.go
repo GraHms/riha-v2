@@ -113,8 +113,8 @@ type paymentSetup struct {
 
 // paymentRail picks a rail per mode and method. Live M-Pesa goes direct unless
 // RIHA_MPESA_VIA_MTOCA is on. With RIHA_MTOCA_ENABLED, the wallets on mtoca use its
-// production API for live payments and its dev API for test payments. Anything else
-// in test mode is simulated. Production can't start on the simulator alone: it would
+// production API for live payments and, unless RIHA_MTOCA_TEST_ON is false, its dev
+// API for test payments. Anything else in test mode is simulated. Production can't start on the simulator alone: it would
 // pass fake money off as real.
 func paymentRail(cfg config.Config) (paymentSetup, error) {
 	sim := rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond)
@@ -139,9 +139,15 @@ func paymentRail(cfg config.Config) (paymentSetup, error) {
 			return paymentSetup{}, err
 		}
 		for method, channel := range channels {
-			live.ByMethod[method], test.ByMethod[method] = liveClient, testClient
+			live.ByMethod[method] = liveClient
+			if cfg.MtocaTestOn {
+				test.ByMethod[method] = testClient
+			}
 			log.Printf("payments: %s goes through mtoca channel %s", method, channel)
 		}
+	}
+	if cfg.MpesaViaMtoca && live.ByMethod[domain.MethodMpesa] == nil {
+		return paymentSetup{}, errors.New("RIHA_MPESA_VIA_MTOCA needs RIHA_MTOCA_ENABLED, and mpesa in RIHA_MTOCA_CHANNELS")
 	}
 	if live.ByMethod[domain.MethodMpesa] == nil {
 		if cfg.MpesaAPIKey != "" {

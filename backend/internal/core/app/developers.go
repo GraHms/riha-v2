@@ -253,13 +253,14 @@ func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 		return
 	}
 	age := a.Now().Sub(p.CreatedAt)
-	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, Method: p.Method, Amount: p.Amount, Phone: p.PayerPhone, Description: p.Description})
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method})
 	switch {
 	case errors.Is(err, ports.ErrNoStatusCheck):
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case err == nil && known:
 		_ = a.CompletePayment(ctx, p.ID, o)
 	case err == nil && age >= railNoRecordAfter:
+		log.Printf("payment %s (%s): the operator has no answer for it, closed as timed out", p.ID, p.RailReference)
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case err != nil && age >= railGiveUpAfter:
 		log.Printf("payment %s (%s): no answer from the operator after %s, closed unconfirmed, check it by hand: %v", p.ID, p.RailReference, age.Round(time.Minute), err)

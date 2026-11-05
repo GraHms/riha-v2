@@ -36,9 +36,9 @@ func (r Router) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome
 	return domain.Outcome{}, false, ports.ErrNoStatusCheck
 }
 
-func (r Router) Needs(method string, live bool) domain.RailNeeds {
-	if x, ok := r.rail(method).(ports.RailPreparer); ok {
-		return x.Needs(method, live)
+func (r Router) NewReference(method string, live bool) string {
+	if x, ok := r.rail(method).(ports.RailReferencer); ok {
+		return x.NewReference(method, live)
 	}
-	return domain.RailNeeds{Reference: domain.RailReference()}
+	return domain.RailReference()
 }

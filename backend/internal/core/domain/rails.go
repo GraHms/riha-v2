@@ -73,6 +73,9 @@ type ChargeRequest struct {
 	// Live is real money. Reference is what the operator knows the payment by.
 	Live      bool
 	Reference string
+	// OnRailID receives the id a rail gives the payment, if it has to be kept to ask
+	// about the payment later.
+	OnRailID func(string)
 }
 
 type Outcome struct {
@@ -89,20 +92,11 @@ type ChargeResult struct {
 }
 
 type StatusQuery struct {
-	PaymentID   string
-	Live        bool
-	Reference   string
-	Method      string
-	Amount      int64
-	Phone       string
-	Description string
-}
-
-// RailNeeds is what a rail asks a payment to carry before it is charged.
-type RailNeeds struct {
+	PaymentID string
+	Live      bool
 	Reference string
-	// KeepPhone: the rail needs the whole number to ask about the payment later.
-	KeepPhone bool
+	RailID    string
+	Method    string
 }
 
 // OperationNumber is the reference mtoca takes: 12 digits, not starting with 0.

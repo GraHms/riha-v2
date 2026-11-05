@@ -185,7 +185,7 @@ type paymentRecord struct {
 	CardLast4         string     `gorm:"size:4"`
 	OperatorReference string     `gorm:"size:40"`
 	RailReference     string     `gorm:"size:20;index"`
-	PayerPhone        string     `gorm:"size:20"`
+	RailID            string     `gorm:"size:64"`
 	FailureCode       string     `gorm:"size:40"`
 	FailureMessage    string     `gorm:"size:300"`
 	CustomerName      string     `gorm:"size:200"`

@@ -8,7 +8,7 @@ This is the first working version, built from the Claude Design handoff in `proj
 |---|---|
 | API | Go 1.24, gin, GORM, PostgreSQL 16 (`backend/`), ports and adapters |
 | Web | React 19, TypeScript, Vite, react-router (`frontend/`), responsive mobile and desktop |
-| Payment rails | **Live M-Pesa goes direct** (`backend/internal/adapters/rails/mpesa.go`). **e-Mola and bim go through mtoca** (`backend/internal/adapters/rails/mtoca`) once `RIHA_MTOCA_ENABLED` is on, and show as coming soon until then. Cards show as coming soon, and live refunds are off because no rail can send money back yet. **Test mode** uses mtoca's dev API for the wallets on mtoca and is simulated for everything else. |
+| Payment rails | **M-Pesa, e-Mola and bim go through mtoca** (`backend/internal/adapters/rails/mtoca`) with `RIHA_MTOCA_ENABLED` and `RIHA_MPESA_VIA_MTOCA` on. With the second off, M-Pesa goes direct (`backend/internal/adapters/rails/mpesa.go`). Cards show as coming soon, and live refunds are off because no rail can send money back yet. **Test mode** uses mtoca's dev API, or the simulator with `RIHA_MTOCA_TEST_ON=false`. |
 
 ## Backend architecture (ports and adapters)
 
@@ -100,6 +100,7 @@ Configuration (environment variables):
 | `RIHA_MTOCA_CHANNELS` | `mpesa=MPESA,emola=EMOLA,bim=BIM` | channel code for each wallet. Leave a wallet out to keep it off |
 | `RIHA_MTOCA_LIVE_TOKEN`, `RIHA_MTOCA_TEST_TOKEN` | empty | sent as `Authorization: Bearer`, only if mtoca requires it |
 | `RIHA_MPESA_VIA_MTOCA` | `false` | send M-Pesa through mtoca instead of the direct connection. It also needs `RIHA_MTOCA_ENABLED` |
+| `RIHA_MTOCA_TEST_ON` | `true` | test payments use mtoca's dev API. Set it to `false` to keep them simulated |
 | `RIHA_MTOCA_DEBUG` | `false` | log every mtoca response (phone numbers masked) |
 
 
@@ -265,32 +266,27 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 
 ## Payment rails (mtoca)
 
-`rails.Modes` picks by mode and `rails.Router` by method. Live M-Pesa goes direct unless `RIHA_MPESA_VIA_MTOCA` is on. The wallets on mtoca use the production API for live payments and the dev API for test payments. Other test payments are simulated, and a live method with no rail shows as coming soon.
+`rails.Modes` picks by mode and `rails.Router` by method. All wallets go through mtoca when `RIHA_MTOCA_ENABLED` and `RIHA_MPESA_VIA_MTOCA` are on, and setting `RIHA_MPESA_VIA_MTOCA=false` puts M-Pesa back on the direct connection. Live payments use the production API. Test payments use the dev API, or the simulator with `RIHA_MTOCA_TEST_ON=false`. A live method with no rail shows as coming soon.
 
-**Flow.** Before calling mtoca, RIHA stores the payment as `processing` with a new 12 digit `operationNumber` (`payments.rail_reference`) and the payer's whole number, which mtoca's status call needs and which is erased when the payment ends. It then calls `POST /api/payments` and polls `POST /api/payments/status` every 3 seconds for up to 4 minutes. `paymentStatus` `P` credits the payment; `R` is a rejection, with `rejectionReason` mapped in `rejectionFailures` (`01` is a timeout); `C` is a cancellation. If the server restarts or polling ends while the payment is still pending, the sweep worker (every 10 s) asks mtoca again after 3 minutes, at most every 30 seconds per payment. After 30 minutes without a final status the payment is closed as timed out and logged for manual reconciliation.
+mtoca passes payments on to Millennium bim's OpenPaymentBroker, and only answers once bim does.
 
-**Uncertain requests.** A 400 or 422 to the create call fails the payment as rejected, and any other 4xx shows "operador indisponível". A 5xx, a network error or a timeout is *not* treated as a failure, because mtoca may have accepted the payment: RIHA keeps asking for the status, so a customer who confirms the PIN is never left paid but uncredited. While that lasts, the session refuses a second attempt, for up to 30 minutes if mtoca never answers.
+**Flow.** RIHA stores the payment as `processing` with a new 12 digit `operationNumber` (`payments.rail_reference`) and returns at once, so the checkout can ask the customer to look at their phone. In the background it calls `POST /api/payments` with the number as `258…`, and waits up to 4 minutes. The answer's `vendorTransactionId_NEP` is stored in `payments.rail_id`. Its `vendorTransactionStatus` doesn't mean paid. RIHA then polls `POST /api/payments/status`, sending only `operationNumber` and `transactionID_NEP`, every 3 seconds for up to 4 minutes. `paymentStatus` `P` credits the payment, `R` is a rejection with `rejectionReason` `01` expired and `02` rejected, `C` is a cancellation, and `N` or empty is still pending. If the server restarts or polling ends, the sweep worker (every 10 s) asks again after 3 minutes, at most every 30 seconds per payment, and closes the payment as timed out after 30 minutes.
+
+**Known gap: a lost create answer.** The status call can't be asked without the id, and only the create answer gives it. If that answer is lost (a 5xx, a timeout, or a restart during the wait), RIHA can't know whether the customer paid. It logs `CHECK BY HAND` with the operation number and closes the payment at 5 minutes, so someone must check it and credit it by hand. mtoca's logs print the id when bim answered. mtoca also answers 409 to bim's refusals and to its own lost connections. RIHA reads a message such as `EOF` as "operador indisponível" and logs it the same way, and any other 409 as a rejection. mtoca hardcodes bim's `callbackUrl` to `localhost.com`, and passing it through would close this gap.
 
 **Testing from your computer** (no RIHA server or database needed):
 
 ```bash
 cd backend
 go run ./cmd/mtoca-check -phone 258848255237 -amount 10.00
-go run ./cmd/mtoca-check -phone 258848255237 -status-only -op 123456789012
+go run ./cmd/mtoca-check -status-only -op 123456789012 -nep <vendorTransactionId_NEP>
 ```
 
 It prints every request and the raw response, and how Riha reads it. It uses dev by default and refuses the production URL unless `-i-know-this-is-production` is passed.
 
-**Open points to confirm with mtoca.** The adapter follows their message exactly, but these were not specified:
-- Authentication: none was mentioned. `RIHA_MTOCA_LIVE_TOKEN` and `RIHA_MTOCA_TEST_TOKEN` send a bearer token if one is needed.
-- The response body of `POST /api/payments`: the adapter accepts anything and relies on the status call. If the create call can already return `paymentStatus`, that is honoured.
-- The phone format differs between their two examples (`+258…` to create, `258…` for status). RIHA follows the examples; if both accept the same format, simplify.
-- `operationNumber` length and character rules (RIHA sends 12 digits) and whether it must be unique per account forever.
-- The full list of `rejectionReason` codes and error responses, and whether the status call answers differently for a payment mtoca never received. Only `01` is mapped so far.
-- The exact channel codes for M-Pesa and e-Mola. Only `BIM` appears in their message; `MPESA` and `EMOLA` are guesses. Test them with `mtoca-check -channel` and correct `RIHA_MTOCA_CHANNELS` if needed.
-- Which numbers bim accepts. RIHA accepts any Mozambican mobile number for bim, and only 84/85 for M-Pesa and 86/87 for e-Mola.
-- Whether mtoca can call a webhook instead of being polled, and its rate limits.
-- What `cancelationStatus` means after a payment was already paid (`S` estorno): RIHA logs nothing special yet, so a reversal after success needs a refund recorded by hand.
+**Still to change at mtoca:** add authentication (it has none), pass `callbackUrl` through or allow a lookup without the id, and answer differently to refusals and lost connections.
+
+**Not tested yet:** e-Mola and bim on production, a cancelled or failed payment on production, and M-Pesa on dev, which answered `409 EOF` on 2026-11-05. A reversal after a successful payment (`cancelationStatus` `S`) isn't noticed, so it needs a refund recorded by hand.
 
 ## File storage (Cloudflare R2)
 

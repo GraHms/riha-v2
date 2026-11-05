@@ -278,9 +278,9 @@ func (m Modes) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome,
 	return domain.Outcome{}, false, ports.ErrNoStatusCheck
 }
 
-func (m Modes) Needs(method string, live bool) domain.RailNeeds {
-	if r, ok := m.pick(live).(ports.RailPreparer); ok {
-		return r.Needs(method, live)
+func (m Modes) NewReference(method string, live bool) string {
+	if r, ok := m.pick(live).(ports.RailReferencer); ok {
+		return r.NewReference(method, live)
 	}
-	return domain.RailNeeds{Reference: domain.RailReference()}
+	return domain.RailReference()
 }

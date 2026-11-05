@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,9 @@ type Config struct {
 	Channels  map[string]string
 	PollEvery time.Duration
 	PollFor   time.Duration
+	// CreateFor is how long to wait for the create call, which mtoca only answers
+	// when bim does. It must stay under the sweep's 5 minutes for a payment with no id.
+	CreateFor time.Duration
 	Debug     bool
 	HTTP      *http.Client
 }
@@ -40,7 +44,7 @@ func New(cfg Config) (*Client, error) {
 		return nil, errors.New("mtoca: base url is required")
 	}
 	if len(cfg.Channels) == 0 {
-		return nil, errors.New("mtoca: map at least one payment method to a channel, for example mpesa=BIM")
+		return nil, errors.New("mtoca: map at least one payment method to a channel, for example mpesa=MPESA")
 	}
 	if cfg.PollEvery <= 0 {
 		cfg.PollEvery = 3 * time.Second
@@ -48,21 +52,30 @@ func New(cfg Config) (*Client, error) {
 	if cfg.PollFor <= 0 {
 		cfg.PollFor = 4 * time.Minute
 	}
+	if cfg.CreateFor <= 0 {
+		cfg.CreateFor = 4 * time.Minute
+	}
 	h := cfg.HTTP
 	if h == nil {
-		h = &http.Client{Timeout: 25 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		h = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
 	return &Client{cfg: cfg, http: h, seen: map[string]time.Time{}}, nil
 }
 
 func (c *Client) Handles(method string) bool { return c.cfg.Channels[method] != "" }
 
-type body struct {
+type createBody struct {
 	OperationNumber string          `json:"operationNumber"`
 	Channel         string          `json:"channel"`
 	Amount          json.RawMessage `json:"amount"`
 	PhoneNumber     string          `json:"phoneNumber"`
 	Description     string          `json:"description"`
+}
+
+// statusBody is all the status call takes: it refuses any other field.
+type statusBody struct {
+	OperationNumber string `json:"operationNumber"`
+	TransactionID   string `json:"transactionID_NEP"`
 }
 
 func amount(c int64) json.RawMessage { return json.RawMessage(fmt.Sprintf("%d.%02d", c/100, c%100)) }
@@ -78,14 +91,18 @@ func description(s string) string {
 	return s
 }
 
+var msisdn = regexp.MustCompile(`\+?258\d{9}`)
+
 type HTTPError struct {
 	Status int
 	Body   string
 }
 
-func (e *HTTPError) Error() string { return fmt.Sprintf("mtoca: http %d: %s", e.Status, e.Body) }
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("mtoca: http %d: %s", e.Status, truncate(e.Body, 300))
+}
 
-func (c *Client) post(ctx context.Context, path string, b body) (map[string]any, []byte, error) {
+func (c *Client) post(ctx context.Context, path, op string, b any) (map[string]any, []byte, error) {
 	buf, _ := json.Marshal(b)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+path, bytes.NewReader(buf))
 	if err != nil {
@@ -103,10 +120,10 @@ func (c *Client) post(ctx context.Context, path string, b body) (map[string]any,
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 	if c.cfg.Debug {
-		log.Printf("mtoca %s op=%s http=%d body=%s", path, b.OperationNumber, res.StatusCode, strings.ReplaceAll(string(raw), b.PhoneNumber, "***"))
+		log.Printf("mtoca %s op=%s http=%d body=%s", path, op, res.StatusCode, msisdn.ReplaceAllString(string(raw), "***"))
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return nil, raw, &HTTPError{Status: res.StatusCode, Body: truncate(string(raw), 300)}
+		return nil, raw, &HTTPError{Status: res.StatusCode, Body: string(raw)}
 	}
 	var m map[string]any
 	if len(bytes.TrimSpace(raw)) > 0 {
@@ -157,10 +174,11 @@ func sub(m map[string]any, k string) map[string]any {
 // reason not listed here reads as a plain rejection.
 var rejectionFailures = map[string]string{
 	"01": domain.FailCustomerTimeout,
+	"02": domain.FailRejected,
 }
 
 func Interpret(m map[string]any) (domain.Outcome, bool) {
-	ref := field(m, "transactionId", "transactionReference", "reference", "externalReference", "operationId")
+	ref := field(m, "transactionID_NEP", "vendorTransactionId_NEP")
 	switch strings.ToUpper(field(m, "paymentStatus")) {
 	case "P":
 		return domain.Outcome{Success: true, OperatorReference: truncate(ref, 40)}, true
@@ -175,7 +193,9 @@ func Interpret(m map[string]any) (domain.Outcome, bool) {
 	return domain.Outcome{}, false
 }
 
-func (c *Client) Initiate(ctx context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error) {
+// Initiate returns at once and calls mtoca in the background, because mtoca only
+// answers once bim does, and the checkout has to tell the customer to look at their phone.
+func (c *Client) Initiate(_ context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error) {
 	channel := c.cfg.Channels[req.Method]
 	if channel == "" {
 		return domain.ChargeResult{}, &domain.InputError{Field: "method", Msg: "Este método de pagamento não está disponível."}
@@ -183,85 +203,109 @@ func (c *Client) Initiate(ctx context.Context, req domain.ChargeRequest, onCompl
 	if e := domain.WalletNumberError(req.Method, req.Phone); e != nil {
 		return domain.ChargeResult{}, e
 	}
-	phone := domain.NormalizeMZPhone(req.Phone)
 	if req.Reference == "" {
 		return domain.ChargeResult{}, errors.New("mtoca: missing operation number")
 	}
-	b := body{OperationNumber: req.Reference, Channel: channel, Amount: amount(req.Amount), PhoneNumber: "+258" + phone, Description: description(domain.FirstNonEmpty(req.Description, req.Descriptor))}
-	res := domain.ChargeResult{Async: true, Last4: phone[5:]}
-	m, _, err := c.post(ctx, "/api/payments", b)
+	phone := domain.NormalizeMZPhone(req.Phone)
+	b := createBody{OperationNumber: req.Reference, Channel: channel, Amount: amount(req.Amount), PhoneNumber: "258" + phone, Description: description(domain.FirstNonEmpty(req.Description, req.Descriptor))}
+	go c.create(b, req, onComplete)
+	return domain.ChargeResult{Async: true, Last4: phone[5:]}, nil
+}
+
+func (c *Client) create(b createBody, req domain.ChargeRequest, onComplete func(domain.Outcome)) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.CreateFor)
+	defer cancel()
+	m, _, err := c.post(ctx, "/api/payments", b.OperationNumber, b)
 	var he *HTTPError
 	switch {
 	case errors.As(err, &he) && he.Status < 500:
-		log.Printf("mtoca create op=%s refused: %v", req.Reference, err)
-		return domain.ChargeResult{Outcome: domain.Outcome{FailureCode: failureFor(he.Status)}, Last4: phone[5:]}, nil
-	case err != nil:
-		log.Printf("mtoca create op=%s uncertain, will poll status: %v", req.Reference, err)
-	default:
-		if out, final := Interpret(m); final {
-			return domain.ChargeResult{Outcome: out, Last4: phone[5:]}, nil
+		code := failureFor(he)
+		log.Printf("mtoca create op=%s refused, read as %s: %v", b.OperationNumber, code, err)
+		if code == domain.FailOperatorUnavailable {
+			log.Printf("mtoca create op=%s may have reached the operator, CHECK BY HAND whether the customer paid", b.OperationNumber)
 		}
+		onComplete(domain.Outcome{FailureCode: code})
+		return
+	case err != nil:
+		// With no id the status call can't be asked, so the sweep closes this one.
+		log.Printf("mtoca create op=%s lost its answer, CHECK BY HAND whether the customer paid: %v", b.OperationNumber, err)
+		return
 	}
-	q := domain.StatusQuery{PaymentID: req.PaymentID, Reference: req.Reference, Method: req.Method, Amount: req.Amount, Phone: phone, Description: domain.FirstNonEmpty(req.Description, req.Descriptor)}
-	go c.poll(q, onComplete)
-	return res, nil
+	id := field(m, "vendorTransactionId_NEP", "transactionID_NEP")
+	if id == "" {
+		log.Printf("mtoca create op=%s answered with no transaction id, CHECK BY HAND whether the customer paid", b.OperationNumber)
+		return
+	}
+	if req.OnRailID != nil {
+		req.OnRailID(id)
+	}
+	c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, RailID: id, Method: req.Method}, onComplete)
 }
 
-// failureFor reads a create call that mtoca refused. A 5xx never gets here: mtoca
-// may have taken the payment before failing, so the customer could still be charged,
-// and only the status call can tell.
-func failureFor(status int) string {
-	if status == http.StatusBadRequest || status == http.StatusUnprocessableEntity {
+// failureFor reads a create call that mtoca refused. mtoca answers 409 to bim's
+// refusals and to its own lost connections alike, and only the message tells them apart.
+func failureFor(he *HTTPError) string {
+	switch he.Status {
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		return domain.FailRejected
+	case http.StatusConflict:
+		var body struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal([]byte(he.Body), &body) != nil || lost.MatchString(body.Message) {
+			return domain.FailOperatorUnavailable
+		}
 		return domain.FailRejected
 	}
-	// The rest, such as a bad token or too many requests, isn't the customer's doing.
 	return domain.FailOperatorUnavailable
 }
 
+var lost = regexp.MustCompile(`(?i)\bEOF\b|timeout|deadline|connection|no such host|invalid character|\btls\b|broken pipe`)
+
 func (c *Client) poll(q domain.StatusQuery, onComplete func(domain.Outcome)) {
 	deadline := time.Now().Add(c.cfg.PollFor)
-	for time.Now().Before(deadline) {
-		time.Sleep(c.cfg.PollEvery)
+	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		out, final, err := c.query(ctx, q)
 		cancel()
-		if err != nil {
+		switch {
+		case err != nil:
 			log.Printf("mtoca status op=%s: %v", q.Reference, err)
-			continue
-		}
-		if final {
+		case final:
 			onComplete(out)
 			return
 		}
+		if time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(c.cfg.PollEvery)
 	}
 }
 
 func (c *Client) query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
-	channel := c.cfg.Channels[q.Method]
-	phone := domain.NormalizeMZPhone(q.Phone)
-	if channel == "" || len(phone) != 9 {
-		return domain.Outcome{}, false, errors.New("mtoca: payment has no channel or phone for a status check")
-	}
-	m, _, err := c.post(ctx, "/api/payments/status", body{OperationNumber: q.Reference, Channel: channel, Amount: amount(q.Amount), PhoneNumber: "258" + phone, Description: description(q.Description)})
+	m, _, err := c.post(ctx, "/api/payments/status", q.Reference, statusBody{OperationNumber: q.Reference, TransactionID: q.RailID})
 	if err != nil {
 		return domain.Outcome{}, false, err
 	}
+	// An empty status can mean bim doesn't know the payment or that its answer was
+	// unreadable, because mtoca reports both the same way. So it stays pending.
 	out, final := Interpret(m)
-	if final && out.OperatorReference == "" && out.Success {
-		out.OperatorReference = q.Reference
+	if final && out.Success && out.OperatorReference == "" {
+		out.OperatorReference = q.RailID
 	}
 	return out, final, nil
 }
 
-// Needs: mtoca takes a 12 digit operation number, and its status call needs the
-// payer's whole number.
-func (c *Client) Needs(string, bool) domain.RailNeeds {
-	return domain.RailNeeds{Reference: domain.OperationNumber(), KeepPhone: true}
-}
+// NewReference: mtoca takes a 12 digit operation number.
+func (c *Client) NewReference(string, bool) string { return domain.OperationNumber() }
 
 // Query answers the sweep. Pending is an error, not "no record": mtoca knows the
-// payment, so the customer can still confirm it.
+// payment, so the customer can still confirm it. With no id nothing can be asked,
+// because the create call is still waiting or its answer is gone.
 func (c *Client) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
+	if q.RailID == "" {
+		return domain.Outcome{}, false, nil
+	}
 	c.mu.Lock()
 	if t, ok := c.seen[q.Reference]; ok && time.Since(t) < 30*time.Second {
 		c.mu.Unlock()

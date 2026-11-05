@@ -261,14 +261,10 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		Description: cs.Description, ClientReferenceID: cs.ClientReferenceID, Metadata: cs.Metadata, Origin: cs.Origin,
 		PayerIP: in.PayerIP, PayerUserAgent: domain.Trim(in.PayerUA, 300), CreatedAt: a.Now(),
 	}
-	needs := a.railNeeds(in.Method, cs.Livemode)
-	p.RailReference = needs.Reference
+	p.RailReference = a.railReference(in.Method, cs.Livemode)
 	if in.Method != domain.MethodCard {
 		if ph := domain.NormalizeMZPhone(in.Phone); len(ph) == 9 {
 			p.PhonePrefix, p.PhoneLast4 = ph[:2], ph[5:]
-			if needs.KeepPhone {
-				p.PayerPhone = ph
-			}
 		}
 	}
 	err = a.Tx.Do(ctx, func(ctx context.Context) error {
@@ -293,7 +289,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
 		PaymentID: p.ID, Description: p.Description, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
 		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor,
-		Live: p.Livemode, Reference: p.RailReference,
+		Live: p.Livemode, Reference: p.RailReference, OnRailID: func(id string) { a.keepRailID(p.ID, id) },
 	}, func(o domain.Outcome) {
 		if err := a.CompletePayment(context.Background(), p.ID, o); err != nil {
 			log.Printf("complete payment %s: %v", p.ID, err)
@@ -323,11 +319,27 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	return a.Payments.ByID(ctx, p.ID)
 }
 
-func (a *App) railNeeds(method string, live bool) domain.RailNeeds {
-	if r, ok := a.Rail.(ports.RailPreparer); ok {
-		return r.Needs(method, live)
+func (a *App) railReference(method string, live bool) string {
+	if r, ok := a.Rail.(ports.RailReferencer); ok {
+		return r.NewReference(method, live)
 	}
-	return domain.RailNeeds{Reference: domain.RailReference()}
+	return domain.RailReference()
+}
+
+// keepRailID stores the rail's id for a payment, so the sweep can still ask about it
+// after a restart. Losing it can leave a paid customer uncredited, so it's logged.
+func (a *App) keepRailID(paymentID, id string) {
+	err := a.Tx.Do(context.Background(), func(ctx context.Context) error {
+		p, err := a.Payments.Lock(ctx, paymentID)
+		if err != nil {
+			return err
+		}
+		p.RailID = id
+		return a.Payments.Save(ctx, p)
+	})
+	if err != nil {
+		log.Printf("payment %s: couldn't keep rail id %s: %v", paymentID, id, err)
+	}
 }
 
 func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Outcome) error {
@@ -348,8 +360,6 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			return err
 		}
 		now := a.Now()
-		// The whole number was only kept to ask the operator about this payment.
-		p.PayerPhone = ""
 		if o.Success {
 			p.Status, p.OperatorReference, p.SucceededAt = domain.PaymentSucceeded, o.OperatorReference, &now
 			if err := a.Payments.Save(ctx, p); err != nil {
