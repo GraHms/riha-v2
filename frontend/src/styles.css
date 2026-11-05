@@ -29,14 +29,15 @@
   --bim: #A3005C;
   --bim-bar: #D6007A;
   --bim-bg: #FCE3F0;
-  --display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --display: var(--sans);
   --mono: 'Geist Mono', ui-monospace, Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
 body {
-  margin: 0; font-family: Geist, system-ui, sans-serif; color: var(--ink); background: var(--paper);
+  margin: 0; font-family: var(--sans); color: var(--ink); background: var(--paper);
   -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
 }
 a { color: var(--green-text); text-decoration: none; }

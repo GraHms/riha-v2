@@ -220,7 +220,7 @@ function Keys() {
           {(logs.data?.data || []).map((r: any, i: number) => (
             <div key={i} className="row mono" style={{ padding: '10px 22px', borderTop: '1px solid var(--line-3)', fontSize: 12.5 }}>
               <span style={{ padding: '2px 7px', borderRadius: 6, background: r.status < 300 ? 'var(--green-bg)' : 'var(--red-bg)', color: r.status < 300 ? 'var(--green-dark)' : 'var(--red-dark)' }}>{r.status}</span>
-              <span style={{ fontWeight: 500, width: 44 }}>{r.method}</span><span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.path}</span><span style={{ fontFamily: 'Geist', color: 'var(--muted)' }}>{ago(r.created_at)}</span>
+              <span style={{ fontWeight: 500, width: 44 }}>{r.method}</span><span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.path}</span><span style={{ fontFamily: 'var(--sans)', color: 'var(--muted)' }}>{ago(r.created_at)}</span>
             </div>
           ))}
           {logs.data && !logs.data.data.length && <div className="empty" style={{ padding: 22 }}>Ainda sem pedidos neste modo.</div>}

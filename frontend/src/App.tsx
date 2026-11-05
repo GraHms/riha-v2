@@ -1,12 +1,12 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useSession } from './lib/session'
-import Landing from './pages/public/Landing'
 import { Login, Signup, ForgotPassword, ResetPassword } from './pages/public/Auth'
 import Checkout from './pages/public/Checkout'
 import LinkLanding from './pages/public/LinkLanding'
 import { Spinner } from './components/ui'
 
+const Landing = lazy(() => import('./pages/public/Landing'))
 const SubsShell = lazy(() => import('./pages/app/subs/SubsShell'))
 const Summary = lazy(() => import('./pages/app/subs/Summary'))
 const PlanDetail = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlanDetail })))
@@ -82,7 +82,7 @@ export default function App() {
     <Suspense fallback={<Loading />}>
     <PageTitle />
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<Suspense fallback={<Loading />}><Landing /></Suspense>} />
       <Route path="/docs" element={<Suspense fallback={<Loading />}><Docs /></Suspense>} />
       <Route path="/entrar" element={<Login />} />
       <Route path="/registo" element={<Signup />} />

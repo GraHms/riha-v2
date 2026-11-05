@@ -50,7 +50,7 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
       <div style={{ fontSize: 13.5, color: 'var(--muted)' }}>Valor a cobrar</div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 4 }}>
         <input aria-label="Valor" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))} inputMode="decimal"
-          style={{ width: `${Math.max(1, amount.length) * 0.62}em`, minWidth: 50, maxWidth: 260, border: 0, background: 'transparent', textAlign: 'right', fontFamily: 'var(--display)', fontWeight: 700, fontSize: big ? 58 : 48, letterSpacing: '-0.045em', padding: 0, caretColor: 'var(--green)' }} />
+          style={{ width: `${Math.max(1, amount.length) * 0.74}em`, minWidth: 50, maxWidth: 260, border: 0, background: 'transparent', textAlign: 'right', fontFamily: 'var(--display)', fontWeight: 700, fontSize: big ? 58 : 48, letterSpacing: '-0.045em', padding: 0, caretColor: 'var(--green)' }} />
         <span className="display" style={{ fontSize: big ? 26 : 22, color: 'var(--muted-2)' }}>MT</span>
       </div>
       <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginTop: 8, fontSize: 13, color: 'var(--text-2)', background: big ? 'var(--paper-2)' : 'transparent', padding: big ? '6px 12px' : 0, borderRadius: 999 }}>Recebe <b className="tnum">{fmt(c - fee)} MT</b> após taxa de {me?.merchant?.fee_label}</div>
@@ -63,9 +63,9 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
       <label><span className="label">Descrição</span><input className="input" style={{ height: 50 }} value={name} onChange={e => setName(e.target.value)} placeholder="Bolo de chocolate · 1 kg" maxLength={200} /></label>
       <div>
         <span className="label">Métodos aceites</span>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8 }}>
           {['mpesa', 'emola', 'bim', 'card'].map(m => (
-            <button key={m} type="button" disabled={soon.includes(m)} title={soon.includes(m) ? 'Em breve' : undefined} onClick={() => toggleM(m)} aria-pressed={methods.includes(m)} style={{ flex: 1, height: 46, borderRadius: 13, border: methods.includes(m) ? '2px solid var(--ink)' : '1px solid var(--line-2)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontSize: 14, fontWeight: 600, opacity: soon.includes(m) ? 0.5 : methods.includes(m) ? 1 : .6 }}>
+            <button key={m} type="button" disabled={soon.includes(m)} title={soon.includes(m) ? 'Em breve' : undefined} onClick={() => toggleM(m)} aria-pressed={methods.includes(m)} style={{ flex: 1, whiteSpace: 'nowrap', height: 46, borderRadius: 13, border: methods.includes(m) ? '2px solid var(--ink)' : '1px solid var(--line-2)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontSize: 14, fontWeight: 600, opacity: soon.includes(m) ? 0.5 : methods.includes(m) ? 1 : .6 }}>
               <MethodIcon method={m} size={18} radius={6} />{soon.includes(m) ? 'Em breve' : METHOD_NAME[m]}
             </button>
           ))}

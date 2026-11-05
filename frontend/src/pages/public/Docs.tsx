@@ -4,7 +4,7 @@ import { Icon } from '../../components/ui'
 import { useGateway } from '../../core/gateway'
 import { bpsLabel } from '../../lib/format'
 
-const DISPLAY = "'Bricolage Grotesque', sans-serif"
+const DISPLAY = "'Plus Jakarta Sans', sans-serif"
 const MONO = "'Geist Mono', monospace"
 
 const css = `
