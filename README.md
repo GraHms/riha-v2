@@ -276,6 +276,10 @@ mtoca passes payments on to Millennium bim's OpenPaymentBroker, and only answers
 
 **Callbacks and polling.** Both run. Mtoca's `BIM_CALLBACK_URL` gives bim `https://rihagateway.com/callbacks/bim`, and bim posts there when a payment ends, with `operationNumber`, `transactionID_NEP` and `paymentTimestamp` or `rejection_reason`. Anyone can reach that address, so a callback never decides anything: RIHA asks the status straight away, and that answer counts. Its id also finds a payment whose create answer was lost. Polling stays as the backup, because no callback came for an IZI payment that never ended. Search the logs for `bim callback`.
 
+**Network cuts.** The server decides a payment, and the checkout only shows it. A status check gives up after 8 seconds and retries at most 5 seconds apart, and a return to the page brings the next one forward. The browser's own online signal can be wrong, so the check itself is the test. With no data nothing can reach the page: it says so, and shows the result as soon as a check gets through.
+
+**Attempt ids.** The page makes an `attempt_id` before asking to pay and keeps it if the answer is lost. Asking again with the same one returns the same payment, so a repeated request can't charge twice. It's shown as the "Código do pedido" until the `RH-…` reference is known, and searching payments finds it, the operation number and bim's id.
+
 **Closing.** An error on the customer's phone doesn't reach the status call, which stays `N`, and the session refuses a second attempt while a payment is open. So a payment with no final answer closes as timed out at 10 minutes and logs `CHECK BY HAND`. One mtoca has no record of (404) closes at 5. For 24 hours afterwards, a worker asks about closed payments every 5 minutes and logs `PAID AFTER IT WAS CLOSED` if one was paid late. It doesn't credit it, because the customer may have retried, so someone must act on that line.
 
 **Testing from your computer** (no RIHA server or database needed):

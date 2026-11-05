@@ -242,6 +242,9 @@ func (r Payments) ByID(ctx context.Context, id string) (*domain.Payment, error) 
 func (r Payments) Lock(ctx context.Context, id string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Clauses(forUpdate).Where("id = ?", id))
 }
+func (r Payments) BySessionAttempt(ctx context.Context, sessionID, attemptID string) (*domain.Payment, error) {
+	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("session_id = ? AND attempt_id = ?", sessionID, attemptID))
+}
 func (r Payments) ByRailReference(ctx context.Context, ref string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("rail_reference = ?", ref))
 }
@@ -277,7 +280,7 @@ func (r Payments) query(ctx context.Context, q ports.PaymentQuery) *gormDB {
 	}
 	if s := strings.TrimSpace(q.Search); s != "" {
 		like := "%" + strings.ToLower(s) + "%"
-		db = db.Where("LOWER(customer_name) LIKE ? OR LOWER(reference) LIKE ? OR LOWER(client_reference_id) LIKE ? OR id = ? OR phone_last4 = ?", like, like, like, s, s)
+		db = db.Where("LOWER(customer_name) LIKE ? OR LOWER(reference) LIKE ? OR LOWER(client_reference_id) LIKE ? OR id = ? OR phone_last4 = ? OR attempt_id = ? OR rail_reference = ? OR rail_id = ?", like, like, like, s, s, strings.ToUpper(s), s, s)
 	}
 	if q.From != nil {
 		db = db.Where("created_at >= ?", *q.From)

@@ -67,7 +67,8 @@ export function httpGateway(t = new Transport()): Gateway {
       signingSecret: async () => (await get<{ secret: string }>('/developers/secret')).secret,
     },
     checkout: {
-      session: id => get<CheckoutSession>('/public/checkout/' + encodeURIComponent(id)),
+      // A status check is small and repeats: a slow one is better given up and tried again.
+      session: id => t.request<CheckoutSession>('/public/checkout/' + encodeURIComponent(id), { timeoutMs: 8_000 }),
       pay: (id, input) => post<CheckoutSession>(`/public/checkout/${encodeURIComponent(id)}/pay`, input),
       link: (m, s) => get<PublicLink>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}`),
       openLink: (m, s, amount, channel) => post<{ id: string }>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}/sessions`, { amount, channel }),

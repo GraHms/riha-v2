@@ -223,6 +223,7 @@ type Payment struct {
 	OperatorReference string
 	RailReference     string
 	RailID            string
+	AttemptID         string
 	FailureCode       string
 	FailureMessage    string
 	CustomerName      string

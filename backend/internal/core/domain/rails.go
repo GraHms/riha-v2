@@ -103,6 +103,16 @@ type StatusQuery struct {
 	Urgent bool
 }
 
+var attemptShape = regexp.MustCompile(`^[A-Z2-9-]{9,20}$`)
+
+// CleanAttemptID drops an id the page's own code wouldn't have made, so it reads as none.
+func CleanAttemptID(id string) string {
+	if attemptShape.MatchString(id) {
+		return id
+	}
+	return ""
+}
+
 // OperationNumber is the reference mtoca takes: 12 digits, not starting with 0.
 func OperationNumber() string { return randFrom("123456789", 1) + randFrom("0123456789", 11) }
 

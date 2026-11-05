@@ -171,7 +171,7 @@ type paymentRecord struct {
 	Reference         string `gorm:"size:20;uniqueIndex"`
 	MerchantID        string `gorm:"size:40;index;not null"`
 	Livemode          bool   `gorm:"index"`
-	SessionID         string `gorm:"size:60;index"`
+	SessionID         string `gorm:"size:60;index;uniqueIndex:idx_payment_attempt,priority:1"`
 	Status            string `gorm:"size:24;index"`
 	Amount            int64
 	FeeBps            int
@@ -186,6 +186,7 @@ type paymentRecord struct {
 	OperatorReference string     `gorm:"size:40"`
 	RailReference     string     `gorm:"size:20;index"`
 	RailID            string     `gorm:"size:64"`
+	AttemptID         string     `gorm:"size:20;uniqueIndex:idx_payment_attempt,priority:2,where:attempt_id <> ''"`
 	FailureCode       string     `gorm:"size:40"`
 	FailureMessage    string     `gorm:"size:300"`
 	CustomerName      string     `gorm:"size:200"`

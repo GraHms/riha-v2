@@ -19,7 +19,7 @@ export type PaymentLink = {
 }
 
 export type CheckoutPayment = {
-  id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string
+  id: string; reference: string; attempt_id?: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string
   failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null
 }
 

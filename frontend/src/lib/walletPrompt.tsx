@@ -37,7 +37,7 @@ export function walletPrompt(method: string): WalletPrompt {
   }
   const name = METHOD_NAME[method] ?? method
   return {
-    before: 'Vai receber um pedido no telemóvel para confirmar o pagamento.',
+    before: 'Vai receber um pedido no telemóvel para confirmar o pagamento. A internet pode falhar enquanto o pedido está aberto: mostramos o resultado assim que voltar.',
     title: 'Confirme no seu telemóvel',
     steps: phone => <>O pedido para {phone} pode demorar até um minuto a chegar. Siga as instruções de {name} no telemóvel para concluir.</>,
     screen: amount => <>{name}: confirme o pagamento de <b>{amount} MT</b> no telemóvel.</>,

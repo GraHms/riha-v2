@@ -138,6 +138,7 @@ type Payments interface {
 	Count(ctx context.Context, q PaymentQuery) (int64, error)
 	StaleProcessing(ctx context.Context, before time.Time, limit int) ([]domain.Payment, error)
 	ByRailReference(ctx context.Context, ref string) (*domain.Payment, error)
+	BySessionAttempt(ctx context.Context, sessionID, attemptID string) (*domain.Payment, error)
 	// RecentlyTimedOut lists live payments that timed out since a time.
 	RecentlyTimedOut(ctx context.Context, since time.Time, limit int) ([]domain.Payment, error)
 }

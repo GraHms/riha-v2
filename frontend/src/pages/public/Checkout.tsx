@@ -18,7 +18,37 @@ type Session = {
 const WALLET_TIMEOUT = 120
 // The server closes an unanswered payment at 10 minutes, so past this something is wrong.
 const NO_ANSWER_AFTER = 12 * 60
-const MAX_CHECK_GAP = 15_000
+const MAX_CHECK_GAP = 5_000
+
+type Conn = 'ok' | 'trying' | 'down'
+
+const ATTEMPT_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+// Made before asking to pay, so the customer has a code even if the answer never comes,
+// and the same request can't charge twice.
+function newAttemptId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(12))
+  const code = Array.from(bytes, b => ATTEMPT_LETTERS[b % ATTEMPT_LETTERS.length]).join('')
+  return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`
+}
+
+function savedAttempt(key: string): string | null {
+  try { return sessionStorage.getItem(key) } catch { return null }
+}
+function saveAttempt(key: string, id: string | null) {
+  try { if (id) sessionStorage.setItem(key, id); else sessionStorage.removeItem(key) } catch { /* it still works without it */ }
+}
+
+function RefCode({ label, code }: { label: string; code: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => { navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }).catch(() => {}) }
+  return (
+    <div className="between" style={{ width: '100%', marginTop: 14, gap: 10, fontSize: 13.5, textAlign: 'left' }}>
+      <span><span className="muted">{label}: </span><b className="mono" style={{ fontSize: 13 }}>{code}</b></span>
+      {navigator.clipboard && <button type="button" className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 13, flex: 'none' }} onClick={copy}>{copied ? 'Copiado' : 'Copiar'}</button>}
+    </div>
+  )
+}
 
 function fmtPhone(v: string) {
   const d = v.replace(/\D/g, '').slice(0, 9)
@@ -38,7 +68,13 @@ export default function Checkout() {
   const [email, setEmail] = useState('')
   const [err, setErr] = useState<ApiError | null>(null)
   // The USSD prompt cuts the phone's data, so losing the connection here is normal.
-  const [reconnecting, setReconnecting] = useState(false)
+  const [conn, setConn] = useState<Conn>('ok')
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null)
+  const [manualCheck, setManualCheck] = useState(false)
+  const checkNow = useRef<() => Promise<unknown>>(async () => {})
+  const attemptKey = 'riha_attempt_' + id
+  const attemptRef = useRef<string | null>(savedAttempt(attemptKey))
+  const setAttempt = (v: string | null) => { attemptRef.current = v; saveAttempt(attemptKey, v) }
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState<'pay' | 'confirm' | 'done'>('pay')
   const [tick, setTick] = useState(0)
@@ -51,9 +87,11 @@ export default function Checkout() {
     try {
       const d = await g.checkout.session(id!)
       setS(d)
-      setReconnecting(false)
+      setConn('ok')
+      setCheckedAt(new Date())
+      if (d.payment?.attempt_id && d.payment.attempt_id === attemptRef.current) setAttempt(null)
       return d
-    } catch { setReconnecting(true); return null }
+    } catch { return null }
   }
 
   // A failed check says nothing about the payment, so only the first load can fail
@@ -64,6 +102,7 @@ export default function Checkout() {
       try {
         const d = await g.checkout.session(id!)
         setS(d)
+        if (d.payment?.attempt_id && d.payment.attempt_id === attemptRef.current) setAttempt(null)
         return d
       } catch (e) {
         const err = e as ApiError
@@ -79,6 +118,8 @@ export default function Checkout() {
     if (d.customer_phone) setPhone(fmtPhone(d.customer_phone))
     if (d.status === 'complete') setView('done')
     else if (d.payment?.status === 'processing') { setView('confirm'); startRef.current = Date.now() }
+    // Coming back to a failed attempt: say so, rather than a form with no explanation.
+    else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 })
   })
 
   useEffect(() => { start() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -95,18 +136,16 @@ export default function Checkout() {
 
   useEffect(() => {
     if (view !== 'confirm') return
-    let checking = false
+    let inFlight: Promise<void> | null = null
     let failures = 0
     let nextCheck = 0
-    const check = async () => {
-      if (checking || document.hidden || Date.now() < nextCheck) return
-      checking = true
+    const run = async () => {
       const d = await refresh()
-      checking = false
       if (!d) {
         // Keep trying, but less often, for as long as the page is open.
         failures += 1
         nextCheck = Date.now() + Math.min(1500 * 2 ** failures, MAX_CHECK_GAP)
+        setConn(failures >= 2 || !navigator.onLine ? 'down' : 'trying')
         return
       }
       failures = 0
@@ -124,14 +163,32 @@ export default function Checkout() {
       if (d.status === 'complete' || d.payment.status === 'succeeded') setView('done')
       else if (d.payment.status === 'failed') { setView('pay'); setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 }) }
     }
+    const check = (force = false) => {
+      if (inFlight) return inFlight
+      if (!force && (document.hidden || Date.now() < nextCheck)) return Promise.resolve()
+      inFlight = run().finally(() => { inFlight = null })
+      return inFlight
+    }
+    checkNow.current = () => { nextCheck = 0; return check(true) }
     const t = setInterval(() => { setTick(x => x + 1); check() }, 1500)
     // Back from entering the PIN, or back online: answer at once instead of at the next tick.
+    // The browser's own "online" can be wrong, as on a phone showing LTE with no data,
+    // so these only bring the next check forward: the check itself is the real test.
     const now = () => { nextCheck = 0; check() }
-    const offline = () => setReconnecting(true)
+    const offline = () => setConn('down')
     document.addEventListener('visibilitychange', now)
     window.addEventListener('online', now)
+    window.addEventListener('focus', now)
+    window.addEventListener('pageshow', now)
     window.addEventListener('offline', offline)
-    return () => { clearInterval(t); document.removeEventListener('visibilitychange', now); window.removeEventListener('online', now); window.removeEventListener('offline', offline) }
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', now)
+      window.removeEventListener('online', now)
+      window.removeEventListener('focus', now)
+      window.removeEventListener('pageshow', now)
+      window.removeEventListener('offline', offline)
+    }
   }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -144,11 +201,15 @@ export default function Checkout() {
   const pay = async () => {
     if (!s) return
     setBusy(true); setErr(null)
+    // Kept when the answer is lost, so trying again can't start a second payment.
+    const attemptId = attemptRef.current ?? newAttemptId()
+    setAttempt(attemptId)
     try {
       const body = method === 'card'
-        ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email }
-        : { method, phone: phone.replace(/\D/g, ''), email }
+        ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email, attempt_id: attemptId }
+        : { method, phone: phone.replace(/\D/g, ''), email, attempt_id: attemptId }
       const d = await g.checkout.pay(s.id, body)
+      setAttempt(null)
       setS(d)
       if (d.status === 'complete') setView('done')
       else if (d.payment?.status === 'processing') { startRef.current = Date.now(); setTick(0); setView('confirm') }
@@ -159,8 +220,8 @@ export default function Checkout() {
         // The answer was lost, and the prompt on the phone may be why: wait for the
         // connection and let the server say whether the payment started.
         lostPay.current = { before: s.payment?.id ?? null }
-        startRef.current = Date.now(); setTick(0); setReconnecting(true); setView('confirm')
-      } else setErr(failure)
+        startRef.current = Date.now(); setTick(0); setConn('down'); setView('confirm')
+      } else { setAttempt(null); setErr(failure) }
     } finally { setBusy(false) }
   }
 
@@ -184,6 +245,10 @@ export default function Checkout() {
   const left = Math.max(0, WALLET_TIMEOUT - elapsed)
   const waitingPhone = s.payment?.status === 'processing' ? `${s.payment.phone_prefix} ••• ${s.payment.phone_last4}` : phone
   const prompt = walletPrompt(s.payment?.method ?? method)
+  const waitingRef = lostPay.current || s.payment?.status !== 'processing' ? null : s.payment.reference
+  const failedRef = s.payment?.status === 'failed' ? s.payment.reference : null
+  const noAnswer = elapsed >= NO_ANSWER_AFTER
+  const checkResult = async () => { setManualCheck(true); try { await checkNow.current() } finally { setManualCheck(false) } }
   void tick
 
   const items = s.line_items.length ? s.line_items : [{ name: s.description || 'Pagamento', quantity: 1, unit_amount: s.amount }]
@@ -287,6 +352,8 @@ export default function Checkout() {
                   <div className="co-pay">
                     {/* Inside the bar that stays on screen, or the Pay button covers it on a phone. */}
                     {err && <div className="form-err" style={{ marginBottom: 10 }} role="alert">{err.message}</div>}
+                    {err && failedRef && <RefCode label="Referência" code={failedRef} />}
+                    {err && !failedRef && attemptRef.current && <RefCode label="Código do pedido" code={attemptRef.current} />}
                     <button className="btn btn-green btn-lg btn-block" style={{ height: 58, fontSize: 17, boxShadow: '0 14px 30px -14px rgba(10,130,5,.9)' }} onClick={pay} disabled={busy}>
                       {busy ? <Spinner /> : <><Icon name="lock" size={17} stroke={2.2} />Pagar {amount} MT</>}
                     </button>
@@ -310,15 +377,23 @@ export default function Checkout() {
               </div>
               <h1 className="display" style={{ margin: '14px 0 0', fontSize: 28 }}>{prompt.title}</h1>
               <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: 'var(--muted)', maxWidth: 320 }}>{prompt.steps(<b style={{ color: 'var(--ink)' }}>{waitingPhone}</b>)}</p>
-              {reconnecting && <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45 }}>Sem ligação à internet, o que é normal enquanto o pedido está aberto. Não precisa de fazer nada: o pagamento continua, continuamos a tentar e atualizamos assim que a ligação voltar.</div>}
-              {elapsed >= NO_ANSWER_AFTER && <div role="alert" style={{ width: '100%', marginTop: 14, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>Ainda não temos resposta. Se o dinheiro saiu da sua conta, não pague outra vez: ligue para <a href={SUPPORT_TEL} style={{ color: 'inherit', fontWeight: 700 }}>{SUPPORT_PHONE}</a>{s.payment?.reference ? <> com a referência <b>{s.payment.reference}</b></> : null}.</div>}
+              {noAnswer ? (
+                <div role="alert" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>Ainda não temos resposta. Se o dinheiro saiu da sua conta, não pague outra vez: ligue para <a href={SUPPORT_TEL} style={{ color: 'inherit', fontWeight: 700 }}>{SUPPORT_PHONE}</a>{waitingRef || attemptRef.current ? <> com o código abaixo</> : null}.</div>
+              ) : conn === 'down' ? (
+                <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}><b>Sem contacto com o servidor.</b> O resultado pode já existir. Não precisa de fazer nada: continuamos a tentar e mostramos assim que o telemóvel voltar a ter internet.</div>
+              ) : conn === 'trying' ? (
+                <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>A tentar contactar o servidor…</div>
+              ) : left === 0 ? (
+                <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>{prompt.stillWaiting}</div>
+              ) : null}
               <div className="card" style={{ width: '100%', marginTop: 26, borderRadius: 18, padding: 16, textAlign: 'left' }}>
-                <div className="between" style={{ fontSize: 13.5 }}><span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sun)', boxShadow: '0 0 0 4px var(--sun-bg)' }} />A aguardar confirmação</span><span className="mono muted">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span></div>
+                <div className="between" style={{ fontSize: 13.5 }}><span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sun)', boxShadow: '0 0 0 4px var(--sun-bg)' }} />{left === 0 ? 'A verificar o resultado…' : 'A aguardar confirmação'}</span>{left > 0 && <span className="mono muted">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span>}</div>
                 <div style={{ height: 6, borderRadius: 3, background: '#EEECE5', marginTop: 12, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (elapsed / WALLET_TIMEOUT) * 100)}%`, height: '100%', borderRadius: 3, background: 'var(--green)', transition: 'width 1s linear' }} /></div>
               </div>
-              {left === 0 && elapsed < NO_ANSWER_AFTER && <div role="status" style={{ width: '100%', marginTop: 14, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>{prompt.stillWaiting}</div>}
+              {waitingRef ? <RefCode label="Referência" code={waitingRef} /> : attemptRef.current ? <RefCode label="Código do pedido" code={attemptRef.current} /> : null}
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 24 }}>
-                <button className="btn btn-outline btn-block" style={{ height: 52, borderRadius: 15, fontSize: 15 }} onClick={() => refresh()}>Não recebeu? Verificar estado</button>
+                <button className="btn btn-outline btn-block" style={{ height: 52, borderRadius: 15, fontSize: 15 }} disabled={manualCheck} onClick={checkResult}>{manualCheck ? 'A verificar…' : 'Verificar o resultado agora'}</button>
+                {checkedAt && <div className="muted" style={{ fontSize: 12.5, textAlign: 'center' }}>Última resposta do servidor às {checkedAt.toLocaleTimeString('pt-PT')}</div>}
                 {s.payment?.status !== 'processing' && <button className="btn btn-ghost" onClick={() => setView('pay')}>Mudar método de pagamento</button>}
               </div>
             </div>

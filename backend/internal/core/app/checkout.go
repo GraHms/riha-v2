@@ -223,14 +223,22 @@ type PayInput struct {
 	CardCVC    string `json:"card_cvc"`
 	Name       string `json:"name"`
 	Email      string `json:"email"`
-	PayerIP    string `json:"-"`
-	PayerUA    string `json:"-"`
+	// AttemptID is made by the page before it asks. Asking again with the same one
+	// returns the same payment, so a repeated request can never charge twice.
+	AttemptID string `json:"attempt_id"`
+	PayerIP   string `json:"-"`
+	PayerUA   string `json:"-"`
 }
 
 func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.Payment, error) {
 	cs, err := a.Session(ctx, sessionID)
 	if err != nil {
 		return nil, err
+	}
+	// A repeat comes first: the payment it asks about may have ended the session.
+	attempt := domain.CleanAttemptID(in.AttemptID)
+	if p, err := a.paymentForAttempt(ctx, cs.ID, attempt); err != nil || p != nil {
+		return p, err
 	}
 	if !cs.IsOpen(a.Now()) {
 		return nil, domain.Invalid("session_not_open", "session", "Esta sessão de pagamento já não está aberta.")
@@ -257,7 +265,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	p := &domain.Payment{
 		ID: domain.NewID("pay"), Reference: domain.PaymentReference(), MerchantID: m.ID, Livemode: cs.Livemode, SessionID: cs.ID,
 		Status: domain.PaymentProcessing, Amount: cs.Amount, FeeBps: bps, Fee: fee, Net: net, Method: in.Method,
-		CustomerName: domain.FirstNonEmpty(domain.Trim(in.Name, 200), cs.CustomerName), CustomerEmail: domain.FirstNonEmpty(in.Email, cs.CustomerEmail),
+		CustomerName: domain.FirstNonEmpty(domain.Trim(in.Name, 200), cs.CustomerName), CustomerEmail: domain.FirstNonEmpty(in.Email, cs.CustomerEmail), AttemptID: attempt,
 		Description: cs.Description, ClientReferenceID: cs.ClientReferenceID, Metadata: cs.Metadata, Origin: cs.Origin,
 		PayerIP: in.PayerIP, PayerUserAgent: domain.Trim(in.PayerUA, 300), CreatedAt: a.Now(),
 	}
@@ -267,9 +275,14 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 			p.PhonePrefix, p.PhoneLast4 = ph[:2], ph[5:]
 		}
 	}
+	var repeated *domain.Payment
 	err = a.Tx.Do(ctx, func(ctx context.Context) error {
 		locked, err := a.Sessions.Lock(ctx, cs.ID)
 		if err != nil {
+			return err
+		}
+		// Under the lock too: the same request can arrive twice at once.
+		if repeated, err = a.paymentForAttempt(ctx, cs.ID, attempt); err != nil || repeated != nil {
 			return err
 		}
 		if !locked.IsOpen(a.Now()) {
@@ -285,6 +298,9 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	})
 	if err != nil {
 		return nil, err
+	}
+	if repeated != nil {
+		return repeated, nil
 	}
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
 		PaymentID: p.ID, Description: p.Description, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
@@ -317,6 +333,17 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		return nil, err
 	}
 	return a.Payments.ByID(ctx, p.ID)
+}
+
+func (a *App) paymentForAttempt(ctx context.Context, sessionID, attempt string) (*domain.Payment, error) {
+	if attempt == "" {
+		return nil, nil
+	}
+	p, err := a.Payments.BySessionAttempt(ctx, sessionID, attempt)
+	if errors.Is(err, domain.ErrNotFound) {
+		return nil, nil
+	}
+	return p, err
 }
 
 func (a *App) railReference(method string, live bool) string {
