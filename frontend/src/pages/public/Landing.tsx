@@ -175,6 +175,7 @@ function Received({ style }: { style: CSSProperties }) {
 const METHODS = [
   { name: 'M-Pesa', sub: 'Vodacom', extra: ' · 84, 85', ico: <div className="lp-method-ico" style={{ background: '#FDE7E6', color: '#C8102E', fontSize: 18 }}>M</div> },
   { name: 'e-Mola', sub: 'Movitel', extra: ' · 86, 87', ico: <div className="lp-method-ico" style={{ background: '#FFF0D6', color: '#B45F00', fontSize: 19 }}>e</div> },
+  { name: 'bim', sub: 'Millennium bim', extra: '', ico: <div className="lp-method-ico" style={{ background: '#FCE3F0', color: '#A3005C', fontSize: 19 }}>b</div> },
   { name: 'Visa', sub: 'Débito e crédito', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
   { name: 'Mastercard', sub: 'Débito e crédito', extra: '', ico: <div className="lp-method-ico" style={{ background: '#0B120E', color: '#fff' }}><Icon name="card" size={20} /></div> },
 ]
@@ -461,7 +462,7 @@ export default function Landing() {
               <div style={{ fontSize: 15, color: '#5E6862', marginTop: 6 }}>por transação concluída</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 28, borderLeft: '1px solid #EEECE5' }}>
-              <CheckLine>M-Pesa, e-Mola e cartões</CheckLine>
+              <CheckLine>M-Pesa, e-Mola, bim e cartões</CheckLine>
               <CheckLine>Sem mensalidade</CheckLine>
               <CheckLine>Sem taxa de adesão</CheckLine>
             </div>
@@ -473,7 +474,7 @@ export default function Landing() {
             <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 84, lineHeight: 1, letterSpacing: '-0.05em', marginTop: 10 }}>{fee}</div>
             <div style={{ fontSize: 15, color: '#5E6862', marginTop: 6 }}>por transação concluída</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', margin: '22px 0 0', padding: '18px 0 0', borderTop: '1px solid #EEECE5' }}>
-              <CheckLine size={14.5}>A mesma taxa para M-Pesa, e-Mola e cartões</CheckLine>
+              <CheckLine size={14.5}>A mesma taxa para M-Pesa, e-Mola, bim e cartões</CheckLine>
               <CheckLine size={14.5}>Sem mensalidade nem taxa de adesão</CheckLine>
               <CheckLine size={14.5}>Só paga quando recebe</CheckLine>
             </div>

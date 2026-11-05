@@ -8,7 +8,7 @@ This is the first working version, built from the Claude Design handoff in `proj
 |---|---|
 | API | Go 1.24, gin, GORM, PostgreSQL 16 (`backend/`), ports and adapters |
 | Web | React 19, TypeScript, Vite, react-router (`frontend/`), responsive mobile and desktop |
-| Payment rails | **mtoca payments API** for the methods mapped in `RIHA_MTOCA_CHANNELS` (`backend/internal/adapters/rails/mtoca`). Everything else uses the simulator outside production. |
+| Payment rails | **mtoca payments API** for the three wallets: M-Pesa, e-Mola and bim (`backend/internal/adapters/rails/mtoca`). Cards use the simulator outside production and are refused in production until an acquirer is connected. |
 
 ## Backend architecture (ports and adapters)
 
@@ -92,7 +92,7 @@ Configuration (environment variables):
 | `RIHA_SEED` | `false` (`make api` sets `true`) | seed demo data into an empty database |
 | `RIHA_SIM_DELAY_MS` | `4000` | mock PIN confirmation delay |
 | `RIHA_MTOCA_URL` | empty | `https://api.payments.dev.mtoca.net` or `https://api.payments.mtoca.net` |
-| `RIHA_MTOCA_CHANNELS` | empty | which Riha methods go through mtoca, for example `mpesa=BIM` |
+| `RIHA_MTOCA_CHANNELS` | `mpesa=MPESA,emola=EMOLA,bim=BIM` | which Riha methods go through mtoca, and the channel code for each |
 | `RIHA_MTOCA_TOKEN` | empty | sent as `Authorization: Bearer`, only if mtoca requires it |
 | `RIHA_MTOCA_DEBUG` | `false` | log every mtoca response (phone numbers masked) |
 | `RIHA_ALLOW_MOCK_RAIL` | `true` in development only | let unmapped methods use the simulator; in production they are refused |
@@ -257,7 +257,8 @@ It prints every request and the raw response, and how Riha reads it. It uses dev
 - The response body of `POST /api/payments`: the adapter accepts anything and relies on the status call. If the create call can already return `paymentStatus`, that is honoured.
 - The phone format differs between their two examples (`+258…` to create, `258…` for status). Riha follows the examples; if both accept the same format, simplify.
 - `operationNumber` length and character rules (Riha sends 12 digits) and whether it must be unique per account forever.
-- Which channels exist besides `BIM`, and which wallet or bank `BIM` charges.
+- The exact channel codes for M-Pesa and e-Mola. Only `BIM` appears in their message; `MPESA` and `EMOLA` are guesses. Test them with `mtoca-check -channel` and correct `RIHA_MTOCA_CHANNELS` if needed.
+- Which numbers bim accepts. Riha accepts any Mozambican mobile number for bim, and only 84/85 for M-Pesa and 86/87 for e-Mola.
 - Whether mtoca can call a webhook instead of being polled, and its rate limits.
 - What `cancelationStatus` means after a payment was already paid (`S` estorno): Riha logs nothing special yet, so a reversal after success needs a refund recorded by hand.
 

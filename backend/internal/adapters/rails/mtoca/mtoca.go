@@ -173,10 +173,10 @@ func (c *Client) Initiate(ctx context.Context, req domain.ChargeRequest, onCompl
 	if channel == "" {
 		return domain.ChargeResult{}, &domain.InputError{Field: "method", Msg: "Este método de pagamento não está disponível."}
 	}
-	phone := domain.NormalizeMZPhone(req.Phone)
-	if !domain.ValidMZMobile(phone) {
-		return domain.ChargeResult{}, &domain.InputError{Field: "phone", Msg: "Número inválido. Use 9 dígitos, por exemplo 84 123 4567."}
+	if e := domain.WalletNumberError(req.Method, req.Phone); e != nil {
+		return domain.ChargeResult{}, e
 	}
+	phone := domain.NormalizeMZPhone(req.Phone)
 	if req.Reference == "" {
 		return domain.ChargeResult{}, errors.New("mtoca: missing operation number")
 	}

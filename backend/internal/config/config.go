@@ -92,7 +92,7 @@ func Load() Config {
 		R2Endpoint:           env("RIHA_R2_ENDPOINT", ""),
 		MtocaURL:             env("RIHA_MTOCA_URL", ""),
 		MtocaToken:           env("RIHA_MTOCA_TOKEN", ""),
-		MtocaChannels:        pairs(env("RIHA_MTOCA_CHANNELS", "")),
+		MtocaChannels:        pairs(env("RIHA_MTOCA_CHANNELS", "mpesa=MPESA,emola=EMOLA,bim=BIM")),
 		MtocaDebug:           flag("RIHA_MTOCA_DEBUG", false),
 		AllowMockRail:        flag("RIHA_ALLOW_MOCK_RAIL", dev),
 	}

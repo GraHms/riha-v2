@@ -8,10 +8,29 @@ import (
 const (
 	MethodMpesa = "mpesa"
 	MethodEmola = "emola"
+	MethodBim   = "bim"
 	MethodCard  = "card"
 )
 
-var AllMethods = []string{MethodMpesa, MethodEmola, MethodCard}
+var AllMethods = []string{MethodMpesa, MethodEmola, MethodBim, MethodCard}
+
+var MethodNames = map[string]string{MethodMpesa: "M-Pesa", MethodEmola: "e-Mola", MethodBim: "bim", MethodCard: "Cartão"}
+
+func IsWallet(m string) bool { return m == MethodMpesa || m == MethodEmola || m == MethodBim }
+
+func WalletNumberError(method, phone string) *InputError {
+	p := NormalizeMZPhone(phone)
+	if len(p) != 9 || p[0] != '8' || !strings.ContainsRune("234567", rune(p[1])) {
+		return &InputError{Field: "phone", Msg: "Número inválido. Use 9 dígitos, por exemplo 84 123 4567."}
+	}
+	switch {
+	case method == MethodMpesa && p[1] != '4' && p[1] != '5':
+		return &InputError{Field: "phone", Msg: "Números M-Pesa começam por 84 ou 85."}
+	case method == MethodEmola && p[1] != '6' && p[1] != '7':
+		return &InputError{Field: "phone", Msg: "Números e-Mola começam por 86 ou 87."}
+	}
+	return nil
+}
 
 const (
 	FailPinIncorrect        = "pin_incorrect"

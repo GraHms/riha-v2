@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
-import { fmt, fullDate, METHOD_NAME } from '../../lib/format'
+import { fmt, fullDate, METHOD_NAME, METHOD_SUB } from '../../lib/format'
 import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 
 type Session = {
@@ -100,7 +100,7 @@ export default function Checkout() {
   const amount = fmt(s.amount)
   const wallet = method !== 'card'
   const walletName = METHOD_NAME[method]
-  const walletPrefix = method === 'emola' ? '86' : '84'
+  const walletPrefix = method === 'emola' ? '86' : method === 'bim' ? '82' : '84'
   const ref = s.client_reference_id ? (/^\d+$/.test(s.client_reference_id) ? `Encomenda #${s.client_reference_id}` : s.client_reference_id) : s.description
   const expired = s.status === 'expired'
   const elapsed = startRef.current ? Math.floor((Date.now() - startRef.current) / 1000) : 0
@@ -171,7 +171,7 @@ export default function Checkout() {
                     {s.payment_method_types.map(m => (
                       <button key={m} type="button" onClick={() => { setMethod(m); setErr(null) }} className={'co-m' + (method === m ? ' on' : '')} aria-pressed={method === m}>
                         <MethodIcon method={m} size={38} />
-                        <span className="co-m-txt"><span className="co-m-name">{METHOD_NAME[m]}</span><span className="co-m-sub">{m === 'mpesa' ? 'Vodacom · 84, 85' : m === 'emola' ? 'Movitel · 86, 87' : 'Visa, Mastercard'}</span></span>
+                        <span className="co-m-txt"><span className="co-m-name">{METHOD_NAME[m]}</span><span className="co-m-sub">{METHOD_SUB[m]}</span></span>
                         <span className="co-radio"><span /></span>
                       </button>
                     ))}

@@ -15,7 +15,7 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
   const bps = me?.merchant?.fee_bps ?? 600
   const [amount, setAmount] = useState('1250')
   const [name, setName] = useState('')
-  const [methods, setMethods] = useState<string[]>(['mpesa', 'emola', 'card'])
+  const [methods, setMethods] = useState<string[]>(['mpesa', 'emola', 'bim', 'card'])
   const [reusable, setReusable] = useState(true)
   const [custom, setCustom] = useState(false)
   const [kind, setKind] = useState<'link' | 'qr'>('link')
@@ -63,7 +63,7 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
       <div>
         <span className="label">Métodos aceites</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          {['mpesa', 'emola', 'card'].map(m => (
+          {['mpesa', 'emola', 'bim', 'card'].map(m => (
             <button key={m} type="button" onClick={() => toggleM(m)} aria-pressed={methods.includes(m)} style={{ flex: 1, height: 46, borderRadius: 13, border: methods.includes(m) ? '2px solid var(--ink)' : '1px solid var(--line-2)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontSize: 14, fontWeight: 600, opacity: methods.includes(m) ? 1 : 0.6 }}>
               <MethodIcon method={m} size={18} radius={6} />{METHOD_NAME[m]}
             </button>

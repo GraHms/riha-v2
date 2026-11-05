@@ -20,7 +20,7 @@ export function AuthLayout({ children, step, back }: { children: ReactNode; step
         <Link to="/" style={{ position: 'relative' }}><Logo dark size={34} text={19} /></Link>
         <div style={{ flex: 1 }} />
         <div style={{ position: 'relative', fontFamily: 'var(--display)', fontWeight: 700, fontSize: 52, lineHeight: 1, letterSpacing: '-0.04em', maxWidth: 460 }}>Receba de todo <span style={{ color: 'var(--lime)' }}>Moçambique</span>.</div>
-        <div style={{ position: 'relative', fontSize: 16, lineHeight: 1.55, color: '#B9C3BD', marginTop: 16, maxWidth: 420 }}>M-Pesa, e-Mola e cartões num só painel. Links de pagamento em segundos, API para a sua loja e levantamentos para o banco em até 72 horas.</div>
+        <div style={{ position: 'relative', fontSize: 16, lineHeight: 1.55, color: '#B9C3BD', marginTop: 16, maxWidth: 420 }}>M-Pesa, e-Mola, bim e cartões num só painel. Links de pagamento em segundos, API para a sua loja e levantamentos para o banco em até 72 horas.</div>
         <div style={{ position: 'relative', display: 'flex', gap: 16, marginTop: 28, fontSize: 13.5, color: '#93A09A' }}><span>Sem mensalidade</span><span>·</span><span>Levantamentos em 72h</span></div>
       </div>
       <div className="auth-main">

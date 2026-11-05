@@ -30,7 +30,7 @@ export default function Links() {
     try { await g.links.update(l.id, { active }); toast(active ? 'Link ativado' : 'Link desativado'); reload() } catch (e) { toast(errMsg(e), true) }
   }
   const methods = (l: LinkObj) => (
-    <div style={{ display: 'flex', gap: 4 }}>{['mpesa', 'emola', 'card'].map(m => <span key={m} style={{ opacity: l.payment_method_types.includes(m) ? 1 : 0.25 }}><MethodIcon method={m} size={22} radius={7} /></span>)}</div>
+    <div style={{ display: 'flex', gap: 4 }}>{['mpesa', 'emola', 'bim', 'card'].map(m => <span key={m} style={{ opacity: l.payment_method_types.includes(m) ? 1 : 0.25 }}><MethodIcon method={m} size={22} radius={7} /></span>)}</div>
   )
   return (
     <div className="page">

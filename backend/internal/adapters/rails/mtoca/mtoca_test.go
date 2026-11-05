@@ -172,3 +172,31 @@ func TestStatusIsThrottled(t *testing.T) {
 		t.Fatalf("second check within 30 s must not hit the api, got %d calls", len(f.statuses))
 	}
 }
+
+func TestThreeWallets(t *testing.T) {
+	f := &fake{reply: map[string]any{"paymentStatus": "P"}}
+	srv := httptest.NewServer(f)
+	defer srv.Close()
+	c, err := New(Config{BaseURL: srv.URL, Channels: map[string]string{"mpesa": "MPESA", "emola": "EMOLA", "bim": "BIM"}, PollEvery: 10 * time.Millisecond, PollFor: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ method, phone, channel string }{{"mpesa", "841112233", "MPESA"}, {"emola", "871112233", "EMOLA"}, {"bim", "821112233", "BIM"}} {
+		done := make(chan domain.Outcome, 1)
+		if _, err := c.Initiate(context.Background(), domain.ChargeRequest{Reference: "1" + tc.phone, Method: tc.method, Amount: 500, Phone: tc.phone}, func(o domain.Outcome) { done <- o }); err != nil {
+			t.Fatalf("%s: %v", tc.method, err)
+		}
+		if o := wait(t, done); !o.Success {
+			t.Fatalf("%s: %+v", tc.method, o)
+		}
+		f.mu.Lock()
+		last := f.creates[len(f.creates)-1]
+		f.mu.Unlock()
+		if last["channel"] != tc.channel {
+			t.Fatalf("%s sent channel %v", tc.method, last["channel"])
+		}
+	}
+	if _, err := c.Initiate(context.Background(), domain.ChargeRequest{Reference: "2", Method: "emola", Amount: 500, Phone: "841112233"}, nil); err == nil {
+		t.Fatal("an M-Pesa number on e-Mola must be refused before calling mtoca")
+	}
+}

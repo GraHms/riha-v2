@@ -106,7 +106,7 @@ func CleanMethods(in []string) ([]string, error) {
 			continue
 		}
 		if !contains(AllMethods, m) {
-			return nil, Invalid("payment_method_invalid", "payment_method_types", fmt.Sprintf("Método %q desconhecido. Use mpesa, emola ou card.", m))
+			return nil, Invalid("payment_method_invalid", "payment_method_types", fmt.Sprintf("Método %q desconhecido. Use mpesa, emola, bim ou card.", m))
 		}
 		if !contains(out, m) {
 			out = append(out, m)

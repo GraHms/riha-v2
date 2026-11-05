@@ -79,7 +79,7 @@ func (a *App) Overview(ctx context.Context, m *domain.Merchant, live bool, days 
 			o.Bars = append(o.Bars, ports.Bucket{Date: d, Amount: by[d.Format("2006-01-02")]})
 		}
 	}
-	o.ByMethod = map[string]int64{"mpesa": 0, "emola": 0, "card": 0}
+	o.ByMethod = map[string]int64{"mpesa": 0, "emola": 0, "bim": 0, "card": 0}
 	bm, _ := a.Reports.VolumeByMethod(ctx, ports.Scope{MerchantID: m.ID, Live: live, From: &start})
 	for k, v := range bm {
 		o.ByMethod[k] = v
@@ -405,7 +405,7 @@ func (a *App) PlatformOverview(ctx context.Context) *PlatformOverview {
 	for _, r := range rows {
 		k := r.Date.UTC().Format("2006-01-02")
 		if byDay[k] == nil {
-			byDay[k] = map[string]any{"mpesa": int64(0), "emola": int64(0), "card": int64(0)}
+			byDay[k] = map[string]any{"mpesa": int64(0), "emola": int64(0), "bim": int64(0), "card": int64(0)}
 		}
 		byDay[k][r.Method] = r.Amount
 		o.Volume14d += r.Amount
@@ -414,7 +414,7 @@ func (a *App) PlatformOverview(ctx context.Context) *PlatformOverview {
 		k := d.Format("2006-01-02")
 		v := byDay[k]
 		if v == nil {
-			v = map[string]any{"mpesa": int64(0), "emola": int64(0), "card": int64(0)}
+			v = map[string]any{"mpesa": int64(0), "emola": int64(0), "bim": int64(0), "card": int64(0)}
 		}
 		v["date"] = k
 		o.Stack = append(o.Stack, v)

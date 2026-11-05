@@ -12,7 +12,7 @@ export default function AdminOverview() {
   if (!d) return <div className="page"><Skeleton h={40} w={300} /><Skeleton h={120} style={{ marginTop: 22 }} /></div>
   const growth = d.volume_week_ago > 0 ? Math.round(((d.volume_today - d.volume_week_ago) / d.volume_week_ago) * 100) : null
   const rate = d.tx_today ? ((d.tx_ok_today / d.tx_today) * 100).toFixed(1).replace('.', ',') : '—'
-  const max = Math.max(1, ...d.stack.map((s: any) => s.mpesa + s.emola + s.card))
+  const max = Math.max(1, ...d.stack.map((s: any) => s.mpesa + s.emola + (s.bim || 0) + s.card))
   const H = 190
   const oldest = d.approvals[0]?.submitted_at
   const st = d.payout_stats
@@ -35,13 +35,14 @@ export default function AdminOverview() {
         <div className="card" style={{ padding: 22 }}>
           <div className="between" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <div><div className="h2">Volume por método · 14 dias</div><div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{fmt(d.volume_14d, false)} MT processados</div></div>
-            <div className="row" style={{ gap: 14, fontSize: 12.5, color: 'var(--text-2)' }}>{[['var(--mpesa)', 'M-Pesa'], ['var(--emola-bar)', 'e-Mola'], ['var(--ink)', 'Cartão']].map(([c, l]) => <span key={l} className="row" style={{ gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: c }} />{l}</span>)}</div>
+            <div className="row" style={{ gap: 14, fontSize: 12.5, color: 'var(--text-2)' }}>{[['var(--mpesa)', 'M-Pesa'], ['var(--emola-bar)', 'e-Mola'], ['var(--bim-bar)', 'bim'], ['var(--ink)', 'Cartão']].map(([c, l]) => <span key={l} className="row" style={{ gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: c }} />{l}</span>)}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: H, marginTop: 20 }}>
             {d.stack.map((s: any) => (
-              <div key={s.date} title={`${shortDate(s.date)}: ${fmt(s.mpesa + s.emola + s.card, false)} MT`} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'flex-end', height: '100%' }}>
+              <div key={s.date} title={`${shortDate(s.date)}: ${fmt(s.mpesa + s.emola + (s.bim || 0) + s.card, false)} MT`} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'flex-end', height: '100%' }}>
                 <div style={{ height: (s.card / max) * H, background: 'var(--ink)', borderRadius: '5px 5px 2px 2px' }} />
                 <div style={{ height: (s.emola / max) * H, background: 'var(--emola-bar)', borderRadius: 2 }} />
+                <div style={{ height: ((s.bim || 0) / max) * H, background: 'var(--bim-bar)', borderRadius: 2 }} />
                 <div style={{ height: Math.max(2, (s.mpesa / max) * H), background: 'var(--mpesa)', borderRadius: '2px 2px 5px 5px' }} />
               </div>
             ))}
@@ -51,12 +52,12 @@ export default function AdminOverview() {
         <div className="card" style={{ padding: 22 }}>
           <div className="h2">Estado dos operadores</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-            {(['mpesa', 'emola', 'card'] as const).map(m => {
+            {(['mpesa', 'emola', 'bim', 'card'] as const).map(m => {
               const h = d.health[m], hs = HEALTH[h.status]
               return (
                 <div key={m} className="row" style={{ padding: 12, borderRadius: 14, background: h.status === 'operational' ? 'var(--paper)' : 'var(--sun-soft)' }}>
                   <MethodIcon method={m} size={34} radius={10} />
-                  <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{m === 'card' ? 'Cartões' : m === 'mpesa' ? 'M-Pesa' : 'e-Mola'}</div><div style={{ fontSize: 12, color: 'var(--muted)' }}>{h.success_rate === null ? 'Sem tráfego nas últimas 24 h' : `${(h.success_rate * 100).toFixed(1).replace('.', ',')}% sucesso · ${h.total} tentativas`}</div></div>
+                  <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{({ card: 'Cartões', mpesa: 'M-Pesa', emola: 'e-Mola', bim: 'bim' } as Record<string, string>)[m]}</div><div style={{ fontSize: 12, color: 'var(--muted)' }}>{h.success_rate === null ? 'Sem tráfego nas últimas 24 h' : `${(h.success_rate * 100).toFixed(1).replace('.', ',')}% sucesso · ${h.total} tentativas`}</div></div>
                   <Pill t={hs[0]} bg={hs[1]} fg={hs[2]} />
                 </div>
               )
