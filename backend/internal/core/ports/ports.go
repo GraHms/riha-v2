@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -235,6 +236,12 @@ type Reports interface {
 
 type Rail interface {
 	Initiate(ctx context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error)
+}
+
+var ErrNoStatusCheck = errors.New("rail has no status check")
+
+type StatusRail interface {
+	Status(ctx context.Context, q domain.StatusQuery) (out domain.Outcome, final bool, err error)
 }
 
 type WebhookSender interface {

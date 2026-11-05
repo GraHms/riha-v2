@@ -220,6 +220,8 @@ type Payment struct {
 	CardBrand         string
 	CardLast4         string
 	OperatorReference string
+	RailRef           string
+	PayerPhone        string
 	FailureCode       string
 	FailureMessage    string
 	CustomerName      string

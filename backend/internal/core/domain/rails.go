@@ -20,6 +20,8 @@ const (
 	FailCustomerCancelled   = "customer_cancelled"
 	FailCardDeclined        = "card_declined"
 	FailOperatorUnavailable = "operator_unavailable"
+	FailRejected            = "payment_rejected"
+	FailCanceled            = "payment_canceled"
 )
 
 var FailureMessages = map[string]string{
@@ -29,17 +31,21 @@ var FailureMessages = map[string]string{
 	FailCustomerCancelled:   "O cliente cancelou o pedido no telemóvel.",
 	FailCardDeclined:        "Cartão recusado pelo banco emissor.",
 	FailOperatorUnavailable: "O operador não respondeu. Tente de novo dentro de minutos.",
+	FailRejected:            "O pagamento foi recusado. Confirme o saldo e tente de novo.",
+	FailCanceled:            "O pagamento foi cancelado.",
 }
 
 type ChargeRequest struct {
-	PaymentID  string
-	Method     string
-	Amount     int64
-	Phone      string
-	CardNumber string
-	CardExpiry string
-	CardCVC    string
-	Descriptor string
+	PaymentID   string
+	Reference   string
+	Description string
+	Method      string
+	Amount      int64
+	Phone       string
+	CardNumber  string
+	CardExpiry  string
+	CardCVC     string
+	Descriptor  string
 }
 
 type Outcome struct {
@@ -54,6 +60,17 @@ type ChargeResult struct {
 	Brand   string
 	Last4   string
 }
+
+type StatusQuery struct {
+	PaymentID   string
+	Reference   string
+	Method      string
+	Amount      int64
+	Phone       string
+	Description string
+}
+
+func OperationNumber() string { return randFrom("123456789", 1) + randFrom("0123456789", 11) }
 
 type InputError struct{ Field, Msg string }
 

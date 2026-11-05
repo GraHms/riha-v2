@@ -254,8 +254,9 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	}
 	if in.Method != domain.MethodCard {
 		if ph := domain.NormalizeMZPhone(in.Phone); len(ph) == 9 {
-			p.PhonePrefix, p.PhoneLast4 = ph[:2], ph[5:]
+			p.PhonePrefix, p.PhoneLast4, p.PayerPhone = ph[:2], ph[5:], ph
 		}
+		p.RailRef = domain.OperationNumber()
 	}
 	err = a.Tx.Do(ctx, func(ctx context.Context) error {
 		locked, err := a.Sessions.Lock(ctx, cs.ID)
@@ -277,7 +278,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		return nil, err
 	}
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
-		PaymentID: p.ID, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
+		PaymentID: p.ID, Reference: p.RailRef, Description: p.Description, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
 		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor,
 	}, func(o domain.Outcome) {
 		if err := a.CompletePayment(context.Background(), p.ID, o); err != nil {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"riha/internal/adapters/pdf"
 	"riha/internal/adapters/postgres"
 	"riha/internal/adapters/rails"
+	"riha/internal/adapters/rails/mtoca"
 	"riha/internal/adapters/sheets"
 	"riha/internal/adapters/webhooks"
 	"riha/internal/config"
@@ -78,7 +80,7 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings,
 		Messenger: &messaging.Outbox{Dir: filepath.Join(cfg.OutboxDir, "messages")},
 		Sheets:    sheets.Reader{},
-		Rail:      rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond),
+		Rail:      rail(cfg),
 		Sender:    webhooks.NewHTTPSender(cfg.AllowPrivateNetworks),
 		Files:     files(cfg),
 		Hasher:    crypto.Bcrypt{},
@@ -116,4 +118,31 @@ func files(cfg config.Config) ports.FileStore {
 	}
 	log.Printf("storage: Cloudflare R2 bucket %s", cfg.R2Bucket)
 	return filestore.Router{Primary: r2, Remote: r2, Local: local}
+}
+
+func rail(cfg config.Config) ports.Rail {
+	r := rails.Router{ByMethod: map[string]ports.Rail{}}
+	if cfg.AllowMockRail {
+		r.Fallback = rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond)
+	}
+	if cfg.MtocaURL != "" {
+		if cfg.Env == "production" && !strings.HasPrefix(cfg.MtocaURL, "https://") {
+			log.Fatal("rail: RIHA_MTOCA_URL must use https in production")
+		}
+		mt, err := mtoca.New(mtoca.Config{BaseURL: cfg.MtocaURL, Token: cfg.MtocaToken, Channels: cfg.MtocaChannels, Debug: cfg.MtocaDebug})
+		if err != nil {
+			log.Fatalf("rail: %v (RIHA_MTOCA_CHANNELS, for example mpesa=BIM)", err)
+		}
+		for method, ch := range cfg.MtocaChannels {
+			r.ByMethod[method] = mt
+			log.Printf("rail: %s goes through mtoca channel %s", method, ch)
+		}
+	}
+	if r.Fallback == nil && len(r.ByMethod) == 0 {
+		log.Fatal("rail: no payment rail configured. Set RIHA_MTOCA_URL and RIHA_MTOCA_CHANNELS, or RIHA_ALLOW_MOCK_RAIL=true outside production")
+	}
+	if r.Fallback != nil {
+		log.Printf("rail: other methods use the simulator")
+	}
+	return r
 }

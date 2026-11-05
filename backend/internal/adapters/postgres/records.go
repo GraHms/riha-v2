@@ -183,6 +183,8 @@ type paymentRecord struct {
 	CardBrand         string     `gorm:"size:20"`
 	CardLast4         string     `gorm:"size:4"`
 	OperatorReference string     `gorm:"size:40"`
+	RailRef           string     `gorm:"size:40;index"`
+	PayerPhone        string     `gorm:"size:20"`
 	FailureCode       string     `gorm:"size:40"`
 	FailureMessage    string     `gorm:"size:300"`
 	CustomerName      string     `gorm:"size:200"`

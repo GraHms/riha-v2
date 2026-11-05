@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
+	"log"
 	"strings"
 	"time"
 
 	"riha/internal/core/domain"
+	"riha/internal/core/ports"
 )
 
 func (a *App) PublishableKey(ctx context.Context, merchantID string, live bool) string {
@@ -210,7 +213,7 @@ func (a *App) Sweep(ctx context.Context) {
 	now := a.Now()
 	stale, _ := a.Payments.StaleProcessing(ctx, now.Add(-3*time.Minute), 100)
 	for _, p := range stale {
-		_ = a.CompletePayment(ctx, p.ID, domain.Outcome{FailureCode: domain.FailCustomerTimeout})
+		a.settleStale(ctx, p, now)
 	}
 	expired, _ := a.Sessions.ExpiredOpen(ctx, now, 200)
 	for _, cs := range expired {
@@ -250,4 +253,24 @@ func (a *App) RunWorkers(ctx context.Context) {
 	tick(10*time.Second, func() { a.Sweep(ctx) })
 	tick(15*time.Second, func() { a.BillingTick(ctx) })
 	tick(2*time.Second, func() { a.SendQueued(ctx) })
+}
+
+const StaleGiveUp = 30 * time.Minute
+
+func (a *App) settleStale(ctx context.Context, p domain.Payment, now time.Time) {
+	sr, ok := a.Rail.(ports.StatusRail)
+	if !ok || p.RailRef == "" {
+		_ = a.CompletePayment(ctx, p.ID, domain.Outcome{FailureCode: domain.FailCustomerTimeout})
+		return
+	}
+	out, final, err := sr.Status(ctx, domain.StatusQuery{PaymentID: p.ID, Reference: p.RailRef, Method: p.Method, Amount: p.Amount, Phone: p.PayerPhone, Description: p.Description})
+	switch {
+	case errors.Is(err, ports.ErrNoStatusCheck):
+		_ = a.CompletePayment(ctx, p.ID, domain.Outcome{FailureCode: domain.FailCustomerTimeout})
+	case err == nil && final:
+		_ = a.CompletePayment(ctx, p.ID, out)
+	case now.Sub(p.CreatedAt) > StaleGiveUp:
+		log.Printf("payment %s (%s): no final status after %s, marking as timed out; reconcile with the operator", p.ID, p.RailRef, StaleGiveUp)
+		_ = a.CompletePayment(ctx, p.ID, domain.Outcome{FailureCode: domain.FailCustomerTimeout})
+	}
 }

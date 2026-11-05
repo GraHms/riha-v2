@@ -32,6 +32,11 @@ type Config struct {
 	R2Bucket             string
 	R2Prefix             string
 	R2Endpoint           string
+	MtocaURL             string
+	MtocaToken           string
+	MtocaChannels        map[string]string
+	MtocaDebug           bool
+	AllowMockRail        bool
 }
 
 func env(k, def string) string {
@@ -85,6 +90,11 @@ func Load() Config {
 		R2Bucket:             env("RIHA_R2_BUCKET", ""),
 		R2Prefix:             env("RIHA_R2_PREFIX", ""),
 		R2Endpoint:           env("RIHA_R2_ENDPOINT", ""),
+		MtocaURL:             env("RIHA_MTOCA_URL", ""),
+		MtocaToken:           env("RIHA_MTOCA_TOKEN", ""),
+		MtocaChannels:        pairs(env("RIHA_MTOCA_CHANNELS", "")),
+		MtocaDebug:           flag("RIHA_MTOCA_DEBUG", false),
+		AllowMockRail:        flag("RIHA_ALLOW_MOCK_RAIL", dev),
 	}
 }
 
@@ -96,4 +106,15 @@ func storage(dev bool) string {
 		return "r2"
 	}
 	return "local"
+}
+
+func pairs(s string) map[string]string {
+	out := map[string]string{}
+	for _, kv := range strings.Split(s, ",") {
+		k, v, ok := strings.Cut(strings.TrimSpace(kv), "=")
+		if ok && strings.TrimSpace(k) != "" && strings.TrimSpace(v) != "" {
+			out[strings.ToLower(strings.TrimSpace(k))] = strings.TrimSpace(v)
+		}
+	}
+	return out
 }
