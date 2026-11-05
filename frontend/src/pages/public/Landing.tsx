@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ChangeEvent } from 'react'
+import { Fragment, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon, QR, stripeBlur } from '../../components/ui'
 import { useGateway } from '../../core/gateway'
@@ -11,7 +11,9 @@ const css = `
 .lp a { text-decoration: none; }
 .lp a:hover { color: inherit; }
 @media (max-width: 720px) {
-  .lp-nav, .lp-foot-gap { display: none !important; }
+  .lp-nav, .lp-foot-gap, .lp-bar-account { display: none !important; }
+  .lp-burger { display: grid !important; }
+  .lp-menu { display: block !important; }
   .lp-hero { height: 640px !important; }
   .lp-hero-dash { display: none !important; }
   .lp-hero-phone { left: 50% !important; right: auto !important; top: 26px !important; transform: translateX(-50%); }
@@ -69,6 +71,42 @@ function usePricing() {
   return { bps, soon }
 }
 
+const SECTIONS = [['#pagamentos', 'Pagamentos'], ['#assinaturas', 'Assinaturas'], ['#programadores', 'Programadores'], ['#preco', 'Preço'], ['#seguranca', 'Segurança']]
+
+// Phones only: the page sections and the account links, behind a burger on the right.
+function PhoneMenu() {
+  const [open, setOpen] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOpen(false); button.current?.focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+  const close = () => setOpen(false)
+  return (
+    <>
+      <button ref={button} type="button" className="lp-burger" aria-label={open ? 'Fechar menu' : 'Abrir menu'} aria-expanded={open} aria-controls="lp-menu" onClick={() => setOpen(o => !o)} style={{ display: 'none', placeItems: 'center', width: '44px', height: '44px', flex: 'none', marginRight: '-8px', padding: 0, border: 0, borderRadius: '12px', background: open ? '#EAE8E1' : 'transparent', color: '#0B120E' }}>
+        <Icon name={open ? 'close' : 'menu'} size={24} />
+      </button>
+      {open && (
+        <>
+          <div className="lp-menu" onClick={close} style={{ display: 'none', position: 'fixed', inset: 0, background: 'rgba(11,18,14,.28)' }} />
+          <nav id="lp-menu" className="lp-menu" aria-label="Menu" style={{ display: 'none', position: 'absolute', top: '68px', left: '12px', right: '12px', padding: '10px', borderRadius: '22px', background: '#fff', border: '1px solid #E8E6DF', boxShadow: '0 30px 60px -24px rgba(11,18,14,.45)' }}>
+            {SECTIONS.map(([href, label]) => <a key={href} href={href} onClick={close} style={{ display: 'flex', alignItems: 'center', height: '48px', padding: '0 12px', borderRadius: '12px', fontWeight: '600', fontSize: '16px', color: '#0B120E' }}>{label}</a>)}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #EEECE5' }}>
+              <Link to="/entrar" style={{ display: 'grid', placeItems: 'center', height: '50px', borderRadius: '14px', border: '1px solid #E4E2DA', fontWeight: '600', fontSize: '15.5px', color: '#0B120E' }}>Entrar</Link>
+              <Link to="/registo" style={{ display: 'grid', placeItems: 'center', height: '50px', borderRadius: '14px', background: '#0B120E', fontWeight: '600', fontSize: '15.5px', color: '#fff' }}>Criar conta</Link>
+            </div>
+          </nav>
+        </>
+      )}
+    </>
+  )
+}
+
 export default function Landing() {
   const { bps, soon } = usePricing()
   const [vol, setVol] = useState(250000)
@@ -82,11 +120,12 @@ export default function Landing() {
       <style>{css}</style>
 <div style={{ containerType: 'inline-size', background: '#F4F3EE', color: '#0B120E', fontFamily: 'var(--sans)', overflow: 'hidden' }}>
 
-  <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(20px,4cqi,48px)', display: 'flex', alignItems: 'center', gap: '28px', height: '76px' }}>
+  <div style={{ position: 'relative', zIndex: 30, maxWidth: '1280px', margin: '0 auto', padding: '0 clamp(20px,4cqi,48px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '28px', height: '76px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 'none' }}><img src="/assets/riha-icon-dark.png" alt="RIHA" style={{ width: '30px', height: '30px', objectFit: 'contain' }} /><span style={{ fontFamily: 'var(--display)', fontWeight: '800', fontSize: '17px', letterSpacing: '.2em' }}>RIHA</span></div>
     <div className="lp-nav" style={{ flex: '1', minWidth: '0', height: '22px', overflow: 'hidden', display: 'flex', flexWrap: 'wrap', gap: '0 26px', fontSize: '14.5px', fontWeight: '500', color: '#3E4742' }}><a href="#pagamentos" style={{ color: 'inherit', textDecoration: 'none' }}>Pagamentos</a><a href="#assinaturas" style={{ color: 'inherit', textDecoration: 'none' }}>Assinaturas</a><a href="#programadores" style={{ color: 'inherit', textDecoration: 'none' }}>Programadores</a><a href="#preco" style={{ color: 'inherit', textDecoration: 'none' }}>Preço</a><a href="#seguranca" style={{ color: 'inherit', textDecoration: 'none' }}>Segurança</a></div>
-    <Link to="/entrar" style={{ fontSize: '14.5px', fontWeight: '600', flex: 'none', color: '#0B120E', textDecoration: 'none', whiteSpace: 'nowrap' }}>Entrar</Link>
-    <Link to="/registo" style={{ height: '40px', padding: '0 16px', borderRadius: '12px', background: '#0B120E', color: '#fff', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', flex: 'none', textDecoration: 'none', whiteSpace: 'nowrap' }}>Criar conta</Link>
+    <Link className="lp-bar-account" to="/entrar" style={{ fontSize: '14.5px', fontWeight: '600', flex: 'none', color: '#0B120E', textDecoration: 'none', whiteSpace: 'nowrap' }}>Entrar</Link>
+    <Link className="lp-bar-account" to="/registo" style={{ height: '40px', padding: '0 16px', borderRadius: '12px', background: '#0B120E', color: '#fff', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', flex: 'none', textDecoration: 'none', whiteSpace: 'nowrap' }}>Criar conta</Link>
+    <PhoneMenu />
   </div>
 
   <div style={{ maxWidth: '1280px', margin: '0 auto', padding: 'clamp(40px,6cqi,80px) clamp(20px,4cqi,48px) 0', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
