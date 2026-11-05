@@ -242,6 +242,9 @@ func (r Payments) ByID(ctx context.Context, id string) (*domain.Payment, error) 
 func (r Payments) Lock(ctx context.Context, id string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Clauses(forUpdate).Where("id = ?", id))
 }
+func (r Payments) ByRailReference(ctx context.Context, ref string) (*domain.Payment, error) {
+	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("rail_reference = ?", ref))
+}
 func (r Payments) ByReference(ctx context.Context, ref string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("reference = ?", ref))
 }

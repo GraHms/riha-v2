@@ -137,6 +137,7 @@ type Payments interface {
 	Find(ctx context.Context, q PaymentQuery) ([]domain.Payment, error)
 	Count(ctx context.Context, q PaymentQuery) (int64, error)
 	StaleProcessing(ctx context.Context, before time.Time, limit int) ([]domain.Payment, error)
+	ByRailReference(ctx context.Context, ref string) (*domain.Payment, error)
 }
 
 type Refunds interface {
