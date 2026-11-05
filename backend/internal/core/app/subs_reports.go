@@ -23,7 +23,7 @@ func (a *App) PlanStatsFor(ctx context.Context, merchantID string, live bool) ma
 	for id, by := range counts {
 		st := PlanStats{ByStatus: by}
 		for k, n := range by {
-			if k != domain.SubCanceled && k != domain.SubIncomplete {
+			if !domain.Closed(k) && k != domain.SubIncomplete {
 				st.Members += n
 			}
 		}

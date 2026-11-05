@@ -68,6 +68,9 @@ func (a *App) refreshMember(ctx context.Context, memberID string) error {
 	if err != nil {
 		return err
 	}
+	if err := a.endFinished(ctx, subs); err != nil {
+		return err
+	}
 	mem.Status = domain.MemberStatus(subs)
 	if len(subs) == 0 {
 		mem.Status = domain.SubCanceled
@@ -236,7 +239,7 @@ func (a *App) createMembership(ctx context.Context, m *domain.Merchant, live boo
 	var charges []domain.Charge
 	for _, p := range nm.plans {
 		for _, s := range existing {
-			if s.PlanID == p.ID && s.Status != domain.SubCanceled {
+			if s.PlanID == p.ID && !domain.Closed(s.Status) {
 				if s.Status == domain.SubInvited && nm.via != "link" {
 					return nil, nil, domain.Conflict("already_invited", fmt.Sprintf("%s já foi convidado para %s. Use Reenviar link.", mem.Name, p.Name))
 				}
@@ -272,7 +275,7 @@ func (a *App) createMembership(ctx context.Context, m *domain.Merchant, live boo
 			s.NextDueAt = &next
 		}
 		if nm.consent {
-			s.ConsentText = domain.Agreement(m.Name, p, p.Amount, nm.phone, nm.channel)
+			s.ConsentText = domain.Agreement(m.Name, p, p.Amount, nm.phone, nm.channel, first)
 			s.ConsentAt, s.ConsentIP = &now, nm.ip
 		}
 		if err := a.Subs.Create(ctx, s); err != nil {
@@ -376,7 +379,11 @@ type SubscribeInput struct {
 func (a *App) AgreementPreview(ctx context.Context, m *domain.Merchant, plans []*domain.Plan, phone, channel string) []string {
 	var out []string
 	for _, p := range plans {
-		out = append(out, domain.Agreement(m.Name, p, p.Amount, phone, channel))
+		join, ok := domain.FirstDue(p, a.Now())
+		if !ok {
+			join = a.Now()
+		}
+		out = append(out, domain.Agreement(m.Name, p, p.Amount, phone, channel, join))
 	}
 	return out
 }
@@ -543,7 +550,7 @@ func (a *App) SkipNext(ctx context.Context, m *domain.Merchant, live bool, subID
 		if err != nil {
 			return err
 		}
-		if s.Status == domain.SubCanceled || s.Status == domain.SubIncomplete || s.Status == domain.SubInvited {
+		if domain.Closed(s.Status) || s.Status == domain.SubIncomplete || s.Status == domain.SubInvited {
 			return domain.Invalid("subscription_state", "subscription", "Esta assinatura não está ativa.")
 		}
 		p, err := a.Plans.Get(ctx, s.PlanID)
@@ -675,7 +682,7 @@ func (a *App) ChangeSubscriptionPlan(ctx context.Context, m *domain.Merchant, li
 		if err != nil {
 			return err
 		}
-		if s.Status == domain.SubCanceled || s.Status == domain.SubIncomplete {
+		if domain.Closed(s.Status) || s.Status == domain.SubIncomplete {
 			return domain.Invalid("subscription_state", "subscription", "Esta assinatura não está ativa.")
 		}
 		p, err := a.Plan(ctx, m.ID, live, planID)
@@ -687,7 +694,7 @@ func (a *App) ChangeSubscriptionPlan(ctx context.Context, m *domain.Merchant, li
 		}
 		others, _ := a.Subs.ByMember(ctx, mem.ID)
 		for _, o := range others {
-			if o.PlanID == p.ID && o.Status != domain.SubCanceled {
+			if o.PlanID == p.ID && !domain.Closed(o.Status) {
 				return domain.Conflict("already_subscribed", mem.Name+" já tem esse plano.")
 			}
 		}
@@ -748,7 +755,7 @@ func (a *App) CancelSubscription(ctx context.Context, m *domain.Merchant, live b
 		if err != nil {
 			return err
 		}
-		if s.Status == domain.SubCanceled {
+		if domain.Closed(s.Status) {
 			return nil
 		}
 		return a.cancelSub(ctx, m, s, mem, reason)
@@ -1128,7 +1135,7 @@ func (a *App) PreviewImport(ctx context.Context, m *domain.Merchant, live bool, 
 			if mem, err := a.Members.Identity(ctx, m.ID, live, domain.NormalizeMZPhone(row.Phone), domain.NameKey(row.Name)); err == nil {
 				subs, _ := a.Subs.ByMember(ctx, mem.ID)
 				for _, s := range subs {
-					if domain.Contains(row.PlanIDs, s.PlanID) && s.Status != domain.SubCanceled && s.Status != domain.SubIncomplete {
+					if domain.Contains(row.PlanIDs, s.PlanID) && !domain.Closed(s.Status) && s.Status != domain.SubIncomplete {
 						row.Error = "Já é membro deste plano"
 					}
 				}
@@ -1187,4 +1194,32 @@ func errText(err error) string {
 		return e.Message
 	}
 	return "erro"
+}
+
+// endFinished ends the subscriptions that have no payment left to make: on a
+// plan with a number of payments or an end date, once the last one is settled.
+func (a *App) endFinished(ctx context.Context, subs []domain.Subscription) error {
+	for i := range subs {
+		s := &subs[i]
+		if s.NextDueAt != nil || (s.Status != domain.SubActive && s.Status != domain.SubPastDue) {
+			continue
+		}
+		p, err := a.Plans.Get(ctx, s.PlanID)
+		if err != nil || !p.Limited() {
+			continue
+		}
+		open, err := a.Charges.Find(ctx, ports.ChargeQuery{SubscriptionIDs: []string{s.ID}, Statuses: []string{domain.ChargeScheduled, domain.ChargeOpen, domain.ChargePastDue}})
+		if err != nil {
+			return err
+		}
+		if len(open) > 0 {
+			continue
+		}
+		now := a.Now()
+		s.Status, s.UpdatedAt = domain.SubEnded, now
+		if err := a.Subs.Save(ctx, s); err != nil {
+			return err
+		}
+	}
+	return nil
 }

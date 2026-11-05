@@ -25,7 +25,11 @@ func (srv *Server) subscriptionRoutes(m *gin.RouterGroup) {
 	g.PATCH("/plans/:id", srv.updatePlan)
 	g.POST("/plans/:id/price", srv.changePrice)
 	g.POST("/plans/:id/archive", srv.archivePlan)
+	g.GET("/catalog", srv.getCatalog)
 	g.PUT("/catalog", srv.putCatalog)
+	g.GET("/catalog/slug", srv.checkCatalogSlug)
+	g.POST("/catalog/cover", srv.putCatalogCover)
+	g.DELETE("/catalog/cover", srv.deleteCatalogCover)
 	g.GET("/members", srv.listMembers)
 	g.GET("/members/export.csv", srv.exportMembers)
 	g.POST("/members", srv.inviteMember)
@@ -42,6 +46,7 @@ func (srv *Server) subscriptionRoutes(m *gin.RouterGroup) {
 func (srv *Server) publicSubscriptionRoutes(g *gin.RouterGroup) {
 	g.GET("/subscriptions/plans/:merchant/:slug", srv.publicPlan)
 	g.GET("/subscriptions/catalog/:merchant", srv.publicCatalog)
+	g.GET("/subscriptions/cover/:slug", srv.throttle(srv.viewLimiter, "cover"), srv.publicCover)
 	g.GET("/subscriptions/agreement/:merchant", srv.publicAgreement)
 	g.POST("/subscriptions/subscribe/:merchant", srv.throttle(srv.payLimiter, "subscribe"), srv.publicSubscribe)
 	g.GET("/invoices/:token", srv.throttle(srv.viewLimiter, "invoice-view"), srv.publicInvoice)
@@ -55,10 +60,11 @@ func short(t *time.Time) string {
 	return domain.ShortDate(*t)
 }
 
-func (srv *Server) planJSON(p *domain.Plan, slug string, st *app.PlanStats) gin.H {
+func (srv *Server) planJSON(p *domain.Plan, links catalogLinks, st *app.PlanStats) gin.H {
 	out := gin.H{"id": p.ID, "name": p.Name, "slug": p.Slug, "status": p.Status, "amount": p.Amount, "interval": p.Interval, "anchor": p.Anchor,
 		"billing_day": p.BillingDay, "months": p.Months, "missed": p.Missed, "fields": nonNil(p.Fields), "ends_at": iso(p.EndsAt), "version": p.Version,
-		"in_catalog": p.InCatalog, "catalog_order": p.CatalogOrder, "url": domain.PlanURL(srv.A.PublicURL, slug, p.Slug),
+		"highlights": nonNil(p.Highlights), "cycles": p.Cycles, "duration_label": p.DurationLabel(), "customer_when": p.CustomerWhen(srv.A.Now()),
+		"in_catalog": p.InCatalog, "catalog_order": p.CatalogOrder, "url": links.plan(p.Slug),
 		"schedule_label": p.ScheduleLabel(), "when_label": p.WhenLabel(), "months_label": domain.MonthsLabel(p.Months),
 		"interval_label": domain.IntervalLabel(p.Interval), "monthly": domain.MonthlyEquivalent(p.Amount, p.Interval)}
 	if st != nil {
@@ -78,12 +84,13 @@ func (srv *Server) subsOverview(c *gin.Context) {
 	m := merchant(c)
 	o := srv.A.SubscriptionOverview(ctx(c), m, live(c))
 	stats := srv.A.PlanStatsFor(ctx(c), m.ID, live(c))
+	links := srv.linksFor(ctx(c), m)
 	plans := []gin.H{}
 	for _, p := range srv.A.PlanList(ctx(c), m.ID, live(c)) {
 		st := stats[p.ID]
-		plans = append(plans, srv.planJSON(&p, m.Slug, &st))
+		plans = append(plans, srv.planJSON(&p, links, &st))
 	}
-	c.JSON(200, gin.H{"overview": o, "plans": plans, "catalog_url": strings.TrimRight(srv.A.PublicURL, "/") + "/a/" + m.Slug})
+	c.JSON(200, gin.H{"overview": o, "plans": plans, "catalog_url": links.URL})
 }
 
 func settingsJSON(s domain.SubscriptionSettings) gin.H {
@@ -128,10 +135,11 @@ func (srv *Server) putSubsSettings(c *gin.Context) {
 func (srv *Server) listPlans(c *gin.Context) {
 	m := merchant(c)
 	stats := srv.A.PlanStatsFor(ctx(c), m.ID, live(c))
+	links := srv.linksFor(ctx(c), m)
 	out := []gin.H{}
 	for _, p := range srv.A.PlanList(ctx(c), m.ID, live(c)) {
 		st := stats[p.ID]
-		out = append(out, srv.planJSON(&p, m.Slug, &st))
+		out = append(out, srv.planJSON(&p, links, &st))
 	}
 	c.JSON(200, gin.H{"data": out})
 }
@@ -148,7 +156,7 @@ func (srv *Server) createPlan(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, srv.planJSON(p, m.Slug, &app.PlanStats{}))
+	c.JSON(200, srv.planJSON(p, srv.linksFor(ctx(c), m), &app.PlanStats{}))
 }
 
 func (srv *Server) getPlan(c *gin.Context) {
@@ -159,7 +167,7 @@ func (srv *Server) getPlan(c *gin.Context) {
 		return
 	}
 	st := srv.A.PlanStatsFor(ctx(c), m.ID, live(c))[p.ID]
-	out := srv.planJSON(p, m.Slug, &st)
+	out := srv.planJSON(p, srv.linksFor(ctx(c), m), &st)
 	versions := []gin.H{}
 	subs := srv.A.PlanMembers(ctx(c), m.ID, live(c), p.ID)
 	byVersion := map[int]int{}
@@ -197,7 +205,7 @@ func (srv *Server) updatePlan(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, srv.planJSON(p, m.Slug, nil))
+	c.JSON(200, srv.planJSON(p, srv.linksFor(ctx(c), m), nil))
 }
 
 func (srv *Server) changePrice(c *gin.Context) {
@@ -220,7 +228,7 @@ func (srv *Server) changePrice(c *gin.Context) {
 	if r.EffectsAt != nil {
 		effects = domain.LongDate(*r.EffectsAt)
 	}
-	c.JSON(200, gin.H{"plan": srv.planJSON(r.Plan, m.Slug, nil), "affected": r.Affected, "effective": effects})
+	c.JSON(200, gin.H{"plan": srv.planJSON(r.Plan, srv.linksFor(ctx(c), m), nil), "affected": r.Affected, "effective": effects})
 }
 
 func (srv *Server) archivePlan(c *gin.Context) {
@@ -235,16 +243,18 @@ func (srv *Server) putCatalog(c *gin.Context) {
 	var in struct {
 		Entries []app.CatalogEntry `json:"entries"`
 		Multi   bool               `json:"multi"`
+		Page    *app.CatalogPage   `json:"page"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil || len(in.Entries) > 100 {
 		bad(c, "Pedido inválido.")
 		return
 	}
-	if err := srv.A.SaveCatalog(ctx(c), merchant(c), live(c), in.Entries, in.Multi, actor(c)); err != nil {
+	m := merchant(c)
+	if err := srv.A.SaveCatalog(ctx(c), m, live(c), in.Entries, in.Multi, in.Page, actor(c)); err != nil {
 		fail(c, err)
 		return
 	}
-	c.JSON(200, gin.H{"ok": true})
+	c.JSON(200, srv.catalogPageJSON(m, srv.A.SubSettingsFor(ctx(c), m)))
 }
 
 func memberRow(mem *domain.Member) gin.H {
@@ -265,7 +275,7 @@ func (srv *Server) memberQuery(c *gin.Context) ports.MemberQuery {
 	case "invited":
 		q.Statuses = []string{domain.SubInvited}
 	case "canceled":
-		q.Statuses = []string{domain.SubCanceled}
+		q.Statuses = []string{domain.SubCanceled, domain.SubEnded}
 	default:
 		q.Statuses = []string{domain.SubActive, domain.SubPastDue, domain.SubPaused, domain.SubSuspended, domain.SubInvited}
 	}
@@ -410,9 +420,10 @@ func (srv *Server) getMember(c *gin.Context) {
 		return
 	}
 	subs := []gin.H{}
+	links := srv.linksFor(ctx(c), m)
 	for _, s := range d.Subs {
 		p := d.Plans[s.PlanID]
-		row := gin.H{"id": s.ID, "plan": srv.planJSON(p, m.Slug, nil), "plan_version": s.PlanVersion, "amount": s.Amount, "status": s.Status,
+		row := gin.H{"id": s.ID, "plan": srv.planJSON(p, links, nil), "last_due": lastDue(p, s.AnchorAt), "plan_version": s.PlanVersion, "amount": s.Amount, "status": s.Status,
 			"next_due": short(s.NextDueAt), "next_due_iso": iso(s.NextDueAt), "paused_until": short(s.PausedUntil), "since": domain.ShortDate(s.AnchorAt),
 			"since_label": domain.PeriodLabel(p, s.AnchorAt), "consent_text": s.ConsentText, "consent_at": iso(s.ConsentAt), "skip_periods": nonNil(s.SkipPeriods)}
 		if s.PendingFrom != nil {
@@ -574,10 +585,8 @@ func (srv *Server) publicPlan(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	pj := publicPlanJSON(p)
-	pj["first_period"] = srv.firstDueText(p)
 	c.Header("Cache-Control", "no-store")
-	c.JSON(200, gin.H{"merchant": merchantBrand(m), "plan": pj, "test_mode": !p.Livemode})
+	c.JSON(200, gin.H{"merchant": merchantBrand(m), "plan": srv.customerPlanJSON(p), "page": srv.catalogPageJSON(m, srv.A.SubSettingsFor(ctx(c), m)), "test_mode": !p.Livemode})
 }
 
 func (srv *Server) publicCatalog(c *gin.Context) {
@@ -588,12 +597,10 @@ func (srv *Server) publicCatalog(c *gin.Context) {
 	}
 	out := []gin.H{}
 	for i := range plans {
-		pj := publicPlanJSON(&plans[i])
-		pj["first_period"] = srv.firstDueText(&plans[i])
-		out = append(out, pj)
+		out = append(out, srv.customerPlanJSON(&plans[i]))
 	}
 	c.Header("Cache-Control", "no-store")
-	c.JSON(200, gin.H{"merchant": merchantBrand(m), "plans": out, "multi": set.CatalogMulti, "test_mode": !plans[0].Livemode})
+	c.JSON(200, gin.H{"merchant": merchantBrand(m), "plans": out, "multi": set.CatalogMulti, "page": srv.catalogPageJSON(m, set), "test_mode": !plans[0].Livemode})
 }
 
 func (srv *Server) publicAgreement(c *gin.Context) {
@@ -699,4 +706,17 @@ func (srv *Server) payInvoice(c *gin.Context) {
 		return
 	}
 	srv.publicInvoice(c)
+}
+
+// lastDue is the label of a member's last payment, on a plan where payments end.
+func lastDue(p *domain.Plan, anchor time.Time) string {
+	if !p.Limited() {
+		return ""
+	}
+	n := domain.MaxCycles
+	if p.Cycles > 0 {
+		n = p.Cycles
+	}
+	ds := domain.Schedule(p, anchor, n)
+	return domain.PeriodLabel(p, ds[len(ds)-1])
 }

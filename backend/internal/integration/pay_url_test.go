@@ -14,7 +14,9 @@ import (
 )
 
 // Customers open these from a text message, and previews and browsers need a real
-// answer. They must also stay out of search, because they name a customer.
+// answer. An invoice stays out of search, because it names a customer. A catalog
+// or a plan is the merchant's own page and is indexed once it has live plans; one
+// that doesn't exist answers 404 and stays out.
 func TestSubscriptionPagesAreRealPages(t *testing.T) {
 	a, _ := setup(t)
 	dir := t.TempDir()
@@ -22,10 +24,10 @@ func TestSubscriptionPagesAreRealPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := httpapi.New(a, httpapi.Config{StaticDir: dir})
-	for _, path := range []string{"/i/qualquertoken", "/s/loja/plano", "/a/loja"} {
+	for path, code := range map[string]int{"/i/qualquertoken": 200, "/s/loja/plano": 404, "/a/loja": 404} {
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
-		if w.Code != 200 || !strings.Contains(w.Body.String(), "noindex") {
+		if w.Code != code || !strings.Contains(w.Body.String(), "noindex") || !strings.Contains(w.Body.String(), `id="root"`) {
 			t.Fatalf("%s: %d, noindex %v", path, w.Code, strings.Contains(w.Body.String(), "noindex"))
 		}
 	}

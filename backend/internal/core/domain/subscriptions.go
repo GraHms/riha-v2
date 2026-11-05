@@ -29,6 +29,9 @@ const (
 	SubPaused     = "paused"
 	SubSuspended  = "suspended"
 	SubCanceled   = "canceled"
+	// A subscription with a limited number of payments, or a plan with an end
+	// date, ends once its last payment is settled.
+	SubEnded = "ended"
 
 	ChargeScheduled   = "scheduled"
 	ChargeOpen        = "open"
@@ -49,8 +52,10 @@ const (
 
 	SourceSubscription = "subscription"
 
-	AllMonths    = 0xFFF
-	MaxPlanField = 6
+	AllMonths     = 0xFFF
+	MaxPlanField  = 6
+	MaxHighlights = 8
+	MaxCycles     = 120
 )
 
 var Maputo = time.FixedZone("CAT", 2*3600)
@@ -61,18 +66,21 @@ var UnpaidChargeStatuses = []string{ChargeOpen, ChargePastDue}
 var LiveSubStatuses = []string{SubActive, SubPastDue, SubPaused, SubSuspended}
 
 type Plan struct {
-	ID           string
-	MerchantID   string
-	Livemode     bool
-	Slug         string
-	Name         string
-	Status       string
-	Interval     string
-	Anchor       string
-	BillingDay   int
-	Months       int
-	Missed       string
-	Fields       []string
+	ID         string
+	MerchantID string
+	Livemode   bool
+	Slug       string
+	Name       string
+	Status     string
+	Interval   string
+	Anchor     string
+	BillingDay int
+	Months     int
+	Missed     string
+	Fields     []string
+	Highlights []string
+	// Cycles limits how many payments each member makes. 0 means no limit.
+	Cycles       int
 	EndsAt       *time.Time
 	Amount       int64
 	Version      int
@@ -149,7 +157,10 @@ type Subscription struct {
 	UpdatedAt      time.Time
 }
 
-var statusRank = map[string]int{SubPastDue: 0, SubSuspended: 1, SubActive: 2, SubPaused: 3, SubInvited: 4, SubIncomplete: 5, SubCanceled: 6}
+var statusRank = map[string]int{SubPastDue: 0, SubSuspended: 1, SubActive: 2, SubPaused: 3, SubInvited: 4, SubIncomplete: 5, SubEnded: 6, SubCanceled: 7}
+
+// Closed says whether a subscription is over: canceled, or ended after its last payment.
+func Closed(status string) bool { return status == SubCanceled || status == SubEnded }
 
 func MemberStatus(subs []Subscription) string {
 	best := SubCanceled
@@ -226,7 +237,14 @@ type SubscriptionSettings struct {
 	RequireProof  bool
 	ReceiptSMS    bool
 	CatalogMulti  bool
-	UpdatedAt     time.Time
+	// The public catalog page. CatalogSlug is also its subdomain.
+	CatalogSlug        string
+	CatalogTitle       string
+	CatalogDescription string
+	CatalogCover       string
+	CatalogAccent      string
+	CatalogBackground  string
+	UpdatedAt          time.Time
 }
 
 func DefaultSubscriptionSettings(m *Merchant) SubscriptionSettings {
@@ -380,8 +398,28 @@ func (p *Plan) Validate() error {
 		return Invalid("parameter_invalid", "fields", fmt.Sprintf("No máximo %d campos.", MaxPlanField))
 	}
 	p.Fields = fields
+	var hl []string
+	for _, h := range p.Highlights {
+		h = Trim(strings.Join(strings.Fields(h), " "), 90)
+		if h != "" && !contains(hl, h) {
+			hl = append(hl, h)
+		}
+	}
+	if len(hl) > MaxHighlights {
+		return Invalid("parameter_invalid", "highlights", fmt.Sprintf("No máximo %d pontos em O que inclui.", MaxHighlights))
+	}
+	p.Highlights = hl
+	if p.Cycles < 0 || p.Cycles > MaxCycles {
+		return Invalid("parameter_invalid", "cycles", fmt.Sprintf("O número de pagamentos tem de estar entre 1 e %d.", MaxCycles))
+	}
+	if p.Cycles > 0 && p.EndsAt != nil {
+		return Invalid("parameter_invalid", "cycles", "Escolha um número de pagamentos ou uma data de fim, não os dois.")
+	}
 	return nil
 }
+
+// Limited says whether members stop paying at some point.
+func (p *Plan) Limited() bool { return p.Cycles > 0 || p.EndsAt != nil }
 
 func dayIn(y int, m time.Month, d int) time.Time {
 	last := time.Date(y, m+1, 0, 0, 0, 0, 0, Maputo).Day()
@@ -448,17 +486,41 @@ func FirstDue(p *Plan, now time.Time) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// NextDue is the first payment date after "after", for a member whose first
+// payment fell on anchor. On a plan with a number of payments, the count
+// starts at anchor.
 func NextDue(p *Plan, anchor, after time.Time) (time.Time, bool) {
+	n := 0
 	for k := 0; k < 600; k++ {
 		d := dueAt(p, anchor, k)
 		if p.EndsAt != nil && d.After(*p.EndsAt) {
 			return time.Time{}, false
 		}
-		if d.After(after) && p.inRange(d) {
+		if !p.inRange(d) {
+			continue
+		}
+		n++
+		if p.Cycles > 0 && n > p.Cycles {
+			return time.Time{}, false
+		}
+		if d.After(after) {
 			return d.UTC(), true
 		}
 	}
 	return time.Time{}, false
+}
+
+// Schedule lists up to n payment dates for a member whose first payment falls on first.
+func Schedule(p *Plan, first time.Time, n int) []time.Time {
+	out := []time.Time{first.UTC()}
+	for len(out) < n {
+		d, ok := NextDue(p, first, out[len(out)-1])
+		if !ok {
+			break
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 func PeriodKey(due time.Time) string { return due.In(Maputo).Format("2006-01-02") }
@@ -535,7 +597,7 @@ func IntervalLabel(i string) string {
 
 func (p *Plan) WhenLabel() string {
 	if p.Anchor == AnchorSignup {
-		return "Aniversário"
+		return "Dia da adesão"
 	}
 	if p.Interval == IntervalWeek {
 		return "À " + weekdays[p.BillingDay%7]
@@ -544,6 +606,41 @@ func (p *Plan) WhenLabel() string {
 }
 
 func (p *Plan) ScheduleLabel() string { return p.WhenLabel() + " · " + MonthsLabel(p.Months) }
+
+// CustomerWhen says when a customer who joins on "join" pays, in their words.
+// On a plan that follows the day each member joins, that is the day they join.
+func (p *Plan) CustomerWhen(join time.Time) string {
+	j := join.In(Maputo)
+	day, wd := p.BillingDay, p.BillingDay%7
+	if p.Anchor == AnchorSignup {
+		day, wd = j.Day(), int(j.Weekday())
+	}
+	switch p.Interval {
+	case IntervalWeek:
+		return "Todas as semanas, à " + weekdays[wd]
+	case IntervalQuarter:
+		return fmt.Sprintf("Dia %d, de 3 em 3 meses", day)
+	case IntervalYear:
+		if p.Anchor == AnchorSignup {
+			return fmt.Sprintf("Todos os anos, a %d de %s", day, strings.ToLower(monthNames[j.Month()-1]))
+		}
+		return fmt.Sprintf("Todos os anos, no dia %d", day)
+	}
+	return fmt.Sprintf("Todos os meses, no dia %d", day)
+}
+
+// DurationLabel says how long members pay. Empty when there is no end.
+func (p *Plan) DurationLabel() string {
+	switch {
+	case p.Cycles == 1:
+		return "1 pagamento"
+	case p.Cycles > 1:
+		return fmt.Sprintf("%d pagamentos", p.Cycles)
+	case p.EndsAt != nil:
+		return "Até " + LongDate(*p.EndsAt)
+	}
+	return ""
+}
 
 func MonthlyEquivalent(amount int64, interval string) int64 {
 	switch interval {
@@ -557,13 +654,20 @@ func MonthlyEquivalent(amount int64, interval string) int64 {
 	return amount
 }
 
-func Agreement(merchant string, p *Plan, amount int64, phone, channel string) string {
+// Agreement is the text a customer accepts. join is the day their payments
+// follow on a plan that charges on the day each member joins.
+func Agreement(merchant string, p *Plan, amount int64, phone, channel string, join time.Time) string {
 	when := ""
+	j := join.In(Maputo)
 	switch {
 	case p.Anchor == AnchorSignup && p.Interval == IntervalWeek:
-		when = "no mesmo dia de cada semana"
+		when = "à " + weekdays[j.Weekday()] + " de cada semana"
+	case p.Anchor == AnchorSignup && p.Interval == IntervalMonth:
+		when = fmt.Sprintf("no dia %d de cada mês", j.Day())
+	case p.Anchor == AnchorSignup && p.Interval == IntervalYear:
+		when = fmt.Sprintf("a %d de %s de cada ano", j.Day(), strings.ToLower(monthNames[j.Month()-1]))
 	case p.Anchor == AnchorSignup:
-		when = "no dia em que subscrevo, em cada " + IntervalLabel(p.Interval)
+		when = fmt.Sprintf("no dia %d, em cada %s", j.Day(), IntervalLabel(p.Interval))
 	case p.Interval == IntervalWeek:
 		when = "à " + weekdays[p.BillingDay%7] + " de cada semana"
 	case p.Interval == IntervalMonth:
@@ -576,7 +680,12 @@ func Agreement(merchant string, p *Plan, amount int64, phone, channel string) st
 		months = ", nos meses " + MonthsLabel(p.Months)
 	}
 	end := ""
-	if p.EndsAt != nil {
+	switch {
+	case p.Cycles == 1:
+		end = ", uma só vez"
+	case p.Cycles > 1:
+		end = fmt.Sprintf(", %d vezes no total", p.Cycles)
+	case p.EndsAt != nil:
 		end = ", até " + LongDate(*p.EndsAt)
 	}
 	ch := "SMS"
@@ -619,4 +728,69 @@ func WalletFor(phone string) string {
 		return MethodEmola
 	}
 	return MethodMpesa
+}
+
+// Names that can't be a catalog's address, because they are, or could be, ours.
+var reservedSlugs = map[string]bool{"www": true, "pay": true, "api": true, "app": true, "admin": true, "painel": true, "docs": true, "mail": true,
+	"email": true, "smtp": true, "imap": true, "pop": true, "webmail": true, "ftp": true, "status": true, "help": true, "ajuda": true, "suporte": true,
+	"support": true, "blog": true, "cdn": true, "static": true, "assets": true, "media": true, "img": true, "dev": true, "test": true, "teste": true,
+	"staging": true, "sandbox": true, "riha": true, "rihagateway": true, "checkout": true, "pagar": true, "pagamentos": true, "secure": true,
+	"seguro": true, "login": true, "entrar": true, "conta": true, "contas": true, "registo": true, "ns1": true, "ns2": true, "mx": true, "m": true, "og": true}
+
+func ReservedSlug(s string) bool { return reservedSlugs[s] }
+
+// CleanCatalogSlug checks an address for a catalog: 3 to 30 lowercase letters,
+// digits and single hyphens, so it also works as a subdomain.
+func CleanCatalogSlug(s string) (string, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if l := len(s); l < 3 || l > 30 {
+		return s, Invalid("parameter_invalid", "slug", "O endereço tem de ter entre 3 e 30 caracteres.")
+	}
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+			return s, Invalid("parameter_invalid", "slug", "Use só letras minúsculas, números e hífenes, sem acentos nem espaços.")
+		}
+	}
+	if s[0] == '-' || s[len(s)-1] == '-' || strings.Contains(s, "--") {
+		return s, Invalid("parameter_invalid", "slug", "O endereço não pode começar nem acabar com hífen, nem ter dois seguidos.")
+	}
+	if ReservedSlug(s) {
+		return s, Invalid("slug_taken", "slug", "Este endereço está reservado. Escolha outro.")
+	}
+	return s, nil
+}
+
+// CleanColor accepts #RRGGBB, or empty for the default.
+func CleanColor(field, s string) (string, error) {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	if s == "" {
+		return "", nil
+	}
+	if len(s) != 7 || s[0] != '#' {
+		return s, Invalid("parameter_invalid", field, "Cor inválida. Use o formato #RRGGBB.")
+	}
+	for _, r := range s[1:] {
+		if !(r >= '0' && r <= '9' || r >= 'A' && r <= 'F') {
+			return s, Invalid("parameter_invalid", field, "Cor inválida. Use o formato #RRGGBB.")
+		}
+	}
+	return s, nil
+}
+
+func (s *SubscriptionSettings) ValidateCatalog() error {
+	s.CatalogTitle = Trim(strings.Join(strings.Fields(s.CatalogTitle), " "), 80)
+	s.CatalogDescription = Trim(strings.TrimSpace(s.CatalogDescription), 400)
+	var err error
+	if s.CatalogAccent, err = CleanColor("accent", s.CatalogAccent); err != nil {
+		return err
+	}
+	if s.CatalogBackground, err = CleanColor("background", s.CatalogBackground); err != nil {
+		return err
+	}
+	if s.CatalogSlug != "" {
+		if s.CatalogSlug, err = CleanCatalogSlug(s.CatalogSlug); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"image/jpeg"
 	"image/png"
 	"strings"
 	"unicode"
@@ -54,6 +55,74 @@ type Card struct {
 	Body   string
 	Big    string // the amount
 	Foot   string
+	// Accent replaces the brand stripes, for a merchant's own pages.
+	Accent *color.RGBA
+	// Cover is drawn behind the text, darkened so the text stays readable.
+	// A card with a cover is a photo, so it is sent as a JPEG.
+	Cover image.Image
+}
+
+// Encode draws a card in the format that suits it: PNG, or JPEG for a photo.
+func Encode(c Card) ([]byte, string, error) {
+	img := draw1(c)
+	var out bytes.Buffer
+	if c.Cover != nil {
+		if err := jpeg.Encode(&out, img, &jpeg.Options{Quality: 80}); err != nil {
+			return nil, "", err
+		}
+		return out.Bytes(), "image/jpeg", nil
+	}
+	enc := png.Encoder{CompressionLevel: png.BestCompression}
+	if err := enc.Encode(&out, img); err != nil {
+		return nil, "", err
+	}
+	return out.Bytes(), "image/png", nil
+}
+
+// ParseColor reads #RRGGBB.
+func ParseColor(s string) *color.RGBA {
+	if len(s) != 7 || s[0] != '#' {
+		return nil
+	}
+	var v [3]uint8
+	for i := 0; i < 3; i++ {
+		var b uint8
+		for _, r := range s[1+2*i : 3+2*i] {
+			b <<= 4
+			switch {
+			case r >= '0' && r <= '9':
+				b |= uint8(r - '0')
+			case r >= 'a' && r <= 'f':
+				b |= uint8(r-'a') + 10
+			case r >= 'A' && r <= 'F':
+				b |= uint8(r-'A') + 10
+			default:
+				return nil
+			}
+		}
+		v[i] = b
+	}
+	return &color.RGBA{v[0], v[1], v[2], 0xFF}
+}
+
+// cover fills the card with a picture, cropped to its middle, and darkens it.
+func cover(img *image.RGBA, src image.Image) {
+	b := src.Bounds()
+	// The part of the picture with the card's proportions.
+	w, h := b.Dx(), b.Dx()*Height/Width
+	if h > b.Dy() {
+		w, h = b.Dy()*Width/Height, b.Dy()
+	}
+	x0, y0 := b.Min.X+(b.Dx()-w)/2, b.Min.Y+(b.Dy()-h)/2
+	for y := 0; y < Height; y++ {
+		sy := y0 + y*h/Height
+		for x := 0; x < Width; x++ {
+			r, g, bl, _ := src.At(x0+x*w/Width, sy).RGBA()
+			// Darker on the left, where the text is.
+			k := 0.30 + 0.22*float64(x)/Width
+			img.SetRGBA(x, y, color.RGBA{uint8(float64(r>>8) * k), uint8(float64(g>>8) * k), uint8(float64(bl>>8) * k), 0xFF})
+		}
+	}
 }
 
 func mustFont(b []byte) *opentype.Font {
@@ -82,10 +151,31 @@ func face(f *opentype.Font, size float64) font.Face {
 
 // Render draws a card as a PNG.
 func Render(c Card) ([]byte, error) {
+	c.Cover = nil
+	b, _, err := Encode(c)
+	return b, err
+}
+
+func draw1(c Card) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, Width, Height))
 	draw.Draw(img, img.Bounds(), image.NewUniform(ink), image.Point{}, draw.Src)
-	stripe(img, 900, 90, green)
-	stripe(img, 1040, 90, red)
+	big := lime
+	switch {
+	case c.Cover != nil:
+		cover(img, c.Cover)
+	case c.Accent != nil:
+		stripe(img, 900, 90, *c.Accent)
+		stripe(img, 1040, 90, color.RGBA{c.Accent.R/2 + 0x80, c.Accent.G/2 + 0x80, c.Accent.B/2 + 0x80, 0xFF})
+	default:
+		stripe(img, 900, 90, green)
+		stripe(img, 1040, 90, red)
+	}
+	if c.Accent != nil && c.Cover == nil {
+		// On ink, a dark brand colour would vanish: only light ones colour the amount.
+		if a := c.Accent; int(a.R)*299+int(a.G)*587+int(a.B)*114 > 140000 {
+			big = *a
+		}
+	}
 
 	draw.Draw(img, image.Rect(margin, 56, margin+76, 132), logo, logo.Bounds().Min, draw.Over)
 	y := 132 // the bottom of what is drawn so far
@@ -100,17 +190,12 @@ func Render(c Card) ([]byte, error) {
 		y = text(img, bodyFont, 34, muted, c.Body, y+58, 2, 1.28)
 	}
 	if c.Big != "" {
-		text(img, displayFont, 96, lime, c.Big, Height-124, 1, 1)
+		text(img, displayFont, 96, big, c.Big, Height-124, 1, 1)
 	}
 	if c.Foot != "" {
 		text(img, bodyFont, 30, muted, c.Foot, Height-56, 1, 1)
 	}
-	var out bytes.Buffer
-	enc := png.Encoder{CompressionLevel: png.BestCompression}
-	if err := enc.Encode(&out, img); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return img
 }
 
 func stripe(img *image.RGBA, x, w int, c color.RGBA) {

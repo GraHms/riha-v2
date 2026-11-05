@@ -340,6 +340,7 @@ type Plans interface {
 	ByID(ctx context.Context, merchantID, id string) (*domain.Plan, error)
 	Get(ctx context.Context, id string) (*domain.Plan, error)
 	BySlug(ctx context.Context, merchantID, slug string) (*domain.Plan, error)
+	CatalogMerchants(ctx context.Context, limit int) ([]string, error)
 	SlugTaken(ctx context.Context, merchantID, slug string) (bool, error)
 	List(ctx context.Context, merchantID string, live bool) ([]domain.Plan, error)
 	AddVersion(ctx context.Context, v *domain.PlanVersion) error
@@ -397,6 +398,8 @@ type Messages interface {
 type SubscriptionSettingsRepo interface {
 	Get(ctx context.Context, merchantID string) (*domain.SubscriptionSettings, error)
 	Save(ctx context.Context, s *domain.SubscriptionSettings) error
+	ByCatalogSlug(ctx context.Context, slug string) (*domain.SubscriptionSettings, error)
+	WithCatalog(ctx context.Context) ([]domain.SubscriptionSettings, error)
 }
 
 type OutboundMessage struct {

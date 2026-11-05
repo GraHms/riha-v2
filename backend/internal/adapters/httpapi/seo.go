@@ -41,17 +41,37 @@ type pageMeta struct {
 	index       bool
 	ld          any
 	noscript    string // what a reader without JavaScript gets
+	canonical   string // a full address, when the page lives on another host
+	imageType   string
+	// catalog is the catalog a subdomain page shows, for the app to read.
+	catalog string
 }
 
 func (srv *Server) url(path string) string {
 	return strings.TrimRight(srv.A.PublicURL, "/") + path
 }
 
-func (srv *Server) metaFor(c context.Context, path string) pageMeta {
+func (srv *Server) metaFor(c context.Context, host, path string) pageMeta {
 	private := func(title string) pageMeta {
 		return pageMeta{status: 200, title: title + " · RIHA", desc: siteDesc, image: "/og/site.png", alt: siteTitle}
 	}
 	seg := strings.Split(strings.Trim(path, "/"), "/")
+	if slug := srv.catalogHost(host); slug != "" {
+		var m pageMeta
+		switch {
+		case path == "/":
+			m = srv.catalogMeta(c, slug)
+		case len(seg) == 1:
+			m = srv.planMeta(c, slug, seg[0])
+		case seg[0] == "i" && len(seg) == 2:
+			m = private("Pagamento")
+		default:
+			m = private("Página não encontrada")
+			m.status = http.StatusNotFound
+		}
+		m.catalog = slug
+		return m
+	}
 	switch {
 	case path == "/":
 		return pageMeta{status: 200, title: siteTitle, desc: siteDesc, image: "/og/site.png", alt: siteTitle, path: "/", index: true,
@@ -83,8 +103,10 @@ func (srv *Server) metaFor(c context.Context, path string) pageMeta {
 	// stay out of search and their previews say nothing about the person.
 	case seg[0] == "i" && len(seg) == 2:
 		return private("Pagamento")
-	case (seg[0] == "s" && len(seg) == 3) || (seg[0] == "a" && len(seg) == 2):
-		return private("Assinatura")
+	case seg[0] == "a" && len(seg) == 2:
+		return srv.catalogMeta(c, seg[1])
+	case seg[0] == "s" && len(seg) == 3:
+		return srv.planMeta(c, seg[1], seg[2])
 	}
 	m := private("Página não encontrada")
 	m.status = http.StatusNotFound
@@ -145,9 +167,13 @@ func (m pageMeta) head(srv *Server) string {
 	tag(`<title>%s</title>`, e(m.title))
 	tag(`<meta name="description" content="%s" />`, e(trimDesc(m.desc)))
 	robots := "noindex,nofollow"
+	canonical := m.canonical
+	if canonical == "" && m.path != "" {
+		canonical = srv.url(m.path)
+	}
 	if m.index {
 		robots = "index,follow"
-		tag(`<link rel="canonical" href="%s" />`, e(srv.url(m.path)))
+		tag(`<link rel="canonical" href="%s" />`, e(canonical))
 	}
 	tag(`<meta name="robots" content="%s" />`, robots)
 	tag(`<meta property="og:site_name" content="%s" />`, siteName)
@@ -155,15 +181,19 @@ func (m pageMeta) head(srv *Server) string {
 	tag(`<meta property="og:type" content="website" />`)
 	tag(`<meta property="og:title" content="%s" />`, e(m.title))
 	tag(`<meta property="og:description" content="%s" />`, e(trimDesc(m.desc)))
-	if m.path != "" {
-		tag(`<meta property="og:url" content="%s" />`, e(srv.url(m.path)))
+	if canonical != "" {
+		tag(`<meta property="og:url" content="%s" />`, e(canonical))
 	}
 	tag(`<meta property="og:image" content="%s" />`, e(srv.url(m.image)))
-	tag(`<meta property="og:image:type" content="image/png" />`)
+	tag(`<meta property="og:image:type" content="%s" />`, domain.FirstNonEmpty(m.imageType, "image/png"))
 	tag(`<meta property="og:image:width" content="%d" />`, ogcard.Width)
 	tag(`<meta property="og:image:height" content="%d" />`, ogcard.Height)
 	tag(`<meta property="og:image:alt" content="%s" />`, e(m.alt))
 	tag(`<meta name="twitter:card" content="summary_large_image" />`)
+	if m.catalog != "" {
+		tag(`<meta name="riha-catalog" content="%s" />`, e(m.catalog))
+		tag(`<meta name="riha-site" content="%s" />`, e(strings.TrimRight(srv.A.PublicURL, "/")))
+	}
 	if m.ld != nil {
 		if j, err := json.Marshal(m.ld); err == nil {
 			// In a script tag, "</script>" in a name would end it early.
@@ -189,7 +219,7 @@ func (srv *Server) servePage(c *gin.Context) {
 			srv.shell = string(b)
 		}
 	})
-	m := srv.metaFor(ctx(c), c.Request.URL.Path)
+	m := srv.metaFor(ctx(c), c.Request.Host, c.Request.URL.Path)
 	out := srv.shell
 	if i, j := strings.Index(out, seoHeadOpen), strings.Index(out, seoHeadClose); i >= 0 && j > i {
 		out = out[:i] + m.head(srv) + out[j+len(seoHeadClose):]
@@ -217,6 +247,9 @@ func (srv *Server) sitemap(c *gin.Context) {
 	for _, p := range []string{"/", "/docs", "/registo"} {
 		fmt.Fprintf(&b, "<url><loc>%s</loc></url>\n", html.EscapeString(srv.url(p)))
 	}
+	for _, u := range srv.catalogURLs(ctx(c)) {
+		fmt.Fprintf(&b, "<url><loc>%s</loc></url>\n", html.EscapeString(u))
+	}
 	b.WriteString("</urlset>\n")
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.Data(200, "application/xml; charset=utf-8", []byte(b.String()))
@@ -225,36 +258,54 @@ func (srv *Server) sitemap(c *gin.Context) {
 // Drawing takes milliseconds, but a shared link can be fetched in bursts.
 type cardCache struct {
 	mu    sync.Mutex
-	items map[string][]byte
+	items map[string]cachedCard
 }
 
-func (k *cardCache) get(key string, draw func() ogcard.Card) ([]byte, error) {
+type cachedCard struct {
+	b   []byte
+	typ string
+}
+
+func (k *cardCache) get(key string, draw func() ogcard.Card) ([]byte, string, error) {
 	k.mu.Lock()
-	b, ok := k.items[key]
+	v, ok := k.items[key]
 	k.mu.Unlock()
 	if ok {
-		return b, nil
+		return v.b, v.typ, nil
 	}
-	b, err := ogcard.Render(draw())
+	b, typ, err := ogcard.Encode(draw())
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if k.items == nil || len(k.items) >= 200 {
-		k.items = map[string][]byte{}
+		k.items = map[string]cachedCard{}
 	}
-	k.items[key] = b
-	return b, nil
+	k.items[key] = cachedCard{b, typ}
+	return b, typ, nil
 }
 
 const payFoot = "rihagateway.com · Pagamento seguro por M-Pesa"
 
 func (srv *Server) ogImage(c *gin.Context) {
-	path := strings.TrimSuffix(strings.Trim(c.Param("rest"), "/"), ".png")
+	path := strings.TrimSuffix(strings.TrimSuffix(strings.Trim(c.Param("rest"), "/"), ".png"), ".jpg")
 	seg := strings.Split(path, "/")
 	var card ogcard.Card
+	key := ""
 	switch {
+	case len(seg) == 2 && seg[0] == "a":
+		var ok bool
+		if card, key, ok = srv.catalogCard(ctx(c), seg[1]); !ok {
+			c.Status(http.StatusNotFound)
+			return
+		}
+	case len(seg) == 3 && seg[0] == "s":
+		var ok bool
+		if card, key, ok = srv.planCard(ctx(c), seg[1], seg[2]); !ok {
+			c.Status(http.StatusNotFound)
+			return
+		}
 	case path == "site":
 		card = ogcard.Card{Title: "Receba de todo Moçambique, por M-Pesa", Body: "Links de pagamento, código QR e API. Sem mensalidade.", Foot: "rihagateway.com"}
 	case path == "docs":
@@ -285,12 +336,12 @@ func (srv *Server) ogImage(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	key := path + "|" + card.Kicker + "|" + card.Title + "|" + card.Big
-	b, err := srv.cards.get(key, func() ogcard.Card { return card })
+	key = path + "|" + card.Kicker + "|" + card.Title + "|" + card.Body + "|" + card.Big + "|" + key
+	b, typ, err := srv.cards.get(key, func() ogcard.Card { return card })
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
 	c.Header("Cache-Control", "public, max-age=86400")
-	c.Data(200, "image/png", b)
+	c.Data(200, typ, b)
 }

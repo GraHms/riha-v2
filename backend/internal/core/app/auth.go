@@ -39,7 +39,13 @@ func validPassword(p string) error {
 func (a *App) uniqueMerchantSlug(ctx context.Context, base string) string {
 	slug := base
 	for i := 2; ; i++ {
-		if taken, _ := a.Merchants.SlugTaken(ctx, slug); !taken {
+		taken, _ := a.Merchants.SlugTaken(ctx, slug)
+		// A catalog's address answers before a merchant's slug, so a new account
+		// can't take one.
+		if _, err := a.SubSettings.ByCatalogSlug(ctx, slug); err == nil {
+			taken = true
+		}
+		if !taken {
 			return slug
 		}
 		slug = base + "-" + itoa(i)

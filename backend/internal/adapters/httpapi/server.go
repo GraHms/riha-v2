@@ -22,6 +22,9 @@ type Config struct {
 	StaticDir      string
 	CookieSecure   bool
 	TrustedProxies []string
+	// CatalogSubdomains gives each catalog its own subdomain. Only once the
+	// proxy in front answers for them.
+	CatalogSubdomains bool
 }
 
 type Server struct {
@@ -50,6 +53,7 @@ func New(a *app.App, cfg Config) *gin.Engine {
 	r.GET("/robots.txt", srv.robots)
 	r.GET("/sitemap.xml", srv.sitemap)
 	r.GET("/og/*rest", srv.throttle(srv.limiter, "og"), srv.ogImage)
+	r.GET("/internal/tls-allowed", srv.throttle(srv.limiter, "tls"), srv.tlsAllowed)
 	srv.dashboardRoutes(r.Group("/api", csrf()))
 	srv.v1Routes(r.Group("/v1", srv.apiKeyAuth(), srv.apiLog(), srv.idempotency()))
 	r.NoRoute(srv.noRoute)

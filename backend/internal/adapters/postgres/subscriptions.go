@@ -22,6 +22,8 @@ type planRecord struct {
 	Months       int
 	Missed       string     `gorm:"size:10"`
 	Fields       StringList `gorm:"type:jsonb"`
+	Highlights   StringList `gorm:"type:jsonb"`
+	Cycles       int
 	EndsAt       *time.Time
 	Amount       int64
 	Version      int
@@ -167,7 +169,14 @@ type subSettingsRecord struct {
 	RequireProof  bool
 	ReceiptSMS    bool `gorm:"column:receipt_sms"`
 	CatalogMulti  bool
-	UpdatedAt     time.Time
+	// Unique when set: see Store.Migrate.
+	CatalogSlug        string `gorm:"size:40"`
+	CatalogTitle       string `gorm:"size:80"`
+	CatalogDescription string `gorm:"size:400"`
+	CatalogCover       string `gorm:"size:300"`
+	CatalogAccent      string `gorm:"size:7"`
+	CatalogBackground  string `gorm:"size:7"`
+	UpdatedAt          time.Time
 }
 
 func (subSettingsRecord) TableName() string { return "subscription_settings" }
@@ -198,6 +207,13 @@ func (r Plans) SlugTaken(ctx context.Context, merchantID, slug string) (bool, er
 }
 func (r Plans) List(ctx context.Context, merchantID string, live bool) ([]domain.Plan, error) {
 	return find[planRecord, domain.Plan](r.conn(ctx).Where("merchant_id = ? AND livemode = ? AND status <> ?", merchantID, live, domain.PlanArchived).Order("catalog_order, created_at"))
+}
+
+// CatalogMerchants lists the merchants with a live plan in their catalog.
+func (r Plans) CatalogMerchants(ctx context.Context, limit int) ([]string, error) {
+	var ids []string
+	err := r.conn(ctx).Model(&planRecord{}).Distinct("merchant_id").Where("livemode AND in_catalog AND status = ?", domain.PlanActive).Limit(limit).Pluck("merchant_id", &ids).Error
+	return ids, err
 }
 func (r Plans) AddVersion(ctx context.Context, v *domain.PlanVersion) error {
 	return create[planVersionRecord](r.conn(ctx), v)
@@ -457,4 +473,10 @@ func (r SubscriptionSettings) Get(ctx context.Context, merchantID string) (*doma
 }
 func (r SubscriptionSettings) Save(ctx context.Context, s *domain.SubscriptionSettings) error {
 	return save[subSettingsRecord](r.conn(ctx), s)
+}
+func (r SubscriptionSettings) ByCatalogSlug(ctx context.Context, slug string) (*domain.SubscriptionSettings, error) {
+	return first[subSettingsRecord, domain.SubscriptionSettings](r.conn(ctx).Where("catalog_slug = ? AND catalog_slug <> ''", slug))
+}
+func (r SubscriptionSettings) WithCatalog(ctx context.Context) ([]domain.SubscriptionSettings, error) {
+	return find[subSettingsRecord, domain.SubscriptionSettings](r.conn(ctx).Where("catalog_slug <> ''").Order("updated_at DESC").Limit(5000))
 }

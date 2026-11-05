@@ -50,6 +50,8 @@ type PlanInput struct {
 	Months     int        `json:"months"`
 	Missed     string     `json:"missed"`
 	Fields     []string   `json:"fields"`
+	Highlights []string   `json:"highlights"`
+	Cycles     int        `json:"cycles"`
 	EndsAt     *time.Time `json:"ends_at"`
 	Draft      bool       `json:"draft"`
 }
@@ -75,7 +77,7 @@ func (a *App) CreatePlan(ctx context.Context, m *domain.Merchant, live bool, in 
 	now := a.Now()
 	p := &domain.Plan{ID: domain.NewID("plan"), MerchantID: m.ID, Livemode: live, Name: in.Name, Status: domain.PlanActive,
 		Interval: in.Interval, Anchor: in.Anchor, BillingDay: in.BillingDay, Months: in.Months, Missed: in.Missed, Fields: in.Fields,
-		EndsAt: in.EndsAt, Amount: in.Amount, Version: 1, InCatalog: !in.Draft, CreatedBy: actor.ID, CreatedAt: now, UpdatedAt: now}
+		Highlights: in.Highlights, Cycles: in.Cycles, EndsAt: in.EndsAt, Amount: in.Amount, Version: 1, InCatalog: !in.Draft, CreatedBy: actor.ID, CreatedAt: now, UpdatedAt: now}
 	if in.Draft {
 		p.Status = domain.PlanDraft
 	}
@@ -133,18 +135,22 @@ func (a *App) UpdatePlan(ctx context.Context, m *domain.Merchant, live bool, id 
 	counts, _ := a.Subs.CountByPlan(ctx, m.ID, live)
 	members := int64(0)
 	for st, n := range counts[p.ID] {
-		if st != domain.SubCanceled && st != domain.SubIncomplete {
+		if !domain.Closed(st) && st != domain.SubIncomplete {
 			members += n
 		}
 	}
 	if members > 0 && (in.Interval != p.Interval || in.Anchor != p.Anchor || in.BillingDay != p.BillingDay) {
 		return nil, domain.Invalid("plan_has_members", "interval", "Este plano já tem membros. A frequência e o dia de cobrança não podem mudar; crie um plano novo.")
 	}
+	if members > 0 && in.Cycles != p.Cycles {
+		return nil, domain.Invalid("plan_has_members", "cycles", "Este plano já tem membros. O número de pagamentos não pode mudar; crie um plano novo.")
+	}
 	if in.Amount != p.Amount {
 		return nil, domain.Invalid("use_price_change", "amount", "Para mudar o valor use Mudar valor, que cria uma versão nova.")
 	}
 	q := *p
 	q.Name, q.Interval, q.Anchor, q.BillingDay, q.Months, q.Missed, q.Fields, q.EndsAt = in.Name, in.Interval, in.Anchor, in.BillingDay, in.Months, in.Missed, in.Fields, in.EndsAt
+	q.Highlights, q.Cycles = in.Highlights, in.Cycles
 	if p.Status == domain.PlanDraft && !in.Draft {
 		q.Status, q.InCatalog = domain.PlanActive, true
 	}
@@ -277,9 +283,46 @@ type CatalogEntry struct {
 	InCatalog bool   `json:"in_catalog"`
 }
 
-func (a *App) SaveCatalog(ctx context.Context, m *domain.Merchant, live bool, entries []CatalogEntry, multi bool, actor Actor) error {
+// CatalogPage is what a merchant sets about their catalog page.
+type CatalogPage struct {
+	Slug        string `json:"slug"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Accent      string `json:"accent"`
+	Background  string `json:"background"`
+}
+
+// CatalogSlug is the address of a merchant's catalog: the one they chose, or
+// their account's.
+func CatalogSlug(m *domain.Merchant, s domain.SubscriptionSettings) string {
+	return domain.FirstNonEmpty(s.CatalogSlug, m.Slug)
+}
+
+// CatalogSlugFree checks an address for a merchant's catalog.
+func (a *App) CatalogSlugFree(ctx context.Context, m *domain.Merchant, slug string) (string, error) {
+	slug, err := domain.CleanCatalogSlug(slug)
+	if err != nil {
+		return slug, err
+	}
+	if other, err := a.SubSettings.ByCatalogSlug(ctx, slug); err == nil && other.MerchantID != m.ID {
+		return slug, domain.Invalid("slug_taken", "slug", "Este endereço já está a ser usado. Escolha outro.")
+	}
+	if other, err := a.Merchants.BySlug(ctx, slug); err == nil && other.ID != m.ID {
+		return slug, domain.Invalid("slug_taken", "slug", "Este endereço já está a ser usado. Escolha outro.")
+	}
+	return slug, nil
+}
+
+func (a *App) SaveCatalog(ctx context.Context, m *domain.Merchant, live bool, entries []CatalogEntry, multi bool, page *CatalogPage, actor Actor) error {
 	if e := domain.RequireApproved(m); e != nil {
 		return e
+	}
+	if page != nil && page.Slug != "" && page.Slug != m.Slug {
+		slug, err := a.CatalogSlugFree(ctx, m, page.Slug)
+		if err != nil {
+			return err
+		}
+		page.Slug = slug
 	}
 	err := a.Tx.Do(ctx, func(ctx context.Context) error {
 		for i, e := range entries {
@@ -294,6 +337,15 @@ func (a *App) SaveCatalog(ctx context.Context, m *domain.Merchant, live bool, en
 		}
 		s := a.SubSettingsFor(ctx, m)
 		s.CatalogMulti, s.UpdatedAt = multi, a.Now()
+		if page != nil {
+			s.CatalogSlug, s.CatalogTitle, s.CatalogDescription, s.CatalogAccent, s.CatalogBackground = page.Slug, page.Title, page.Description, page.Accent, page.Background
+			if s.CatalogSlug == m.Slug {
+				s.CatalogSlug = ""
+			}
+			if err := s.ValidateCatalog(); err != nil {
+				return err
+			}
+		}
 		return a.SubSettings.Save(ctx, &s)
 	})
 	if err == nil {
@@ -314,8 +366,16 @@ func (a *App) PublicPlanByID(ctx context.Context, merchantID, id string) *domain
 	return p
 }
 
+// publicMerchant finds a merchant by their catalog's address, or by their
+// account's slug, which is the address until they choose one.
 func (a *App) publicMerchant(ctx context.Context, slug string) (*domain.Merchant, error) {
-	m, err := a.Merchants.BySlug(ctx, slug)
+	var m *domain.Merchant
+	var err error
+	if s, e := a.SubSettings.ByCatalogSlug(ctx, slug); e == nil {
+		m, err = a.Merchants.ByID(ctx, s.MerchantID)
+	} else {
+		m, err = a.Merchants.BySlug(ctx, slug)
+	}
 	if err != nil || m.Status != domain.MerchantActive {
 		return nil, domain.NotFound("Esta página")
 	}

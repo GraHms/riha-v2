@@ -131,7 +131,7 @@ func (a *App) advanceCharge(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		if s.Status == domain.SubIncomplete || s.Status == domain.SubInvited || s.Status == domain.SubCanceled {
+		if s.Status == domain.SubIncomplete || s.Status == domain.SubInvited || domain.Closed(s.Status) {
 			return nil
 		}
 		m, err := a.Merchants.ByID(ctx, c.MerchantID)
@@ -323,7 +323,7 @@ func (a *App) SendNextNow(ctx context.Context, m *domain.Merchant, live bool, su
 	if err != nil || s.MerchantID != m.ID || s.Livemode {
 		return domain.NotFound("A assinatura")
 	}
-	if s.Status == domain.SubCanceled || s.Status == domain.SubIncomplete || s.Status == domain.SubInvited || s.Status == domain.SubSuspended {
+	if domain.Closed(s.Status) || s.Status == domain.SubIncomplete || s.Status == domain.SubInvited || s.Status == domain.SubSuspended {
 		return domain.Invalid("subscription_state", "subscription", "Esta assinatura não está ativa.")
 	}
 	sched, _ := a.Charges.Find(ctx, ports.ChargeQuery{SubscriptionIDs: []string{s.ID}, Statuses: []string{domain.ChargeScheduled}, Limit: 1})
@@ -417,7 +417,7 @@ func (a *App) Invoice(ctx context.Context, token string, touch bool) (*InvoiceVi
 	unpaid := a.memberUnpaid(ctx, mem.ID)
 	for _, u := range unpaid {
 		s := subByID[u.SubscriptionID]
-		if s == nil || s.Status == domain.SubCanceled {
+		if s == nil || domain.Closed(s.Status) {
 			continue
 		}
 		if (s.Status == domain.SubIncomplete || s.Status == domain.SubInvited) && u.ID != c.ID && !(u.First && c.First) {
@@ -427,7 +427,7 @@ func (a *App) Invoice(ctx context.Context, token string, touch bool) (*InvoiceVi
 		v.Total += u.Amount
 		if s.ConsentAt == nil {
 			v.NeedsConsent = true
-			v.Agreements = append(v.Agreements, domain.Agreement(m.Name, planOf(v.Plans, a, ctx, u.PlanID), u.Amount, mem.Phone, mem.Channel))
+			v.Agreements = append(v.Agreements, domain.Agreement(m.Name, planOf(v.Plans, a, ctx, u.PlanID), u.Amount, mem.Phone, mem.Channel, s.AnchorAt))
 		}
 	}
 	sort.SliceStable(v.Lines, func(i, j int) bool {
@@ -578,7 +578,7 @@ func (a *App) PayInvoice(ctx context.Context, token string, in InvoicePay) (*dom
 					return err
 				}
 				if s.ConsentAt == nil {
-					s.ConsentText = domain.Agreement(v.Merchant.Name, l.Plan, c.Amount, v.Member.Phone, v.Member.Channel)
+					s.ConsentText = domain.Agreement(v.Merchant.Name, l.Plan, c.Amount, v.Member.Phone, v.Member.Channel, s.AnchorAt)
 					s.ConsentAt, s.ConsentIP, s.UpdatedAt = &now, domain.Trim(in.IP, 64), now
 					if err := a.Subs.Save(ctx, s); err != nil {
 						return err
@@ -623,7 +623,7 @@ func (a *App) settleCharges(ctx context.Context, cs *domain.CheckoutSession, p *
 			return err
 		}
 		wasNew := s.Status == domain.SubIncomplete || s.Status == domain.SubInvited
-		if s.Status != domain.SubCanceled {
+		if !domain.Closed(s.Status) {
 			if wasNew {
 				s.Status = domain.SubActive
 			}

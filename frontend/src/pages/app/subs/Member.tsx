@@ -5,7 +5,7 @@ import { useGateway } from '../../../core/gateway'
 import { errMsg } from '../../../core/model'
 import { useQuery } from '../../../core/useQuery'
 import { useSession } from '../../../lib/session'
-import { abbrevName, CHANNEL, CHARGE_STATUS, money, MonthStrip, OUTSIDE_METHODS, StatusPill, SUB_STATUS, VIA } from './common'
+import { abbrevName, CHANNEL, CHARGE_STATUS, merchantWhen, money, MonthStrip, OUTSIDE_METHODS, StatusPill, SUB_STATUS, VIA } from './common'
 import { useSubs } from './SubsShell'
 
 const KIND: Record<string, string> = { invite: 'Convite', reminder: 'Lembrete', link: 'Link de pagamento', resend: 'Reenvio', last_warning: 'Último aviso', final: 'Ação final', receipt: 'Recibo', price_notice: 'Aviso de preço', pause: 'Pausa', skip: 'Mês saltado', cancel: 'Cancelamento', plan_change: 'Mudança de plano' }
@@ -100,7 +100,7 @@ export default function Member() {
           {sub && <div className="card" style={{ padding: '6px 18px' }}>
             {[['Plano', `${sub.plan.name} · v${sub.plan_version}`], ['Estado', <StatusPill map={SUB_STATUS} s={sub.status} />], ['Quem paga', m.payer_name || '—'], ['Número', `${m.phone} · ${CHANNEL[m.channel] || 'SMS'}`],
               ...Object.entries(m.fields || {}).filter(([k]) => k !== sub.plan.fields?.[0]).map(([k, v]) => [k, v]),
-              ['Cobra', sub.plan.schedule_label], ['Desde', sub.since_label], ...(nextDue && sub.status !== 'canceled' ? [['Próxima', nextDue]] : []), ...(sub.paused_until ? [['Pausada até', sub.paused_until]] : [])].map(([k, v]: any, i, arr) => (
+              ['Cobra', merchantWhen(sub.plan)], ['Desde', sub.since_label], ...(nextDue && sub.status !== 'canceled' ? [['Próxima', nextDue]] : []), ...(sub.last_due ? [[sub.status === 'ended' ? 'Terminou em' : 'Último pagamento', sub.last_due]] : []), ...(sub.paused_until ? [['Pausada até', sub.paused_until]] : [])].map(([k, v]: any, i, arr) => (
               <div key={k} className="between" style={{ padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--line-3)' : 0, fontSize: 14, gap: 12 }}><span style={{ color: 'var(--muted)' }}>{k}</span><span style={{ fontWeight: 600, textAlign: 'right' }}>{v}</span></div>
             ))}
             {sub.pending && <div style={{ margin: '4px 0 10px', padding: 10, borderRadius: 10, background: 'var(--sun-soft)', fontSize: 12.5, color: '#5B4600' }}>Passa a {money(sub.pending.amount)} MT (v{sub.pending.version}) a partir de {sub.pending.from}.</div>}

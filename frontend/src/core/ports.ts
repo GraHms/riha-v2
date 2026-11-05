@@ -98,7 +98,11 @@ export interface SubscriptionsPort {
   updatePlan(id: string, input: Json): Promise<Json>
   changePrice(id: string, amount: number, scope: string, subscriptions?: string[]): Promise<Json>
   archivePlan(id: string): Promise<Json>
-  saveCatalog(entries: { plan_id: string; in_catalog: boolean }[], multi: boolean): Promise<Json>
+  catalog(): Promise<Json>
+  saveCatalog(entries: { plan_id: string; in_catalog: boolean }[], multi: boolean, page?: Json): Promise<Json>
+  checkCatalogSlug(value: string): Promise<{ ok: boolean; slug: string; message?: string }>
+  uploadCover(file: File): Promise<Json>
+  removeCover(): Promise<Json>
   members(filter: Record<string, string | number | undefined>): Promise<Json>
   membersExportUrl(filter: Record<string, string | number | undefined>): string
   invite(input: Json): Promise<Json>

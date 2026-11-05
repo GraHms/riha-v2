@@ -35,6 +35,31 @@ const Merchants = lazy(() => import('./pages/admin/Merchants'))
 const MerchantDetail = lazy(() => import('./pages/admin/MerchantDetail'))
 const Docs = lazy(() => import('./pages/public/Docs'))
 
+// On a catalog's own subdomain the server names the catalog in the page, and
+// only the catalog, its plans and the invoices they lead to live there.
+const meta = (name: string) => document.querySelector(`meta[name="${name}"]`)?.getAttribute('content') || ''
+const CATALOG = meta('riha-catalog')
+
+function ToMainSite() {
+  const { pathname, search } = useLocation()
+  useEffect(() => { window.location.replace((meta('riha-site') || '') + pathname + search) }, [pathname, search])
+  return <Loading />
+}
+
+function CatalogSite() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route path="/" element={<CatalogPage catalog={CATALOG} />} />
+        <Route path="/i/:token" element={<Invoice />} />
+        {['/entrar', '/registo', '/recuperar', '/docs', '/painel/*', '/admin/*', '/verificacao'].map(p => <Route key={p} path={p} element={<ToMainSite />} />)}
+        <Route path="/:slug" element={<PlanPage catalog={CATALOG} />} />
+        <Route path="*" element={<ToMainSite />} />
+      </Routes>
+    </Suspense>
+  )
+}
+
 function Loading() {
   return <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}><Spinner dark /></div>
 }
@@ -78,6 +103,7 @@ function PageTitle() {
 }
 
 export default function App() {
+  if (CATALOG) return <CatalogSite />
   return (
     <Suspense fallback={<Loading />}>
     <PageTitle />

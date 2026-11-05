@@ -14,6 +14,7 @@ export const SUB_STATUS: Record<string, { t: string; bg: string; fg: string }> =
   invited: { t: 'Convite enviado', bg: '#EDECE6', fg: '#3E4742' },
   incomplete: { t: 'Por concluir', bg: '#EDECE6', fg: '#3E4742' },
   canceled: { t: 'Cancelada', bg: '#EDECE6', fg: '#6B746F' },
+  ended: { t: 'Terminou', bg: '#EDECE6', fg: '#3E4742' },
 }
 
 export const CHARGE_STATUS: Record<string, { t: string; bg: string; fg: string }> = {
@@ -151,3 +152,89 @@ export function agreementPreview(merchant: string, p: { anchor: string; billing_
   const months = (p.months & ALL_MONTHS) === ALL_MONTHS ? '' : `, nos meses ${monthsLabel(p.months)}`
   return `Aceito pagar ${money(p.amount)} MT à ${merchant} ${when}${months}. Recebo o link de pagamento por SMS antes de cada data.`
 }
+
+// The payment schedule, as the server computes it (domain/subscriptions.go), so
+// a plan being edited can be previewed as a customer joining today would see it.
+const MONTH_NAMES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+const WEEKDAY_NAMES = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+export type PlanShape = { interval: string; anchor: string; billing_day: number; months: number; cycles?: number; ends_at?: string | null; amount: number }
+const dayIn = (y: number, m: number, d: number) => { const last = new Date(y, m + 1, 0).getDate(); return new Date(y, m, Math.min(d, last)) }
+const perMonths = (i: string) => (i === 'quarter' ? 3 : i === 'year' ? 12 : 1)
+const dueAt = (p: PlanShape, a: Date, k: number) => (p.interval === 'week' ? new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7 * k) : dayIn(a.getFullYear(), a.getMonth() + k * perMonths(p.interval), a.getDate()))
+const endOf = (p: PlanShape) => (p.ends_at ? new Date(p.ends_at.slice(0, 10) + 'T23:59:59') : null)
+const inRange = (p: PlanShape, d: Date) => monthOn(p.months, d.getMonth()) && (!endOf(p) || d <= endOf(p)!)
+
+export function firstDue(p: PlanShape, today: Date): Date | null {
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  let start = t
+  if (p.anchor !== 'signup') {
+    if (p.interval === 'week') { const wd = t.getDay() || 7; start = new Date(t.getFullYear(), t.getMonth(), t.getDate() - ((wd - p.billing_day + 7) % 7)) }
+    else start = dayIn(t.getFullYear(), t.getMonth(), p.billing_day)
+  }
+  for (let k = 0; k < 120; k++) {
+    const d = dueAt(p, start, k)
+    if (endOf(p) && d > endOf(p)!) return null
+    if (inRange(p, d)) return d
+  }
+  return null
+}
+
+export function schedule(p: PlanShape, first: Date, n: number): Date[] {
+  const out: Date[] = []
+  let count = 0
+  for (let k = 0; k < 600 && out.length < n; k++) {
+    const d = dueAt(p, first, k)
+    if (endOf(p) && d > endOf(p)!) break
+    if (!inRange(p, d)) continue
+    count++
+    if (p.cycles && count > p.cycles) break
+    out.push(d)
+  }
+  return out
+}
+
+export function customerWhen(p: PlanShape, join: Date) {
+  const day = p.anchor === 'signup' ? join.getDate() : p.billing_day
+  const wd = p.anchor === 'signup' ? join.getDay() : p.billing_day % 7
+  if (p.interval === 'week') return 'Todas as semanas, à ' + WEEKDAY_NAMES[wd]
+  if (p.interval === 'quarter') return `Dia ${day}, de 3 em 3 meses`
+  if (p.interval === 'year') return p.anchor === 'signup' ? `Todos os anos, a ${day} de ${MONTH_NAMES[join.getMonth()]}` : `Todos os anos, no dia ${day}`
+  return `Todos os meses, no dia ${day}`
+}
+
+export function durationLabel(p: { cycles?: number; ends_at?: string | null }) {
+  if (p.cycles === 1) return '1 pagamento'
+  if (p.cycles && p.cycles > 1) return `${p.cycles} pagamentos`
+  if (p.ends_at) { const d = new Date(p.ends_at.slice(0, 10) + 'T12:00:00'); return `Até ${d.getDate()} de ${MONTH_NAMES[d.getMonth()]} de ${d.getFullYear()}` }
+  return ''
+}
+
+export const shortDate = (d: Date) => `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`
+
+function periodLabel(p: PlanShape, d: Date) {
+  if (p.interval === 'week') return 'semana de ' + shortDate(d)
+  if (p.interval === 'quarter') { const e = new Date(d.getFullYear(), d.getMonth() + 2, 1); return `${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()} a ${MONTH_SHORT[e.getMonth()]} ${e.getFullYear()}` }
+  if (p.interval === 'year') return `ano de ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+}
+
+// customerView is the same shape the server sends to the public pages.
+export function customerView(p: PlanShape, today = new Date()) {
+  const first = firstDue(p, today)
+  const base = { when_text: '', dates: [] as { label: string; period: string }[], duration_label: durationLabel(p), first_today: true, first_period: '', months_off: (p.months & ALL_MONTHS) === ALL_MONTHS ? '' : monthsLabel(ALL_MONTHS & ~p.months) }
+  if (!first) return base
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const n = p.cycles && p.cycles <= 6 ? p.cycles : 4
+  return { ...base, when_text: customerWhen(p, first), first_today: first <= t, first_period: periodLabel(p, first),
+    dates: schedule(p, first, n).map((d, i) => ({ label: i === 0 && d <= t ? 'Hoje' : shortDate(d), period: periodLabel(p, d) })) }
+}
+
+// How a plan charges, in the merchant's words: a plan that follows each
+// member's join day has no single date.
+export function merchantWhen(p: { anchor: string; interval: string; billing_day: number; months: number }) {
+  const when = p.anchor === 'signup' ? `No dia em que cada um entra${p.interval === 'month' ? '' : `, por ${perWord(p.interval)}`}` : customerWhen({ ...p, amount: 0 }, new Date())
+  return (p.months & ALL_MONTHS) === ALL_MONTHS ? when : `${when} · ${monthsLabel(p.months)}`
+}
+
+
+const perWord = (i: string) => (i === 'week' ? 'semana' : i === 'quarter' ? 'trimestre' : i === 'year' ? 'ano' : 'mês')

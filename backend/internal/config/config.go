@@ -17,6 +17,7 @@ type Config struct {
 	OutboxDir            string
 	CookieSecure         bool
 	Seed                 bool
+	CatalogSubdomains    bool
 	SimulatorDelayMs     int
 	AllowPrivateNetworks bool
 	TrustedProxies       []string
@@ -87,6 +88,7 @@ func Load() Config {
 		OutboxDir:            env("RIHA_OUTBOX_DIR", "./data/outbox"),
 		CookieSecure:         flag("RIHA_COOKIE_SECURE", strings.HasPrefix(public, "https://")),
 		Seed:                 flag("RIHA_SEED", false),
+		CatalogSubdomains:    flag("RIHA_CATALOG_SUBDOMAINS", false),
 		SimulatorDelayMs:     delay,
 		AllowPrivateNetworks: flag("RIHA_ALLOW_PRIVATE_NETWORKS", dev),
 		TrustedProxies:       proxies,
