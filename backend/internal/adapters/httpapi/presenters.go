@@ -67,6 +67,7 @@ func (srv *Server) linkJSON(v app.LinkView, merchantSlug string) gin.H {
 	o["payments_count"] = v.Count
 	o["total_received"] = v.Total
 	o["location"] = v.Location
+	o["last_payment_at"] = iso(v.Last)
 	o["image_url"] = linkImageURL(&v.PaymentLink, merchantSlug)
 	return o
 }
@@ -176,6 +177,7 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 		"customer_name": cs.CustomerName, "email_on_file": cs.CustomerEmail != "", "expires_at": isoT(cs.ExpiresAt), "merchant": publicMerchant(m), "payment": nil,
 	}
 	out["success_message"] = cs.SuccessMessage
+	out["submit_type"] = domain.FirstNonEmpty(cs.SubmitType, domain.SubmitPay)
 	if cs.PaymentLinkID != nil {
 		if l, err := srv.A.Links.ByID(c, *cs.PaymentLinkID); err == nil && (l.Details != "" || l.Image != "") {
 			out["link"] = gin.H{"details": l.Details, "image_url": linkImageURL(l, m.Slug)}

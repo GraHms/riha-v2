@@ -92,6 +92,7 @@ type APIKeys interface {
 type LinkStats struct {
 	Count int64
 	Total int64
+	Last  *time.Time
 }
 
 type Links interface {
@@ -118,6 +119,7 @@ type PaymentQuery struct {
 	Live          *bool
 	Statuses      []string
 	Source        string
+	LinkID        string
 	Search        string
 	From, To      *time.Time
 	StartingAfter *domain.Payment

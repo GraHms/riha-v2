@@ -40,6 +40,7 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	m.POST("/payments/:id/receipt", srv.throttle(srv.authLimiter, "receipt"), srv.sendReceipt)
 	m.GET("/links", srv.listLinks)
 	m.POST("/links", srv.createLink)
+	m.GET("/links/:id", srv.getLink)
 	m.PATCH("/links/:id", srv.updateLink)
 	m.POST("/links/:id/image", srv.putLinkImage)
 	m.DELETE("/links/:id/image", srv.deleteLinkImage)
@@ -287,7 +288,7 @@ func (srv *Server) overview(c *gin.Context) {
 }
 
 func paymentFilter(c *gin.Context) app.PaymentFilter {
-	f := app.PaymentFilter{Status: c.Query("status"), Source: c.Query("source"), Search: strings.TrimSpace(c.Query("q")), Limit: qInt(c, "limit", 50), Offset: qInt(c, "offset", 0)}
+	f := app.PaymentFilter{Status: c.Query("status"), Source: c.Query("source"), LinkID: c.Query("link"), Search: strings.TrimSpace(c.Query("q")), Limit: qInt(c, "limit", 50), Offset: qInt(c, "offset", 0)}
 	if f.Limit > 200 {
 		f.Limit = 200
 	}
@@ -392,12 +393,14 @@ type linkInput struct {
 	MaxAmount    *int64   `json:"max_amount"`
 	AfterMessage *string  `json:"after_message"`
 	RedirectURL  *string  `json:"redirect_url"`
+	Archived     *bool    `json:"archived"`
+	SubmitType   *string  `json:"submit_type"`
 }
 
 func (in linkInput) params() app.LinkParams {
 	return app.LinkParams{Name: in.Name, Amount: in.Amount, CustomAmount: in.CustomAmount, Reusable: in.Reusable, Methods: in.Methods,
 		Active: in.Active, ExpiresAt: in.ExpiresAt, Slug: in.Slug, Kind: in.Type, Location: in.Location,
-		Details: in.Details, SuggestedAmount: in.Suggested, MinAmount: in.MinAmount, MaxAmount: in.MaxAmount, AfterMessage: in.AfterMessage, RedirectURL: in.RedirectURL}
+		Details: in.Details, SuggestedAmount: in.Suggested, MinAmount: in.MinAmount, MaxAmount: in.MaxAmount, AfterMessage: in.AfterMessage, RedirectURL: in.RedirectURL, Archived: in.Archived, SubmitType: in.SubmitType}
 }
 
 func (srv *Server) putLinkImage(c *gin.Context) {
@@ -443,6 +446,16 @@ func (srv *Server) listLinks(c *gin.Context) {
 		out = append(out, srv.linkJSON(v, m.Slug))
 	}
 	c.JSON(200, gin.H{"data": out})
+}
+
+func (srv *Server) getLink(c *gin.Context) {
+	m := merchant(c)
+	v, err := srv.A.MerchantLink(ctx(c), m.ID, live(c), c.Param("id"))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, srv.linkJSON(v, m.Slug))
 }
 
 func (srv *Server) createLink(c *gin.Context) {

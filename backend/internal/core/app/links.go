@@ -29,6 +29,8 @@ type LinkParams struct {
 	MaxAmount       *int64
 	AfterMessage    *string
 	RedirectURL     *string
+	Archived        *bool
+	SubmitType      *string
 }
 
 // applyExtras sets what a customer reads before and after paying, and the
@@ -36,6 +38,13 @@ type LinkParams struct {
 func (a *App) applyExtras(l *domain.PaymentLink, p LinkParams) error {
 	if p.Details != nil {
 		l.Details = domain.Trim(strings.TrimSpace(*p.Details), 500)
+	}
+	if p.SubmitType != nil {
+		t, err := domain.CleanSubmitType(*p.SubmitType)
+		if err != nil {
+			return err
+		}
+		l.SubmitType = t
 	}
 	if p.AfterMessage != nil {
 		l.AfterMessage = domain.Trim(strings.TrimSpace(*p.AfterMessage), 300)
@@ -165,7 +174,14 @@ func (a *App) UpdateLink(ctx context.Context, m *domain.Merchant, live bool, id 
 	if p.Name != nil && strings.TrimSpace(*p.Name) != "" {
 		l.Name = domain.Trim(*p.Name, 200)
 	}
-	if p.Active != nil {
+	if p.Archived != nil {
+		l.Archived = *p.Archived
+		// Archiving switches the link off. Restoring leaves it off until asked.
+		if l.Archived {
+			l.Active = false
+		}
+	}
+	if p.Active != nil && !l.Archived {
 		l.Active = *p.Active
 	}
 	if p.Reusable != nil {
@@ -207,6 +223,15 @@ func (a *App) ListLinks(ctx context.Context, merchantID string, live bool, limit
 		out = append(out, LinkView{l, st})
 	}
 	return out, nil
+}
+
+// MerchantLink is one of a merchant's links, with its figures.
+func (a *App) MerchantLink(ctx context.Context, merchantID string, live bool, id string) (LinkView, error) {
+	l, err := a.merchantLink(ctx, merchantID, live, id)
+	if err != nil {
+		return LinkView{}, err
+	}
+	return a.LinkView(ctx, l), nil
 }
 
 func (a *App) LinkView(ctx context.Context, l *domain.PaymentLink) LinkView {

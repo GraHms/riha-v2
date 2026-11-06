@@ -96,6 +96,7 @@ func (a *App) Overview(ctx context.Context, m *domain.Merchant, live bool, days 
 
 type PaymentFilter struct {
 	Status, Source, Search string
+	LinkID                 string
 	From, To               *time.Time
 	Limit, Offset          int
 }
@@ -119,7 +120,7 @@ func statusGroup(s string) []string {
 }
 
 func (a *App) paymentQuery(merchantID string, live bool, f PaymentFilter) ports.PaymentQuery {
-	return ports.PaymentQuery{MerchantID: merchantID, Live: &live, Statuses: statusGroup(f.Status), Source: f.Source, Search: f.Search, From: f.From, To: f.To, Limit: f.Limit, Offset: f.Offset}
+	return ports.PaymentQuery{MerchantID: merchantID, Live: &live, Statuses: statusGroup(f.Status), Source: f.Source, LinkID: f.LinkID, Search: f.Search, From: f.From, To: f.To, Limit: f.Limit, Offset: f.Offset}
 }
 
 func (a *App) SearchPayments(ctx context.Context, merchantID string, live bool, f PaymentFilter) (*PaymentPage, error) {

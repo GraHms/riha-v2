@@ -31,10 +31,10 @@ export type CheckoutSession = {
   payment: CheckoutPayment | null
 }
 
-export type PublicLink = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; details?: string; image_url?: string; suggested_amount: number; min_amount: number; max_amount: number; merchant: { name: string; initials: string; avatar_color: string } }
+export type PublicLink = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; details?: string; image_url?: string; suggested_amount: number; min_amount: number; max_amount: number; submit_type?: string; merchant: { name: string; initials: string; avatar_color: string } }
 
 export type Json = any
 
-export type PaymentFilter = { status?: string; q?: string; limit?: number }
+export type PaymentFilter = { status?: string; q?: string; limit?: number; link?: string }
 
 export type SignupInput = { business_name: string; name: string; email: string; phone: string; password: string }

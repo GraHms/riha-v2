@@ -4,9 +4,9 @@ import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
 import { fmt, parseMT } from '../../lib/format'
 import { Icon, Spinner } from '../../components/ui'
-import { LinkHeader, quickAmounts, rangeText } from './LinkCard'
+import { LinkHeader, quickAmounts, rangeText, submitWords } from './LinkCard'
 
-type Link = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; details?: string; image_url?: string; suggested_amount: number; min_amount: number; max_amount: number; merchant: { name: string; initials: string; avatar_color: string } }
+type Link = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; details?: string; image_url?: string; suggested_amount: number; min_amount: number; max_amount: number; submit_type?: string; merchant: { name: string; initials: string; avatar_color: string } }
 
 export default function LinkLanding() {
   const g = useGateway()
@@ -50,7 +50,7 @@ export default function LinkLanding() {
           <>
             <div style={{ marginTop: 18 }}><LinkHeader link={link} /></div>
             <div style={{ textAlign: 'center', marginTop: 30 }}>
-              <div style={{ fontSize: 13.5, color: 'var(--muted)' }}>Quanto quer pagar?</div>
+              <div style={{ fontSize: 13.5, color: 'var(--muted)' }}>{submitWords(link.submit_type).ask}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 8, marginTop: 6 }}>
                 <input autoFocus inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.,]/g, '').slice(0, 10))} placeholder="0" style={{ width: `${Math.max(1, amount.length) * 0.62 + 0.2}em`, minWidth: 60, maxWidth: 280, border: 0, background: 'transparent', textAlign: 'right', fontFamily: 'var(--display)', fontWeight: 700, fontSize: 58, letterSpacing: '-0.045em', padding: 0, caretColor: 'var(--green)' }} />
                 <span className="display" style={{ fontSize: 26, color: 'var(--muted-2)' }}>MT</span>

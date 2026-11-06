@@ -6,7 +6,6 @@ import (
 	"riha/internal/core/app"
 )
 
-
 // A link where the customer chooses the amount keeps it within the merchant's
 // range, and a link carries its thank-you message or return address to checkout.
 func TestLinkExtras(t *testing.T) {
@@ -48,5 +47,57 @@ func TestLinkExtras(t *testing.T) {
 	}
 	if _, err := a.UpdateLink(ctx, m, false, f.ID, app.LinkParams{AfterMessage: ptr("Olá")}); err == nil {
 		t.Fatal("a message and a return address together were accepted")
+	}
+}
+
+// Archiving switches a link off and keeps it: it takes no payment until it is
+// restored and switched on again.
+func TestArchivedLinkTakesNoPayment(t *testing.T) {
+	a, ctx := setup(t)
+	m := approved(t, a, ctx, "Loja Arquivo", "arquivo@example.com")
+	l, err := a.CreateLink(ctx, m, false, app.LinkParams{Name: ptr("Bolo"), Amount: ptr(int64(125000)), Methods: []string{"mpesa"}}, "owner", "dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err = a.UpdateLink(ctx, m, false, l.ID, app.LinkParams{Archived: ptr(true)})
+	if err != nil || !l.Archived || l.Active {
+		t.Fatalf("archived %+v %v", l, err)
+	}
+	if _, err := a.UpdateLink(ctx, m, false, l.ID, app.LinkParams{Active: ptr(true)}); err != nil {
+		t.Fatal(err)
+	}
+	if l, _ = a.Links.ByID(ctx, l.ID); l.Active {
+		t.Fatal("an archived link was switched on")
+	}
+	if _, err := a.CreateLinkSession(ctx, l, 0, "outro", "", ""); err == nil {
+		t.Fatal("an archived link took a payment")
+	}
+	l, _ = a.UpdateLink(ctx, m, false, l.ID, app.LinkParams{Archived: ptr(false), Active: ptr(true)})
+	if _, err := a.CreateLinkSession(ctx, l, 0, "outro", "", ""); err != nil {
+		t.Fatalf("restored and switched on, it must take payments: %v", err)
+	}
+	if _, err := a.SearchPayments(ctx, m.ID, false, app.PaymentFilter{LinkID: l.ID, Limit: 10}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The button word a merchant chooses reaches the checkout, and only known words pass.
+func TestSubmitType(t *testing.T) {
+	a, ctx := setup(t)
+	m := approved(t, a, ctx, "Associação Ajuda", "ajuda@example.com")
+	l, err := a.CreateLink(ctx, m, false, app.LinkParams{Name: ptr("Donativo"), CustomAmount: ptr(true), Methods: []string{"mpesa"}, SubmitType: ptr("donate")}, "owner", "dashboard")
+	if err != nil || l.SubmitType != "donate" {
+		t.Fatalf("%+v %v", l, err)
+	}
+	cs, err := a.CreateLinkSession(ctx, l, 50000, "outro", "", "")
+	if err != nil || cs.SubmitType != "donate" {
+		t.Fatalf("session %+v %v", cs, err)
+	}
+	if _, err := a.UpdateLink(ctx, m, false, l.ID, app.LinkParams{SubmitType: ptr("comprar")}); err == nil {
+		t.Fatal("an unknown button word was accepted")
+	}
+	plain, _ := a.CreateLink(ctx, m, false, app.LinkParams{Name: ptr("Quota"), Amount: ptr(int64(10000)), Methods: []string{"mpesa"}}, "owner", "dashboard")
+	if s, _ := a.CreateLinkSession(ctx, plain, 0, "outro", "", ""); s == nil || s.SubmitType != "pay" {
+		t.Fatalf("a link without a choice pays: %+v", s)
 	}
 }

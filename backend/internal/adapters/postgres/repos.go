@@ -196,7 +196,7 @@ func (r Links) List(ctx context.Context, merchantID string, live bool, limit int
 func (r Links) Stats(ctx context.Context, linkID string) (ports.LinkStats, error) {
 	var st ports.LinkStats
 	err := r.conn(ctx).Model(&paymentRecord{}).Where("payment_link_id = ? AND status IN ?", linkID, domain.SettledStatuses).
-		Select("COUNT(*) AS count, COALESCE(SUM(amount),0) AS total").Scan(&st).Error
+		Select("COUNT(*) AS count, COALESCE(SUM(amount),0) AS total, MAX(created_at) AS last").Scan(&st).Error
 	return st, err
 }
 
@@ -277,6 +277,9 @@ func (r Payments) query(ctx context.Context, q ports.PaymentQuery) *gormDB {
 	}
 	if q.Source != "" {
 		db = db.Where("source_type = ?", q.Source)
+	}
+	if q.LinkID != "" {
+		db = db.Where("payment_link_id = ?", q.LinkID)
 	}
 	if s := strings.TrimSpace(q.Search); s != "" {
 		like := "%" + strings.ToLower(s) + "%"

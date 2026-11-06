@@ -101,3 +101,14 @@ func TestHighlightsAndLimitsValidate(t *testing.T) {
 		t.Fatal("both a number of payments and an end date")
 	}
 }
+
+func TestSubmitTypeKeepsOldRequestsWorking(t *testing.T) {
+	for in, want := range map[string]string{"": "pay", "auto": "pay", "subscribe": "pay", "PAY": "pay", "book": "book", " donate ": "donate"} {
+		if got, err := CleanSubmitType(in); err != nil || got != want {
+			t.Errorf("%q: %q %v", in, got, err)
+		}
+	}
+	if _, err := CleanSubmitType("comprar"); err == nil {
+		t.Error("comprar is not a button word")
+	}
+}

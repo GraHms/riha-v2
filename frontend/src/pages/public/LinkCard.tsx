@@ -4,6 +4,14 @@ import { fmt, METHOD_NAME } from '../../lib/format'
 // What a customer sees of a payment link. The dashboard shows the same pieces
 // as its preview, so a merchant sees what their customer will.
 
+// The words a link's checkout uses, from the button the merchant chose.
+export const SUBMIT: Record<string, { label: string; total: string; button: string; ask: string; done: string; paid: string }> = {
+  pay: { label: 'Pagar', total: 'Total a pagar', button: 'Pagar', ask: 'Quanto quer pagar?', done: 'Pagamento concluído', paid: 'Pagou' },
+  book: { label: 'Reservar', total: 'Total da reserva', button: 'Reservar', ask: 'Quanto quer pagar pela reserva?', done: 'Reserva confirmada', paid: 'Pagou' },
+  donate: { label: 'Doar', total: 'Total do donativo', button: 'Doar', ask: 'Quanto quer doar?', done: 'Donativo concluído', paid: 'Doou' },
+}
+export const submitWords = (t?: string) => SUBMIT[t || 'pay'] || SUBMIT.pay
+
 export type LinkFace = {
   name: string; details?: string; image_url?: string
   merchant: { name: string; initials: string; avatar_color?: string }
@@ -50,7 +58,7 @@ export function rangeText(lo: number, hi: number) {
 
 export type LinkDraft = LinkFace & {
   amount: number; custom: boolean; suggested: number; min: number; max: number; methods: string[]
-  after: 'page' | 'redirect'; message: string; redirect: string
+  after: 'page' | 'redirect'; message: string; redirect: string; submit: string
 }
 
 // LinkPreview shows a draft link as the customer will meet it: before paying,
@@ -64,7 +72,7 @@ export function LinkPreview({ d }: { d: LinkDraft }) {
       <div className="card" style={{ borderRadius: 20, padding: 16, textAlign: 'center' }}>
         {d.custom ? (
           <>
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Quanto quer pagar?</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>{submitWords(d.submit).ask}</div>
             <div className="display tnum" style={{ fontSize: 34, marginTop: 4 }}>{d.suggested ? fmt(d.suggested, false) : '0'} <span style={{ fontSize: 16, color: 'var(--muted-2)' }}>MT</span></div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
               {quickAmounts(d.suggested, lo, hi).map(v => <span key={v} className="chip" style={{ fontFamily: 'var(--sans)', background: v === d.suggested ? 'var(--ink)' : 'var(--paper-2)', color: v === d.suggested ? '#fff' : undefined }}>{fmt(v, false)}</span>)}
@@ -77,7 +85,10 @@ export function LinkPreview({ d }: { d: LinkDraft }) {
             <div className="display tnum" style={{ fontSize: 34, marginTop: 4 }}>{fmt(d.amount, false)} <span style={{ fontSize: 16, color: 'var(--muted-2)' }}>MT</span></div>
           </>
         )}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
+        <div style={{ marginTop: 14, height: 46, borderRadius: 13, background: 'var(--green)', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 15 }} aria-hidden="true">
+          {submitWords(d.submit).button} {fmt(d.custom ? d.suggested || 0 : d.amount)} MT
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
           {d.methods.map(m => <span key={m} className="chip" style={{ fontFamily: 'var(--sans)', background: '#fff', border: '1px solid var(--line)', gap: 6 }}><MethodIcon method={m} size={16} radius={5} />{METHOD_NAME[m]}</span>)}
         </div>
       </div>
@@ -85,7 +96,7 @@ export function LinkPreview({ d }: { d: LinkDraft }) {
       <div className="card" style={{ borderRadius: 20, padding: 16, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--green)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name="check" size={17} stroke={2.6} color="#fff" /></span>
         <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-          <b>Pagamento concluído</b>
+          <b>{submitWords(d.submit).done}</b>
           {d.after === 'redirect'
             ? <div style={{ color: 'var(--muted)' }}>{host ? <>Volta para <b style={{ color: 'var(--ink)' }}>{host}</b> em 8 segundos.</> : 'Indique o endereço do seu site.'}</div>
             : <div style={{ color: 'var(--text-2)', whiteSpace: 'pre-line' }}>{d.message || 'Vê o recibo com a referência do pagamento.'}</div>}

@@ -37,7 +37,7 @@ func SessionResource(cs *CheckoutSession, publicURL string) M {
 		items = []LineItem{}
 	}
 	return M{
-		"id": cs.ID, "object": "checkout.session", "status": cs.Status, "amount": cs.Amount, "currency": cs.Currency,
+		"id": cs.ID, "object": "checkout.session", "status": cs.Status, "amount": cs.Amount, "currency": cs.Currency, "submit_type": FirstNonEmpty(cs.SubmitType, SubmitPay),
 		"description": cs.Description, "url": CheckoutURL(publicURL, cs.ID), "client_reference_id": null(cs.ClientReferenceID),
 		"success_url": null(cs.SuccessURL), "cancel_url": null(cs.CancelURL), "callback_url": null(cs.CallbackURL),
 		"customer": customer, "line_items": items, "metadata": meta(cs.Metadata), "payment_method_types": cs.PaymentMethodTypes,
@@ -117,7 +117,7 @@ func LinkResource(l *PaymentLink, publicURL, merchantSlug string) M {
 		"reusable": l.Reusable, "payment_method_types": l.Methods, "active": l.Active, "expires_at": exp, "type": l.Kind,
 		"url": LinkURL(publicURL, merchantSlug, l.Slug), "livemode": l.Livemode, "created": l.CreatedAt.Unix(),
 		"details": l.Details, "suggested_amount": nonZero(l.SuggestedAmount), "min_amount": nonZero(l.MinCustom), "max_amount": nonZero(l.MaxCustom),
-		"after_message": l.AfterMessage, "redirect_url": l.RedirectURL,
+		"after_message": l.AfterMessage, "redirect_url": l.RedirectURL, "archived": l.Archived, "submit_type": FirstNonEmpty(l.SubmitType, SubmitPay),
 	}
 }
 

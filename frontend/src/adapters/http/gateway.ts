@@ -3,7 +3,7 @@ import type { CheckoutSession, Json, Me, PaymentFilter, PaymentLink, PublicLink 
 import { Transport } from './transport'
 
 const qs = (o: Record<string, string | number | undefined>) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString()
-const paymentQuery = (f: PaymentFilter) => qs({ status: f.status === 'all' ? '' : f.status, q: f.q, limit: f.limit })
+const paymentQuery = (f: PaymentFilter) => qs({ status: f.status === 'all' ? '' : f.status, q: f.q, limit: f.limit, link: f.link })
 
 export function httpGateway(t = new Transport()): Gateway {
   const get = <T = Json>(p: string) => t.request<T>(p)
@@ -40,6 +40,7 @@ export function httpGateway(t = new Transport()): Gateway {
     },
     links: {
       list: () => get<{ data: PaymentLink[] }>('/links'),
+      get: id => get<PaymentLink>('/links/' + encodeURIComponent(id)),
       create: input => post<PaymentLink>('/links', input),
       update: (id, patch) => send<PaymentLink>('PATCH', '/links/' + encodeURIComponent(id), patch),
       uploadImage: (id, file) => { const fd = new FormData(); fd.append('file', file); return t.request<PaymentLink>(`/links/${encodeURIComponent(id)}/image`, { form: fd }) },

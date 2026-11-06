@@ -127,6 +127,8 @@ type linkRecord struct {
 	MaxCustom       int64
 	AfterMessage    string `gorm:"size:300"`
 	RedirectURL     string `gorm:"size:1000"`
+	SubmitType      string `gorm:"size:10"`
+	Archived        bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -156,6 +158,7 @@ type sessionCheckoutRecord struct {
 	CancelURL          string     `gorm:"size:1000"`
 	CallbackURL        string     `gorm:"size:1000"`
 	SuccessMessage     string     `gorm:"size:300"`
+	SubmitType         string     `gorm:"size:10"`
 	ClientReferenceID  string     `gorm:"size:200;index"`
 	CustomerName       string     `gorm:"size:200"`
 	CustomerPhone      string     `gorm:"size:40"`

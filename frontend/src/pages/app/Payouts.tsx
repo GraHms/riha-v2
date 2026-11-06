@@ -11,30 +11,11 @@ import { NOT_APPROVED, useShell } from './AppShell'
 const GRID = 'minmax(118px,1fr) minmax(0,1.5fr) 112px 118px 96px'
 
 export default function Payouts() {
-  const { version, bump, merchant, live } = useShell()
-  const { toast } = useSession()
+  const { version } = useShell()
   const g = useGateway()
-  const nav = useNavigate()
   const bal = useQuery(g => g.payouts.balance(), [version], 10000)
   const list = useQuery(g => g.payouts.list(), [version], 10000)
-  const bank = useQuery(g => g.merchant.bankAccount(), [version])
-  const [w, setW] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
   const available = bal.data?.available ?? 0
-  useEffect(() => { if (bal.data && w === '') setW(fmt(Math.max(0, bal.data.available)).replace(/\u00A0/g, ' ')) }, [bal.data]) // eslint-disable-line react-hooks/exhaustive-deps
-  const amt = parseMT(w)
-  const over = amt > available
-  const acct = bank.data?.account
-  const due = new Date(Date.now() + 72 * 3600 * 1000)
-  const blocked = merchant.status !== 'active'
-  const disabled = busy || !amt || over || amt < 10000 || !acct || blocked
-
-  const request = async () => {
-    setBusy(true); setErr('')
-    try { const p = await g.payouts.request(amt); toast(`Levantamento ${p.reference} pedido`); setW(''); bump() }
-    catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
-  }
   const now = new Date()
   const prevMonth = monthName((now.getMonth() + 11) % 12)
   const rows: any[] = list.data?.data || []
@@ -102,9 +83,41 @@ export default function Payouts() {
           {list.data && !rows.length && <div className="empty">Ainda não fez levantamentos.</div>}
         </div>
 
-        <div className="card req" style={{ padding: 22 }}>
-          <div className="h2">Pedir levantamento</div>
-          <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 16, border: '2px solid var(--ink)' }}>
+        <div className="card req" style={{ padding: 22 }}><WithdrawForm /></div>
+      </div>
+    </div>
+  )
+}
+
+// WithdrawForm asks for a payout. It lives on the balance page and in the sheet
+// that "Levantar" opens from the home page.
+export function WithdrawForm({ onDone, inSheet }: { onDone?: () => void; inSheet?: boolean }) {
+  const { version, bump, merchant, live } = useShell()
+  const { toast } = useSession()
+  const g = useGateway()
+  const nav = useNavigate()
+  const bal = useQuery(g => g.payouts.balance(), [version], 10000)
+  const bank = useQuery(g => g.merchant.bankAccount(), [version])
+  const [w, setW] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const available = bal.data?.available ?? 0
+  useEffect(() => { if (bal.data && w === '') setW(fmt(Math.max(0, bal.data.available)).replace(/\u00A0/g, ' ')) }, [bal.data]) // eslint-disable-line react-hooks/exhaustive-deps
+  const amt = parseMT(w)
+  const over = amt > available
+  const acct = bank.data?.account
+  const due = new Date(Date.now() + 72 * 3600 * 1000)
+  const blocked = merchant.status !== 'active'
+  const disabled = busy || !amt || over || amt < 10000 || !acct || blocked
+  const request = async () => {
+    setBusy(true); setErr('')
+    try { const p = await g.payouts.request(amt); toast(`Levantamento ${p.reference} pedido`); setW(''); bump(); onDone?.() }
+    catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+  }
+  return (
+    <>
+          {!inSheet && <div className="h2">Pedir levantamento</div>}
+          <div style={{ marginTop: inSheet ? 0 : 16, padding: '14px 16px', borderRadius: 16, border: '2px solid var(--ink)', background: '#fff' }}>
             <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Valor</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
               <input aria-label="Valor a levantar" value={w} onChange={e => setW(e.target.value.replace(/[^\d.,\s]/g, '').slice(0, 12))} inputMode="decimal" className="display" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', fontSize: 34, letterSpacing: '-0.04em', padding: 0, color: over ? 'var(--red-dark)' : 'var(--ink)' }} />
@@ -113,7 +126,7 @@ export default function Payouts() {
           </div>
           <div className="between" style={{ marginTop: 8 }}><span style={{ fontSize: 12.5, color: over ? 'var(--red-dark)' : 'var(--muted)', minWidth: 0 }}>{over ? 'Acima do saldo disponível' : amt > 0 && amt < 10000 ? 'O mínimo é 100,00 MT' : `Disponível: ${fmt(available)} MT`}</span><button className="btn" style={{ height: 30, padding: '0 11px', borderRadius: 999, background: 'var(--paper-2)', fontSize: 12.5 }} onClick={() => setW(fmt(available).replace(/\u00A0/g, ' '))}>Máximo</button></div>
           {acct ? (
-            <div className="row" style={{ marginTop: 16, padding: '12px 14px', borderRadius: 14, background: 'var(--paper)' }}>
+            <div className="row" style={{ marginTop: 16, padding: '12px 14px', borderRadius: 14, background: inSheet ? '#fff' : 'var(--paper)', border: inSheet ? '1px solid var(--line)' : 0 }}>
               <div style={{ width: 38, height: 38, flex: 'none', borderRadius: 11, background: '#fff', display: 'grid', placeItems: 'center' }}><Icon name="bank" size={18} /></div>
               <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.bank_name} · {acct.holder}</div><div className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>NIB •••• {acct.nib_last5.slice(0, 4)} {acct.nib_last5.slice(4)}</div></div>
               <a href="#" onClick={e => { e.preventDefault(); nav('/painel/definicoes/banco') }} style={{ fontSize: 13, fontWeight: 600 }}>Alterar</a>
@@ -126,8 +139,6 @@ export default function Payouts() {
           {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
           <button className="btn btn-green btn-block" style={{ marginTop: 16, height: 52, borderRadius: 14, fontSize: 15.5 }} disabled={disabled} onClick={request}>{busy ? <Spinner /> : !acct ? 'Adicione uma conta bancária' : available < 10000 ? 'Ainda sem saldo para levantar' : `Levantar ${fmt(amt)} MT`}</button>
           {!live && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, textAlign: 'center' }}>Em modo de teste os levantamentos são concluídos automaticamente em segundos.</div>}
-        </div>
-      </div>
-    </div>
+    </>
   )
 }

@@ -37,6 +37,7 @@ type SessionParams struct {
 	Locale             string            `json:"locale"`
 	Origin             domain.Origin     `json:"-"`
 	SuccessMessage     string            `json:"-"`
+	SubmitType         string            `json:"submit_type"`
 }
 
 var e164MZ = regexp.MustCompile(`^\+258[0-9]{9}$`)
@@ -142,6 +143,9 @@ func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, 
 	if err != nil {
 		return nil, err
 	}
+	if p.SubmitType, err = domain.CleanSubmitType(p.SubmitType); err != nil {
+		return nil, err
+	}
 	now := a.Now()
 	exp := now.Add(time.Hour)
 	if p.ExpiresAt != nil {
@@ -154,7 +158,7 @@ func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, 
 	cs := &domain.CheckoutSession{
 		ID: domain.ModeID("cs", live), MerchantID: m.ID, Livemode: live, Status: domain.SessionOpen,
 		Amount: p.Amount, Currency: "MZN", Description: domain.Trim(p.Description, 500),
-		SuccessURL: p.SuccessURL, CancelURL: p.CancelURL, CallbackURL: p.CallbackURL, SuccessMessage: domain.Trim(p.SuccessMessage, 300),
+		SuccessURL: p.SuccessURL, CancelURL: p.CancelURL, CallbackURL: p.CallbackURL, SuccessMessage: domain.Trim(p.SuccessMessage, 300), SubmitType: p.SubmitType,
 		ClientReferenceID: domain.Trim(p.ClientReferenceID, 200), LineItems: p.LineItems, Metadata: meta,
 		PaymentMethodTypes: methods, Locale: domain.FirstNonEmpty(p.Locale, "pt-MZ"), ExpiresAt: exp, Origin: p.Origin, CreatedAt: now,
 	}
@@ -194,7 +198,7 @@ func (a *App) CreateLinkSession(ctx context.Context, link *domain.PaymentLink, a
 	if err != nil {
 		return nil, err
 	}
-	if !link.Active || (link.ExpiresAt != nil && link.ExpiresAt.Before(a.Now())) {
+	if !link.Active || link.Archived || (link.ExpiresAt != nil && link.ExpiresAt.Before(a.Now())) {
 		return nil, domain.Invalid("link_inactive", "link", "Este link já não está ativo.")
 	}
 	if !link.Reusable {
@@ -217,8 +221,8 @@ func (a *App) CreateLinkSession(ctx context.Context, link *domain.PaymentLink, a
 	lid := link.ID
 	return a.CreateSession(ctx, m, link.Livemode, SessionParams{
 		Amount: amount, Description: link.Name, PaymentMethodTypes: link.Methods, SuccessURL: domain.FirstNonEmpty(link.RedirectURL, m.SuccessURL), CancelURL: m.CancelURL,
-		SuccessMessage: link.AfterMessage,
-		Origin:         domain.Origin{SourceType: src, PaymentLinkID: &lid, IP: ip, UserAgent: ua, Channel: channel, CreatedBy: link.CreatedBy},
+		SuccessMessage: link.AfterMessage, SubmitType: link.SubmitType,
+		Origin: domain.Origin{SourceType: src, PaymentLinkID: &lid, IP: ip, UserAgent: ua, Channel: channel, CreatedBy: link.CreatedBy},
 	})
 }
 

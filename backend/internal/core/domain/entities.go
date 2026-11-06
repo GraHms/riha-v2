@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	RoleMerchant = "merchant"
@@ -140,7 +143,11 @@ type PaymentLink struct {
 	// After paying, the customer reads AfterMessage, or goes to RedirectURL.
 	AfterMessage string
 	RedirectURL  string
-	CreatedAt    time.Time
+	// SubmitType names the checkout button: pay, book or donate.
+	SubmitType string
+	// Archived links are off and out of the way, but kept: payments point to them.
+	Archived  bool
+	CreatedAt time.Time
 }
 
 // CustomRange is the lowest and highest amount a customer may choose.
@@ -198,6 +205,7 @@ type CheckoutSession struct {
 	CallbackURL string
 	// SuccessMessage is shown once the customer has paid, from a payment link.
 	SuccessMessage     string
+	SubmitType         string
 	ClientReferenceID  string
 	CustomerName       string
 	CustomerPhone      string
@@ -409,3 +417,23 @@ func contains(list []string, v string) bool {
 }
 
 func Contains(list []string, v string) bool { return contains(list, v) }
+
+const (
+	SubmitPay    = "pay"
+	SubmitBook   = "book"
+	SubmitDonate = "donate"
+)
+
+// CleanSubmitType checks the word on a checkout's button. Empty means pay, and
+// so do Stripe's auto and subscribe, so that code written for Stripe keeps working.
+func CleanSubmitType(s string) (string, error) {
+	switch s = strings.ToLower(strings.TrimSpace(s)); s {
+	case "", "auto", "subscribe":
+		return SubmitPay, nil
+	case SubmitPay, SubmitBook, SubmitDonate:
+		return s, nil
+	}
+	return s, Invalid("parameter_invalid", "submit_type", "submit_type tem de ser pay, book ou donate.")
+}
+
+func (l *PaymentLink) SubmitTypeOrPay() string { return FirstNonEmpty(l.SubmitType, SubmitPay) }

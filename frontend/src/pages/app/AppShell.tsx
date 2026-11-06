@@ -99,8 +99,8 @@ export default function AppShell() {
           <button className={isOn('/painel') ? 'on' : ''} onClick={() => nav('/painel')}><Icon name="home" size={22} />Início</button>
           <button className={isOn('/painel/transacoes') ? 'on' : ''} onClick={() => nav('/painel/transacoes')}><Icon name="txns" size={22} />Transações</button>
           <button className="fab" onClick={() => setSheet(true)} aria-label="Criar"><Icon name="plus" size={24} stroke={2.4} /></button>
-          <button className={isOn('/painel/saldo') ? 'on' : ''} onClick={() => nav('/painel/saldo')}><Icon name="wallet" size={22} />Saldo</button>
-          <button className={isOn('/painel/definicoes') || isOn('/painel/links') ? 'on' : ''} onClick={() => nav('/painel/definicoes')}><Icon name="settings" size={22} />Definições</button>
+          <button className={isOn('/painel/links') ? 'on' : ''} onClick={() => nav('/painel/links')}><Icon name="link" size={22} />Links</button>
+          <button className={isOn('/painel/definicoes') ? 'on' : ''} onClick={() => nav('/painel/definicoes')}><Icon name="settings" size={22} />Definições</button>
         </nav>
       </div>
       {sheet && (

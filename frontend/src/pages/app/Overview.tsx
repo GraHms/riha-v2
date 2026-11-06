@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '../../core/useQuery'
 import { fmt, greeting, longToday, methodLine, monthName, PAYOUT_STATUS, shortDate, SOURCE, STATUS, weekday } from '../../lib/format'
-import { Bars, Icon, MethodIcon, Pill, Skeleton, Stripes } from '../../components/ui'
+import { Bars, Drawer, Icon, MethodIcon, Pill, Skeleton, Stripes } from '../../components/ui'
+import { WithdrawForm } from './Payouts'
 import { useShell } from './AppShell'
 
 export function TxLine({ p, onClick, desktop }: { p: any; onClick?: () => void; desktop?: boolean }) {
@@ -45,6 +46,7 @@ export default function Overview() {
   const { openNewLink, merchant, version } = useShell()
   const nav = useNavigate()
   const [days, setDays] = useState(30)
+  const [withdraw, setWithdraw] = useState(false)
   const { data: d } = useQuery(g => g.payments.overview(days), [days, version], 15000)
   const mobile = useQuery(g => g.payments.overview(7), [version], 15000).data
 
@@ -68,9 +70,12 @@ export default function Overview() {
       {inTransit && <div style={{ position: 'relative', display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 7, marginTop: 10, fontSize: 13.5, color: '#D7DED9', padding: '6px 12px', borderRadius: 999, background: 'rgba(255,255,255,.08)' }}><Icon name="clock" size={14} stroke={2.2} color="var(--sun)" />{fmt(d.in_transit)} MT a caminho {d.bank_account ? 'do ' + d.bank_account.bank_name : 'do banco'}{d.pending_payout ? ` · chega até ${shortDate(d.pending_payout.due_at)}` : ''}</div>}
       <div style={{ flex: 1, minHeight: 24 }} />
       <div style={{ position: 'relative', display: mob ? 'grid' : 'flex', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <button className="btn btn-white" style={{ height: mob ? 50 : 48, borderRadius: 14, fontSize: 15 }} onClick={() => nav('/painel/saldo')}><Icon name="arrowUpRight" size={17} stroke={2.2} />Levantar</button>
+        <button className="btn btn-white" style={{ height: mob ? 50 : 48, borderRadius: 14, fontSize: 15 }} onClick={() => setWithdraw(true)}><Icon name="arrowUpRight" size={17} stroke={2.2} />Levantar</button>
         <button className="btn btn-green" style={{ height: mob ? 50 : 48, borderRadius: 14, fontSize: 15 }} onClick={openNewLink}><Icon name="plus" size={17} stroke={2.2} />Criar link</button>
       </div>
+      <button onClick={() => nav('/painel/saldo')} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 14, padding: '12px 0 0', border: 0, borderTop: '1px solid rgba(255,255,255,.12)', background: 'none', color: '#D7DED9', fontSize: 14, textAlign: 'left', width: '100%', cursor: 'pointer' }}>
+        <span>Levantamentos e histórico</span><Icon name="chevronRight" size={16} />
+      </button>
     </div>
   )
 
@@ -148,6 +153,7 @@ export default function Overview() {
         </div>
         <div style={{ marginTop: 12 }}>{mobile?.pending_payout && <PayoutProgress p={mobile.pending_payout} />}</div>
       </div>
+      {withdraw && <Drawer title="Levantar" onClose={() => setWithdraw(false)}><div style={{ padding: '22px 24px' }}><WithdrawForm inSheet onDone={() => setWithdraw(false)} /></div></Drawer>}
     </>
   )
 }

@@ -27,6 +27,7 @@ const Links = lazy(() => import('./pages/app/Links'))
 const Payouts = lazy(() => import('./pages/app/Payouts'))
 const Settings = lazy(() => import('./pages/app/Settings'))
 const NewLinkPage = lazy(() => import('./pages/app/NewLinkPage'))
+const LinkDetail = lazy(() => import('./pages/app/LinkDetail'))
 const AdminShell = lazy(() => import('./pages/admin/AdminShell'))
 const AdminOverview = lazy(() => import('./pages/admin/AdminOverview'))
 const Approvals = lazy(() => import('./pages/admin/Approvals'))
@@ -127,6 +128,8 @@ export default function App() {
         <Route path="transacoes/:id" element={<Transactions />} />
         <Route path="links" element={<Links />} />
         <Route path="links/novo" element={<NewLinkPage />} />
+        <Route path="links/:id" element={<LinkDetail />} />
+        <Route path="links/:id/editar" element={<NewLinkPage edit />} />
         <Route path="saldo" element={<Payouts />} />
         <Route path="definicoes" element={<Settings />} />
         <Route path="definicoes/:tab" element={<Settings />} />

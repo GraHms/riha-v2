@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { submitWords } from './LinkCard'
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../../lib/support'
 import { useParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
@@ -10,7 +11,7 @@ import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 type Session = {
   id: string; status: string; amount: number; description: string; livemode: boolean
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
-  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; link?: { details: string; image_url: string }; success_message?: string
+  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; link?: { details: string; image_url: string }; success_message?: string; submit_type?: string
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
   payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null }
 }
@@ -286,7 +287,7 @@ export default function Checkout() {
       </div>
       {s.link?.image_url && <img src={s.link.image_url} alt="" style={{ display: 'block', width: '100%', maxWidth: 360, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 16, marginTop: 18 }} />}
       {s.link?.details && <p style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.55, opacity: 0.78, whiteSpace: 'pre-line', maxWidth: 380 }}>{s.link.details}</p>}
-      <div className="co-total-label">Total a pagar</div>
+      <div className="co-total-label">{submitWords(s.submit_type).total}</div>
       <div className="co-total">{amount} <span>MT</span></div>
       <div className="co-items">
         {items.map((li, i) => <div key={i} className="between"><span>{li.name}{li.quantity > 1 ? ` × ${li.quantity}` : ''}</span><span className="tnum">{fmt(li.unit_amount * li.quantity)} MT</span></div>)}
@@ -325,7 +326,7 @@ export default function Checkout() {
                 </div>
                 {s.link?.details && <p style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.5, color: 'var(--text-2)', whiteSpace: 'pre-line' }}>{s.link.details}</p>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 16, paddingTop: 14, borderTop: '1px dashed #E1DFD7' }}>
-                  <div><div style={{ fontSize: 13, color: 'var(--muted)' }}>{items[0].name}{items.length > 1 ? ` + ${items.length - 1}` : ''}</div><div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Total a pagar</div></div>
+                  <div><div style={{ fontSize: 13, color: 'var(--muted)' }}>{items[0].name}{items.length > 1 ? ` + ${items.length - 1}` : ''}</div><div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{submitWords(s.submit_type).total}</div></div>
                   <div className="display" style={{ fontSize: 30, letterSpacing: '-0.035em', lineHeight: 1 }}>{amount} <span style={{ fontSize: 15, color: 'var(--muted)' }}>MT</span></div>
                 </div>
               </div>
@@ -383,7 +384,7 @@ export default function Checkout() {
                     {err && failedRef && <RefCode label="Referência" code={failedRef} />}
                     {err && !failedRef && attemptRef.current && <RefCode label="Código do pedido" code={attemptRef.current} />}
                     <button className="btn btn-green btn-lg btn-block" style={{ height: 58, fontSize: 17, boxShadow: '0 14px 30px -14px rgba(10,130,5,.9)' }} onClick={pay} disabled={busy}>
-                      {busy ? <Spinner /> : <><Icon name="lock" size={17} stroke={2.2} />Pagar {amount} MT</>}
+                      {busy ? <Spinner /> : <><Icon name="lock" size={17} stroke={2.2} />{submitWords(s.submit_type).button} {amount} MT</>}
                     </button>
                     {s.return_host && <div className="only-desktop" style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--muted)', marginTop: 14 }}>Depois de pagar, volta automaticamente para {s.return_host}.</div>}
                     <div className="only-mobile" style={{ marginTop: 12 }}><Secure /></div>
@@ -430,8 +431,8 @@ export default function Checkout() {
           {view === 'done' && s.payment && (
             <div className="co-center" style={{ paddingTop: 34 }}>
               <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'var(--green)', display: 'grid', placeItems: 'center', boxShadow: '0 0 0 12px #E2F3DE,0 0 0 26px #EEF6EB' }}><Icon name="check" size={44} stroke={2.6} color="#fff" /></div>
-              <h1 className="display" style={{ margin: '38px 0 0', fontSize: 30 }}>Pagamento concluído</h1>
-              <p style={{ margin: '6px 0 0', fontSize: 15.5, color: 'var(--muted)' }}>Pagou <b style={{ color: 'var(--ink)' }}>{amount} MT</b> a {s.merchant.name}</p>
+              <h1 className="display" style={{ margin: '38px 0 0', fontSize: 30 }}>{submitWords(s.submit_type).done}</h1>
+              <p style={{ margin: '6px 0 0', fontSize: 15.5, color: 'var(--muted)' }}>{submitWords(s.submit_type).paid} <b style={{ color: 'var(--ink)' }}>{amount} MT</b> a {s.merchant.name}</p>
               {s.success_message && <div className="card" style={{ width: '100%', marginTop: 20, borderRadius: 20, padding: '14px 18px', textAlign: 'left', fontSize: 15, lineHeight: 1.55, whiteSpace: 'pre-line' }}><div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 4 }}>Mensagem de {s.merchant.name}</div>{s.success_message}</div>}
               <div className="card" style={{ width: '100%', marginTop: 24, borderRadius: 22, padding: '6px 18px', textAlign: 'left' }}>
                 <div className="between" style={{ padding: '12px 0', borderBottom: '1px solid #EEECE5', fontSize: 14 }}><span className="muted">Referência</span><span className="mono" style={{ fontSize: 13 }}>{s.payment.reference}</span></div>

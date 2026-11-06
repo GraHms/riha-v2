@@ -63,7 +63,7 @@ func (srv *Server) publicLink(c *gin.Context) {
 	active := l.Active && (l.ExpiresAt == nil || l.ExpiresAt.After(time.Now()))
 	lo, hi := l.CustomRange()
 	c.JSON(200, gin.H{"name": l.Name, "amount": l.Amount, "custom_amount": l.CustomAmount, "active": active, "type": l.Kind,
-		"details": l.Details, "image_url": linkImageURL(l, m.Slug), "suggested_amount": l.SuggestedAmount, "min_amount": lo, "max_amount": hi,
+		"details": l.Details, "image_url": linkImageURL(l, m.Slug), "submit_type": l.SubmitTypeOrPay(), "suggested_amount": l.SuggestedAmount, "min_amount": lo, "max_amount": hi,
 		"payment_method_types": srv.A.ActiveMethods(l.Methods), "coming_soon": srv.A.ComingSoon, "livemode": l.Livemode, "merchant": publicMerchant(m)})
 }
 

@@ -359,6 +359,7 @@ const LINK_CUSTOM_CODE = String.raw`curl https://rihagateway.com/v1/payment_link
   -d suggested_amount=50000 \
   -d min_amount=10000 \
   -d max_amount=500000 \
+  -d submit_type=donate \
   -d after_message="Obrigado pelo seu donativo!"`
 
 const REFUND_CODE = String.raw`curl https://rihagateway.com/v1/refunds \
@@ -667,6 +668,7 @@ export default function Docs() {
               <Param name="customer" type="object"><C s={13}>name</C>, <C s={13}>phone</C> (formato E.164, +258…) e <C s={13}>email</C>. O telefone pré-preenche o número M-Pesa no checkout.</Param>
               <Param name="line_items" type="array">Lista de <C s={13}>name</C>, <C s={13}>quantity</C> e <C s={13}>unit_amount</C>, mostrada no checkout e no recibo. A soma tem de ser igual a amount.</Param>
               <Param name="payment_method_types" type="array"><C s={13}>mpesa</C>, <C s={13}>emola</C> ou <C s={13}>bim</C>. Métodos ainda não ativos são ignorados, e <C s={13}>card</C> chega em breve.</Param>
+              <Param name="submit_type" type="string"><C s={13}>pay</C> (por omissão), <C s={13}>book</C> ou <C s={13}>donate</C>: o botão diz Pagar, Reservar ou Doar, e a confirmação diz Pagamento concluído, Reserva confirmada ou Donativo concluído.</Param>
               <Param name="metadata" type="object">Até 20 pares chave-valor (chave até 40 caracteres, valor até 500). Não é mostrado ao cliente. Copiado para o Payment.</Param>
               <Param name="expires_at" type="timestamp">Entre 15 minutos e 24 horas. Por omissão, 1 hora.</Param>
               <Param name="description · locale" type="string · pt-MZ | en" last>Texto mostrado no checkout e no recibo. Idioma do checkout.</Param>
@@ -716,12 +718,13 @@ export default function Docs() {
               <Param name="amount" type="integer">Valor fixo em centavos. Omita e envie <C s={13}>custom_amount=true</C> para o cliente escolher o valor.</Param>
               <Param name="reusable" type="boolean">Se o link aceita vários pagamentos. Por omissão, sim.</Param>
               <Param name="payment_method_types" type="array">Métodos aceites. Por omissão, todos os ativos na conta.</Param>
+              <Param name="submit_type" type="string"><C s={13}>pay</C>, <C s={13}>book</C> ou <C s={13}>donate</C>. O texto do botão do checkout: Pagar, Reservar ou Doar. Com <C s={13}>donate</C>, a página do link pergunta "Quanto quer doar?".</Param>
               <Param name="slug · expires_at" type="string · timestamp">Fim do URL e data a partir da qual o link deixa de aceitar pagamentos.</Param>
               <Param name="details" type="string">Descrição mais longa, até 500 caracteres, mostrada na página do link e no checkout. As quebras de linha mantêm-se.</Param>
               <Param name="suggested_amount · min_amount · max_amount" type="integer">Só com <C s={13}>custom_amount=true</C>, em centavos. O sugerido aparece já escrito; o checkout recusa valores fora do mínimo e do máximo. Sem eles, vale o intervalo da conta, de 10 a 1 000 000 MT. Num link de valor fixo são ignorados.</Param>
               <Param name="after_message" type="string">Mensagem mostrada ao cliente na confirmação, depois de pagar. Até 300 caracteres.</Param>
               <Param name="redirect_url" type="string" last>Para onde o cliente vai depois de pagar, em vez do endereço de retorno da conta. Em produção tem de usar https. Use <C s={13}>after_message</C> ou <C s={13}>redirect_url</C>, não os dois.</Param>
-              <P mt={18} s={14.5}>Liste com <C s={13}>GET /v1/payment_links</C>. Altere ou desative com <C s={13}>PATCH /v1/payment_links/:id</C> (por exemplo <C s={13}>active=false</C>). Para limpar um texto, envie-o vazio; para limpar um valor, envie <C s={13}>0</C>. A imagem do link escolhe-se no painel.</P>
+              <P mt={18} s={14.5}>Liste com <C s={13}>GET /v1/payment_links</C>. Altere ou desative com <C s={13}>PATCH /v1/payment_links/:id</C> (por exemplo <C s={13}>active=false</C>). <C s={13}>archived=true</C> desativa o link e tira-o da lista do painel, sem apagar os pagamentos; <C s={13}>archived=false</C> devolve-o, ainda desativado. O endereço e o tipo de valor não mudam depois de criado. Para limpar um texto, envie-o vazio; para limpar um valor, envie <C s={13}>0</C>. A imagem do link escolhe-se no painel.</P>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignSelf: 'start', minWidth: 0 }}>
               <CodeCard title="Criar um link" code={LINK_CODE} />
