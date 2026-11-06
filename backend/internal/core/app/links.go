@@ -13,16 +13,71 @@ import (
 )
 
 type LinkParams struct {
-	Name         *string
-	Amount       *int64
-	CustomAmount *bool
-	Reusable     *bool
-	Methods      []string
-	Active       *bool
-	ExpiresAt    *int64
-	Slug         *string
-	Kind         string
-	Location     string
+	Name            *string
+	Amount          *int64
+	CustomAmount    *bool
+	Reusable        *bool
+	Methods         []string
+	Active          *bool
+	ExpiresAt       *int64
+	Slug            *string
+	Kind            string
+	Location        string
+	Details         *string
+	SuggestedAmount *int64
+	MinAmount       *int64
+	MaxAmount       *int64
+	AfterMessage    *string
+	RedirectURL     *string
+}
+
+// applyExtras sets what a customer reads before and after paying, and the
+// range of a chosen amount. Only what the request carries changes.
+func (a *App) applyExtras(l *domain.PaymentLink, p LinkParams) error {
+	if p.Details != nil {
+		l.Details = domain.Trim(strings.TrimSpace(*p.Details), 500)
+	}
+	if p.AfterMessage != nil {
+		l.AfterMessage = domain.Trim(strings.TrimSpace(*p.AfterMessage), 300)
+	}
+	if p.RedirectURL != nil {
+		u, err := validURL(*p.RedirectURL, "redirect_url", l.Livemode, false)
+		if err != nil {
+			return err
+		}
+		l.RedirectURL = u
+	}
+	if l.AfterMessage != "" && l.RedirectURL != "" {
+		return domain.Invalid("parameter_invalid", "redirect_url", "Escolha mostrar uma mensagem ou enviar o cliente para o seu site, não os dois.")
+	}
+	set := func(dst *int64, v *int64) {
+		if v != nil {
+			*dst = *v
+		}
+	}
+	set(&l.SuggestedAmount, p.SuggestedAmount)
+	set(&l.MinCustom, p.MinAmount)
+	set(&l.MaxCustom, p.MaxAmount)
+	if !l.CustomAmount {
+		l.SuggestedAmount, l.MinCustom, l.MaxCustom = 0, 0, 0
+		return nil
+	}
+	for _, v := range []struct {
+		n     int64
+		field string
+	}{{l.MinCustom, "min_amount"}, {l.MaxCustom, "max_amount"}, {l.SuggestedAmount, "suggested_amount"}} {
+		if v.n < 0 || (v.n > 0 && (v.n < domain.MinAmount || v.n > domain.MaxAmount)) {
+			return domain.Invalid("amount_invalid", v.field, fmt.Sprintf("Os valores têm de estar entre %s e %s MT.", domain.FormatShort(domain.MinAmount), domain.FormatShort(domain.MaxAmount)))
+		}
+	}
+	lo, hi := l.CustomRange()
+	if lo >= hi {
+		return domain.Invalid("amount_invalid", "max_amount", "O valor máximo tem de ser maior do que o mínimo.")
+	}
+	if l.SuggestedAmount > 0 && (l.SuggestedAmount < lo || l.SuggestedAmount > hi) {
+		return domain.Invalid("amount_invalid", "suggested_amount", "O valor sugerido tem de estar entre o mínimo e o máximo.")
+	}
+	return nil
 }
 
 type LinkView struct {
@@ -78,6 +133,9 @@ func (a *App) CreateLink(ctx context.Context, m *domain.Merchant, live bool, p L
 	l := &domain.PaymentLink{ID: domain.NewID("plink"), MerchantID: m.ID, Livemode: live, Name: domain.Trim(name, 200), Slug: a.uniqueLinkSlug(ctx, m.ID, base),
 		Amount: amount, CustomAmount: custom, Reusable: p.Reusable == nil || *p.Reusable, Methods: methods, Active: true,
 		Kind: kind, CreatedBy: actor, CreatedVia: via, Location: p.Location, CreatedAt: now}
+	if err := a.applyExtras(l, p); err != nil {
+		return nil, err
+	}
 	if p.ExpiresAt != nil && *p.ExpiresAt > 0 {
 		t := time.Unix(*p.ExpiresAt, 0).UTC()
 		if t.Before(now) {
@@ -131,6 +189,9 @@ func (a *App) UpdateLink(ctx context.Context, m *domain.Merchant, live bool, id 
 			t := time.Unix(*p.ExpiresAt, 0).UTC()
 			l.ExpiresAt = &t
 		}
+	}
+	if err := a.applyExtras(l, p); err != nil {
+		return nil, err
 	}
 	return l, a.Links.Save(ctx, l)
 }

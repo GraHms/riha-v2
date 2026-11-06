@@ -116,6 +116,8 @@ func LinkResource(l *PaymentLink, publicURL, merchantSlug string) M {
 		"id": l.ID, "object": "payment_link", "name": l.Name, "slug": l.Slug, "amount": amount, "custom_amount": l.CustomAmount,
 		"reusable": l.Reusable, "payment_method_types": l.Methods, "active": l.Active, "expires_at": exp, "type": l.Kind,
 		"url": LinkURL(publicURL, merchantSlug, l.Slug), "livemode": l.Livemode, "created": l.CreatedAt.Unix(),
+		"details": l.Details, "suggested_amount": nonZero(l.SuggestedAmount), "min_amount": nonZero(l.MinCustom), "max_amount": nonZero(l.MaxCustom),
+		"after_message": l.AfterMessage, "redirect_url": l.RedirectURL,
 	}
 }
 
@@ -170,4 +172,11 @@ func ChargeResource(c *Charge, publicURL string) M {
 		out["paid_outside"] = M{"method": c.OutsideMethod, "reference": null(c.OutsideRef), "marked_by": c.MarkedBy, "proof_sha256": null(c.OutsideProofHash)}
 	}
 	return out
+}
+
+func nonZero(v int64) any {
+	if v == 0 {
+		return nil
+	}
+	return v
 }

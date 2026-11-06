@@ -31,7 +31,7 @@ export type CheckoutSession = {
   payment: CheckoutPayment | null
 }
 
-export type PublicLink = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; merchant: { name: string; initials: string; avatar_color: string } }
+export type PublicLink = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; details?: string; image_url?: string; suggested_amount: number; min_amount: number; max_amount: number; merchant: { name: string; initials: string; avatar_color: string } }
 
 export type Json = any
 

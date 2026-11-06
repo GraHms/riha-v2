@@ -33,6 +33,8 @@ export interface LinksPort {
   list(): Promise<{ data: PaymentLink[] }>
   create(input: Json): Promise<PaymentLink>
   update(id: string, patch: Json): Promise<PaymentLink>
+  uploadImage(id: string, file: File): Promise<PaymentLink>
+  removeImage(id: string): Promise<PaymentLink>
 }
 
 export interface PayoutsPort {

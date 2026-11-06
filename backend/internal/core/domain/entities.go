@@ -130,7 +130,29 @@ type PaymentLink struct {
 	CreatedBy    string
 	CreatedVia   string
 	Location     string
+	// What the customer reads and sees before paying.
+	Details string
+	Image   string
+	// For a link where the customer chooses the amount. 0 means not set.
+	SuggestedAmount int64
+	MinCustom       int64
+	MaxCustom       int64
+	// After paying, the customer reads AfterMessage, or goes to RedirectURL.
+	AfterMessage string
+	RedirectURL  string
 	CreatedAt    time.Time
+}
+
+// CustomRange is the lowest and highest amount a customer may choose.
+func (l *PaymentLink) CustomRange() (int64, int64) {
+	lo, hi := int64(MinAmount), int64(MaxAmount)
+	if l.MinCustom > 0 {
+		lo = l.MinCustom
+	}
+	if l.MaxCustom > 0 {
+		hi = l.MaxCustom
+	}
+	return lo, hi
 }
 
 const (
@@ -164,16 +186,18 @@ type Origin struct {
 }
 
 type CheckoutSession struct {
-	ID                 string
-	MerchantID         string
-	Livemode           bool
-	Status             string
-	Amount             int64
-	Currency           string
-	Description        string
-	SuccessURL         string
-	CancelURL          string
-	CallbackURL        string
+	ID          string
+	MerchantID  string
+	Livemode    bool
+	Status      string
+	Amount      int64
+	Currency    string
+	Description string
+	SuccessURL  string
+	CancelURL   string
+	CallbackURL string
+	// SuccessMessage is shown once the customer has paid, from a payment link.
+	SuccessMessage     string
 	ClientReferenceID  string
 	CustomerName       string
 	CustomerPhone      string

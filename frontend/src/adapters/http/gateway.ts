@@ -42,6 +42,8 @@ export function httpGateway(t = new Transport()): Gateway {
       list: () => get<{ data: PaymentLink[] }>('/links'),
       create: input => post<PaymentLink>('/links', input),
       update: (id, patch) => send<PaymentLink>('PATCH', '/links/' + encodeURIComponent(id), patch),
+      uploadImage: (id, file) => { const fd = new FormData(); fd.append('file', file); return t.request<PaymentLink>(`/links/${encodeURIComponent(id)}/image`, { form: fd }) },
+      removeImage: id => send<PaymentLink>('DELETE', `/links/${encodeURIComponent(id)}/image`),
     },
     payouts: {
       balance: () => get('/balance'),

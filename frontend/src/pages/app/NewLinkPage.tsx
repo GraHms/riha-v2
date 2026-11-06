@@ -22,8 +22,13 @@ export default function NewLinkPage() {
         <button className="icon-btn" style={{ width: 42, height: 42, borderRadius: 14 }} onClick={() => nav(-1)} aria-label="Fechar"><Icon name="close" size={20} stroke={2} /></button>
         <div style={{ fontWeight: 600, fontSize: 17 }}>Novo link de pagamento</div>
       </div>
-      <div style={{ padding: '26px 16px 8px' }}>{f.amountBlock(true)}</div>
-      <div style={{ padding: '18px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>{f.fields}</div>
+      <div style={{ padding: '14px 16px 0' }}>{f.tabs}</div>
+      {f.tab === 'edit' ? (
+        <>
+          <div style={{ padding: '22px 16px 8px' }}>{f.amountBlock(true)}</div>
+          <div style={{ padding: '18px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>{f.fields}</div>
+        </>
+      ) : <div style={{ padding: '14px 16px 0' }}>{f.preview}</div>}
       <div style={{ flex: 1, minHeight: 20 }} />
       <div style={{ position: 'sticky', bottom: 0, padding: '14px 16px 12px', background: 'linear-gradient(180deg,rgba(244,243,238,0),#F4F3EE 30%)' }}>
         <button className="btn btn-green btn-lg btn-block" onClick={f.submit} disabled={f.busy || !f.valid}>{f.busy ? <Spinner /> : 'Criar link'}</button>

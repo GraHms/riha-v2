@@ -10,7 +10,7 @@ import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 type Session = {
   id: string; status: string; amount: number; description: string; livemode: boolean
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
-  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]
+  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; link?: { details: string; image_url: string }; success_message?: string
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
   payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null }
 }
@@ -279,11 +279,13 @@ export default function Checkout() {
 
   const summary = (
     <>
-      {s.return_host && <a href={s.cancel_url || '#'} onClick={e => { e.preventDefault(); cancel() }} className="co-back"><Icon name="arrowLeft" size={16} stroke={2.2} />Voltar a {s.return_host}</a>}
+      {s.cancel_url && s.return_host && <a href={s.cancel_url} onClick={e => { e.preventDefault(); cancel() }} className="co-back"><Icon name="arrowLeft" size={16} stroke={2.2} />Voltar a {s.return_host}</a>}
       <div className="co-merchant">
         <Avatar text={s.merchant.initials} color={s.merchant.avatar_color} size={44} radius={13} font={15} />
         <div><div style={{ fontWeight: 600, fontSize: 16 }}>{s.merchant.name}</div><div className="co-sub">{ref}</div></div>
       </div>
+      {s.link?.image_url && <img src={s.link.image_url} alt="" style={{ display: 'block', width: '100%', maxWidth: 360, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 16, marginTop: 18 }} />}
+      {s.link?.details && <p style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.55, opacity: 0.78, whiteSpace: 'pre-line', maxWidth: 380 }}>{s.link.details}</p>}
       <div className="co-total-label">Total a pagar</div>
       <div className="co-total">{amount} <span>MT</span></div>
       <div className="co-items">
@@ -316,10 +318,12 @@ export default function Checkout() {
           {view === 'pay' && (
             <>
               <div className="only-mobile co-mcard">
+                {s.link?.image_url && <img src={s.link.image_url} alt="" style={{ display: 'block', width: 'calc(100% + 36px)', margin: '-18px -18px 16px', aspectRatio: '16 / 9', objectFit: 'cover' }} />}
                 <div className="row">
                   <Avatar text={s.merchant.initials} color={s.merchant.avatar_color} size={44} radius={14} font={15} />
                   <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 16 }}>{s.merchant.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 1 }}>{ref}</div></div>
                 </div>
+                {s.link?.details && <p style={{ margin: '12px 0 0', fontSize: 14, lineHeight: 1.5, color: 'var(--text-2)', whiteSpace: 'pre-line' }}>{s.link.details}</p>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 16, paddingTop: 14, borderTop: '1px dashed #E1DFD7' }}>
                   <div><div style={{ fontSize: 13, color: 'var(--muted)' }}>{items[0].name}{items.length > 1 ? ` + ${items.length - 1}` : ''}</div><div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Total a pagar</div></div>
                   <div className="display" style={{ fontSize: 30, letterSpacing: '-0.035em', lineHeight: 1 }}>{amount} <span style={{ fontSize: 15, color: 'var(--muted)' }}>MT</span></div>
@@ -428,6 +432,7 @@ export default function Checkout() {
               <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'var(--green)', display: 'grid', placeItems: 'center', boxShadow: '0 0 0 12px #E2F3DE,0 0 0 26px #EEF6EB' }}><Icon name="check" size={44} stroke={2.6} color="#fff" /></div>
               <h1 className="display" style={{ margin: '38px 0 0', fontSize: 30 }}>Pagamento concluído</h1>
               <p style={{ margin: '6px 0 0', fontSize: 15.5, color: 'var(--muted)' }}>Pagou <b style={{ color: 'var(--ink)' }}>{amount} MT</b> a {s.merchant.name}</p>
+              {s.success_message && <div className="card" style={{ width: '100%', marginTop: 20, borderRadius: 20, padding: '14px 18px', textAlign: 'left', fontSize: 15, lineHeight: 1.55, whiteSpace: 'pre-line' }}><div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 4 }}>Mensagem de {s.merchant.name}</div>{s.success_message}</div>}
               <div className="card" style={{ width: '100%', marginTop: 24, borderRadius: 22, padding: '6px 18px', textAlign: 'left' }}>
                 <div className="between" style={{ padding: '12px 0', borderBottom: '1px solid #EEECE5', fontSize: 14 }}><span className="muted">Referência</span><span className="mono" style={{ fontSize: 13 }}>{s.payment.reference}</span></div>
                 <div className="between" style={{ padding: '12px 0', borderBottom: '1px solid #EEECE5', fontSize: 14 }}><span className="muted">Método</span><span style={{ fontWeight: 500 }}>{s.payment.method === 'card' ? `${s.payment.card_brand} · •• ${s.payment.card_last4}` : `${METHOD_NAME[s.payment.method]} · ${s.payment.phone_prefix} ••• ${s.payment.phone_last4}`}</span></div>
@@ -493,7 +498,7 @@ const CSS = `
 .co-pay{margin-top:22px}
 .co-center{display:flex;flex-direction:column;align-items:center;text-align:center}
 .co-url{display:flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 14px;border-radius:10px;background:var(--paper-2);font-size:13px;color:var(--text-2);align-self:center}
-.co-mcard{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px}
+.co-mcard{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px;overflow:hidden}
 @media (max-width:860px){
   .co{grid-template-columns:1fr}
   .co-side{display:none}

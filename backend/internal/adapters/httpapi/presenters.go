@@ -67,7 +67,15 @@ func (srv *Server) linkJSON(v app.LinkView, merchantSlug string) gin.H {
 	o["payments_count"] = v.Count
 	o["total_received"] = v.Total
 	o["location"] = v.Location
+	o["image_url"] = linkImageURL(&v.PaymentLink, merchantSlug)
 	return o
+}
+
+func linkImageURL(l *domain.PaymentLink, merchantSlug string) string {
+	if l.Image == "" {
+		return ""
+	}
+	return "/api/public/links/" + merchantSlug + "/" + l.Slug + "/image?v=" + version(l.Image)
 }
 
 func payoutJSON(p *domain.Payout) gin.H {
@@ -166,6 +174,12 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 		"success_url": success, "cancel_url": cs.CancelURL, "return_host": hostOf(domain.FirstNonEmpty(cs.SuccessURL, cs.CancelURL)),
 		"client_reference_id": cs.ClientReferenceID, "customer_phone": strings.TrimPrefix(cs.CustomerPhone, "+258"),
 		"customer_name": cs.CustomerName, "email_on_file": cs.CustomerEmail != "", "expires_at": isoT(cs.ExpiresAt), "merchant": publicMerchant(m), "payment": nil,
+	}
+	out["success_message"] = cs.SuccessMessage
+	if cs.PaymentLinkID != nil {
+		if l, err := srv.A.Links.ByID(c, *cs.PaymentLinkID); err == nil && (l.Details != "" || l.Image != "") {
+			out["link"] = gin.H{"details": l.Details, "image_url": linkImageURL(l, m.Slug)}
+		}
 	}
 	if p := srv.A.LatestPayment(c, cs.ID); p != nil {
 		out["payment"] = gin.H{"id": p.ID, "reference": p.Reference, "attempt_id": p.AttemptID, "status": p.Status, "method": p.Method, "phone_prefix": p.PhonePrefix,

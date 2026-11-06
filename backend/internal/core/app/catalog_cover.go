@@ -26,39 +26,11 @@ func (a *App) SaveCatalogCover(ctx context.Context, m *domain.Merchant, r io.Rea
 	if e := domain.RequireApproved(m); e != nil {
 		return domain.SubscriptionSettings{}, e
 	}
-	raw, err := io.ReadAll(io.LimitReader(r, MaxCoverBytes+1))
+	out, w, h, err := redraw(r, 600, 200, coverMaxWidth)
 	if err != nil {
 		return domain.SubscriptionSettings{}, err
 	}
-	if len(raw) > MaxCoverBytes {
-		return domain.SubscriptionSettings{}, domain.Invalid("file_too_large", "file", "A imagem tem de ter no máximo 6 MB.")
-	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
-	if err != nil {
-		return domain.SubscriptionSettings{}, domain.Invalid("file_invalid", "file", "Envie uma imagem JPG, PNG ou WebP.")
-	}
-	if cfg.Width < 600 || cfg.Height < 200 {
-		return domain.SubscriptionSettings{}, domain.Invalid("file_invalid", "file", "A imagem é pequena demais. Use uma com pelo menos 600 por 200 pixels.")
-	}
-	if cfg.Width*cfg.Height > 40_000_000 {
-		return domain.SubscriptionSettings{}, domain.Invalid("file_invalid", "file", "A imagem é grande demais.")
-	}
-	src, _, err := image.Decode(bytes.NewReader(raw))
-	if err != nil {
-		return domain.SubscriptionSettings{}, domain.Invalid("file_invalid", "file", "Não foi possível ler a imagem.")
-	}
-	b := src.Bounds()
-	w, h := b.Dx(), b.Dy()
-	if w > coverMaxWidth {
-		w, h = coverMaxWidth, h*coverMaxWidth/w
-	}
-	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)
-	var out bytes.Buffer
-	if err := jpeg.Encode(&out, dst, &jpeg.Options{Quality: 82}); err != nil {
-		return domain.SubscriptionSettings{}, err
-	}
-	path, err := a.Files.Save(ctx, "catalog/"+m.ID, domain.NewID("cover")+".jpg", "image/jpeg", &out)
+	path, err := a.Files.Save(ctx, "catalog/"+m.ID, domain.NewID("cover")+".jpg", "image/jpeg", bytes.NewReader(out))
 	if err != nil {
 		return domain.SubscriptionSettings{}, err
 	}
@@ -101,4 +73,43 @@ func (a *App) CatalogCover(ctx context.Context, slug string) ([]byte, error) {
 		return nil, domain.NotFound("A imagem")
 	}
 	return a.Files.Read(ctx, s.CatalogCover)
+}
+
+// redraw reads a JPEG, PNG or WebP picture of at least minW by minH, and draws it
+// again as a JPEG no wider than maxW. Only the picture is kept: no metadata, and
+// nothing else the file may have carried.
+func redraw(r io.Reader, minW, minH, maxW int) ([]byte, int, int, error) {
+	raw, err := io.ReadAll(io.LimitReader(r, MaxCoverBytes+1))
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	if len(raw) > MaxCoverBytes {
+		return nil, 0, 0, domain.Invalid("file_too_large", "file", "A imagem tem de ter no máximo 6 MB.")
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return nil, 0, 0, domain.Invalid("file_invalid", "file", "Envie uma imagem JPG, PNG ou WebP.")
+	}
+	if cfg.Width < minW || cfg.Height < minH {
+		return nil, 0, 0, domain.Invalid("file_invalid", "file", fmt.Sprintf("A imagem é pequena demais. Use uma com pelo menos %d por %d pixels.", minW, minH))
+	}
+	if cfg.Width*cfg.Height > 40_000_000 {
+		return nil, 0, 0, domain.Invalid("file_invalid", "file", "A imagem é grande demais.")
+	}
+	src, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, 0, 0, domain.Invalid("file_invalid", "file", "Não foi possível ler a imagem.")
+	}
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w > maxW {
+		w, h = maxW, h*maxW/w
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)
+	var out bytes.Buffer
+	if err := jpeg.Encode(&out, dst, &jpeg.Options{Quality: 82}); err != nil {
+		return nil, 0, 0, err
+	}
+	return out.Bytes(), w, h, nil
 }

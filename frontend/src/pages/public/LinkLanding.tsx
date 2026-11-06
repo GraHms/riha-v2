@@ -3,9 +3,10 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
 import { fmt, parseMT } from '../../lib/format'
-import { Avatar, Icon, Spinner } from '../../components/ui'
+import { Icon, Spinner } from '../../components/ui'
+import { LinkHeader, quickAmounts, rangeText } from './LinkCard'
 
-type Link = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; merchant: { name: string; initials: string; avatar_color: string } }
+type Link = { name: string; amount: number; custom_amount: boolean; active: boolean; type: string; livemode: boolean; details?: string; image_url?: string; suggested_amount: number; min_amount: number; max_amount: number; merchant: { name: string; initials: string; avatar_color: string } }
 
 export default function LinkLanding() {
   const g = useGateway()
@@ -30,11 +31,13 @@ export default function LinkLanding() {
   useEffect(() => {
     g.checkout.link(merchant!, slug!).then(l => {
       setLink(l)
+      if (l.custom_amount && l.suggested_amount) setAmount(String(l.suggested_amount / 100))
       if (l.active && !l.custom_amount) open(l.amount)
     }).catch(e => { setOffline((e as ApiError).code === 'network_error'); setErr(errMsg(e)) })
   }, [merchant, slug]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = parseMT(amount)
+  const outside = !!link && link.custom_amount && c > 0 && (c < link.min_amount || c > link.max_amount)
   return (
     <div style={{ minHeight: '100%', display: 'flex', justifyContent: 'center', padding: '24px 20px' }}>
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}>
@@ -45,9 +48,7 @@ export default function LinkLanding() {
         {link && link.active && !link.custom_amount && !err && <div style={{ display: 'grid', placeItems: 'center', flex: 1, color: 'var(--muted)', gap: 12 }}><Spinner dark />A abrir o pagamento…</div>}
         {link && link.active && link.custom_amount && (
           <>
-            <div className="card" style={{ marginTop: 18, borderRadius: 24, padding: 18 }}>
-              <div className="row"><Avatar text={link.merchant.initials} color={link.merchant.avatar_color} size={44} radius={14} font={15} /><div><div style={{ fontWeight: 600, fontSize: 16 }}>{link.merchant.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{link.name}</div></div></div>
-            </div>
+            <div style={{ marginTop: 18 }}><LinkHeader link={link} /></div>
             <div style={{ textAlign: 'center', marginTop: 30 }}>
               <div style={{ fontSize: 13.5, color: 'var(--muted)' }}>Quanto quer pagar?</div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 8, marginTop: 6 }}>
@@ -55,12 +56,13 @@ export default function LinkLanding() {
                 <span className="display" style={{ fontSize: 26, color: 'var(--muted-2)' }}>MT</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16 }}>
-                {[100, 250, 500, 1000].map(v => <button key={v} className="btn btn-outline" style={{ height: 36, borderRadius: 999, fontSize: 13.5 }} onClick={() => setAmount(String(v))}>{fmt(v * 100, false)}</button>)}
+                {quickAmounts(link.suggested_amount, link.min_amount, link.max_amount).map(v => <button key={v} className={'btn ' + (c === v ? 'btn-ink' : 'btn-outline')} style={{ height: 36, borderRadius: 999, fontSize: 13.5 }} onClick={() => setAmount(String(v / 100))}>{fmt(v, false)}</button>)}
               </div>
+              {rangeText(link.min_amount, link.max_amount) && <div style={{ fontSize: 13, color: outside ? 'var(--red-dark)' : 'var(--muted)', marginTop: 12 }}>{rangeText(link.min_amount, link.max_amount)}</div>}
             </div>
             {err && <div className="form-err" style={{ marginTop: 16 }}>{err}</div>}
             <div style={{ flex: 1, minHeight: 30 }} />
-            <button className="btn btn-green btn-lg btn-block" disabled={busy || c < 1000} onClick={() => open(c)}>{busy ? <Spinner /> : `Continuar · ${fmt(c)} MT`}</button>
+            <button className="btn btn-green btn-lg btn-block" disabled={busy || c < 1000 || outside} onClick={() => open(c)}>{busy ? <Spinner /> : `Continuar · ${fmt(c)} MT`}</button>
           </>
         )}
       </div>

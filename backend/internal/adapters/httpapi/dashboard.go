@@ -41,6 +41,8 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	m.GET("/links", srv.listLinks)
 	m.POST("/links", srv.createLink)
 	m.PATCH("/links/:id", srv.updateLink)
+	m.POST("/links/:id/image", srv.putLinkImage)
+	m.DELETE("/links/:id/image", srv.deleteLinkImage)
 	m.GET("/balance", srv.balance)
 	m.GET("/payouts", srv.listPayouts)
 	m.POST("/payouts", srv.createPayout)
@@ -384,11 +386,49 @@ type linkInput struct {
 	Slug         *string  `json:"slug"`
 	Type         string   `json:"type"`
 	Location     string   `json:"location"`
+	Details      *string  `json:"details"`
+	Suggested    *int64   `json:"suggested_amount"`
+	MinAmount    *int64   `json:"min_amount"`
+	MaxAmount    *int64   `json:"max_amount"`
+	AfterMessage *string  `json:"after_message"`
+	RedirectURL  *string  `json:"redirect_url"`
 }
 
 func (in linkInput) params() app.LinkParams {
 	return app.LinkParams{Name: in.Name, Amount: in.Amount, CustomAmount: in.CustomAmount, Reusable: in.Reusable, Methods: in.Methods,
-		Active: in.Active, ExpiresAt: in.ExpiresAt, Slug: in.Slug, Kind: in.Type, Location: in.Location}
+		Active: in.Active, ExpiresAt: in.ExpiresAt, Slug: in.Slug, Kind: in.Type, Location: in.Location,
+		Details: in.Details, SuggestedAmount: in.Suggested, MinAmount: in.MinAmount, MaxAmount: in.MaxAmount, AfterMessage: in.AfterMessage, RedirectURL: in.RedirectURL}
+}
+
+func (srv *Server) putLinkImage(c *gin.Context) {
+	fh, err := c.FormFile("file")
+	if err != nil {
+		bad(c, "Escolha uma imagem.")
+		return
+	}
+	f, err := fh.Open()
+	if err != nil {
+		bad(c, "Não foi possível ler a imagem.")
+		return
+	}
+	defer f.Close()
+	m := merchant(c)
+	l, err := srv.A.SaveLinkImage(ctx(c), m, live(c), c.Param("id"), f)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, srv.linkJSON(srv.A.LinkView(ctx(c), l), m.Slug))
+}
+
+func (srv *Server) deleteLinkImage(c *gin.Context) {
+	m := merchant(c)
+	l, err := srv.A.RemoveLinkImage(ctx(c), m, live(c), c.Param("id"))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, srv.linkJSON(srv.A.LinkView(ctx(c), l), m.Slug))
 }
 
 func (srv *Server) listLinks(c *gin.Context) {

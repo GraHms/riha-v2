@@ -14,6 +14,7 @@ func (srv *Server) publicRoutes(g *gin.RouterGroup) {
 	g.POST("/checkout/:id/cancel", srv.publicCancel)
 	g.GET("/links/:merchant/:slug", srv.publicLink)
 	g.POST("/links/:merchant/:slug/sessions", srv.throttle(srv.payLimiter, "link"), srv.publicLinkSession)
+	g.GET("/links/:merchant/:slug/image", srv.throttle(srv.viewLimiter, "link-image"), srv.publicLinkImage)
 	srv.publicSubscriptionRoutes(g)
 	g.GET("/pricing", func(c *gin.Context) {
 		c.JSON(200, gin.H{"default_fee_bps": srv.A.DefaultFeeBps(ctx(c)), "coming_soon": srv.A.ComingSoon})
@@ -60,7 +61,9 @@ func (srv *Server) publicLink(c *gin.Context) {
 		return
 	}
 	active := l.Active && (l.ExpiresAt == nil || l.ExpiresAt.After(time.Now()))
+	lo, hi := l.CustomRange()
 	c.JSON(200, gin.H{"name": l.Name, "amount": l.Amount, "custom_amount": l.CustomAmount, "active": active, "type": l.Kind,
+		"details": l.Details, "image_url": linkImageURL(l, m.Slug), "suggested_amount": l.SuggestedAmount, "min_amount": lo, "max_amount": hi,
 		"payment_method_types": srv.A.ActiveMethods(l.Methods), "coming_soon": srv.A.ComingSoon, "livemode": l.Livemode, "merchant": publicMerchant(m)})
 }
 
@@ -86,4 +89,14 @@ func (srv *Server) publicLinkSession(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"id": cs.ID})
+}
+
+func (srv *Server) publicLinkImage(c *gin.Context) {
+	b, err := srv.A.LinkImage(ctx(c), c.Param("merchant"), c.Param("slug"))
+	if err != nil {
+		c.Status(404)
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=2592000, immutable")
+	c.Data(200, "image/jpeg", b)
 }

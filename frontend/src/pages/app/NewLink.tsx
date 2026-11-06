@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { errMsg } from '../../core/model'
 import { useGateway } from '../../core/gateway'
-import { copy, fmt, METHOD_NAME, parseMT } from '../../lib/format'
+import { copy, fmt, initials, METHOD_NAME, parseMT } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Icon, MethodIcon, QR, Spinner, Toggle } from '../../components/ui'
+import { LinkPreview, type LinkDraft } from '../public/LinkCard'
 
-export type LinkObj = { id: string; name: string; slug: string; amount: number | null; custom_amount: boolean; reusable: boolean; url: string; active: boolean; type: string; payment_method_types: string[]; expires_at: number | null; payments_count: number; total_received: number; livemode: boolean; location?: string }
+export type LinkObj = { id: string; name: string; slug: string; amount: number | null; custom_amount: boolean; reusable: boolean; url: string; active: boolean; type: string; payment_method_types: string[]; expires_at: number | null; payments_count: number; total_received: number; livemode: boolean; location?: string; details?: string; image_url?: string }
 
 const EXPIRY: [string, number][] = [['Nunca', 0], ['24 horas', 1], ['7 dias', 7], ['30 dias', 30]]
 
@@ -23,21 +24,53 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
   const [exp, setExp] = useState(0)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [details, setDetails] = useState('')
+  const [image, setImage] = useState<File | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [suggested, setSuggested] = useState('')
+  const [min, setMin] = useState('')
+  const [max, setMax] = useState('')
+  const [after, setAfter] = useState<'page' | 'redirect'>('page')
+  const [message, setMessage] = useState('')
+  const [redirect, setRedirect] = useState('')
+  const [tab, setTab] = useState<'edit' | 'preview'>('edit')
+  useEffect(() => { if (!image) { setImageUrl(''); return } const u = URL.createObjectURL(image); setImageUrl(u); return () => URL.revokeObjectURL(u) }, [image])
   const c = parseMT(amount)
+  const cents = (v: string) => (v.trim() ? parseMT(v) : 0)
   const fee = Math.round((c * bps) / 10000)
   const submit = async () => {
     setBusy(true); setErr('')
     try {
-      const body: Record<string, unknown> = { name, custom_amount: custom, reusable, payment_method_types: methods, type: kind }
+      const body: Record<string, unknown> = { name, custom_amount: custom, reusable, payment_method_types: methods, type: kind, details,
+        after_message: after === 'page' ? message : '', redirect_url: after === 'redirect' ? redirect.trim() : '' }
       if (!custom) body.amount = c
+      else Object.assign(body, { suggested_amount: cents(suggested), min_amount: cents(min), max_amount: cents(max) })
       if (exp) body.expires_at = Math.floor(Date.now() / 1000) + exp * 86400
-      const l = await g.links.create(body)
+      let l = await g.links.create(body)
+      if (image) {
+        try { l = await g.links.uploadImage(l.id, image) }
+        catch (e) { toast('Link criado, mas a imagem não foi guardada: ' + errMsg(e), true); onCreated(l); return }
+      }
       toast('Link criado')
       onCreated(l)
     } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   const toggleM = (m: string) => setMethods(ms => (ms.includes(m) ? (ms.length > 1 ? ms.filter(x => x !== m) : ms) : [...ms, m]))
-  const valid = name.trim() !== '' && (custom || c >= 1000)
+  const valid = name.trim() !== '' && (custom || c >= 1000) && (after === 'page' || /^https?:\/\/\S+\.\S+/.test(redirect.trim()))
+  const draft: LinkDraft = { name, details, image_url: imageUrl, merchant: { name: me?.merchant?.name || '', initials: initials(me?.merchant?.name || ''), avatar_color: me?.merchant?.avatar_color },
+    amount: c, custom, suggested: cents(suggested), min: cents(min), max: cents(max), methods, after, message, redirect }
+  const tabs = (
+    <div className="seg" style={{ display: 'flex' }} role="tablist">
+      <button type="button" role="tab" aria-selected={tab === 'edit'} style={{ flex: 1 }} className={tab === 'edit' ? 'on' : ''} onClick={() => setTab('edit')}>Editar</button>
+      <button type="button" role="tab" aria-selected={tab === 'preview'} style={{ flex: 1 }} className={tab === 'preview' ? 'on' : ''} onClick={() => setTab('preview')}>O que o cliente vê</button>
+    </div>
+  )
+  const preview = <LinkPreview d={draft} />
+  const mt = (label: string, v: string, set: (v: string) => void, hint: string) => (
+    <label style={{ minWidth: 0 }}><span className="label">{label} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>MT</span></span>
+      <input className="input tnum" inputMode="decimal" value={v} onChange={e => set(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))} placeholder={hint} style={{ width: '100%', minWidth: 0, textAlign: 'right' }} />
+    </label>
+  )
 
   const amountBlock = (big: boolean) => custom ? (
     <div style={{ textAlign: 'center', padding: big ? '18px 0 4px' : 6 }}>
@@ -60,7 +93,20 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
 
   const fields = (
     <>
-      <label><span className="label">Descrição</span><input className="input" style={{ height: 50 }} value={name} onChange={e => setName(e.target.value)} placeholder="Bolo de chocolate · 1 kg" maxLength={200} /></label>
+      <label><span className="label">O que está a cobrar</span><input className="input" style={{ height: 50 }} value={name} onChange={e => setName(e.target.value)} placeholder="Bolo de chocolate · 1 kg" maxLength={200} /></label>
+      <label>
+        <span className="between"><span className="label" style={{ margin: 0 }}>Descrição <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(opcional)</span></span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{details.length}/500</span></span>
+        <textarea className="input" rows={3} maxLength={500} value={details} onChange={e => setDetails(e.target.value)} placeholder="Mais pormenores para o cliente: o que inclui, quando entrega." style={{ height: 'auto', padding: '10px 14px', lineHeight: 1.5, resize: 'vertical', marginTop: 6 }} />
+      </label>
+      <div>
+        <span className="label">Imagem <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(opcional)</span></span>
+        <div className="row" style={{ gap: 12 }}>
+          <div style={{ width: 96, height: 54, borderRadius: 10, border: '1px solid var(--line)', background: imageUrl ? `center/cover url("${imageUrl}")` : 'var(--paper-2)', display: 'grid', placeItems: 'center', flex: 'none' }}>{!imageUrl && <Icon name="upload" size={16} color="var(--muted)" />}</div>
+          <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>{image ? 'Trocar' : 'Escolher imagem'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => setImage(e.target.files?.[0] || null)} /></label>
+          {image && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setImage(null)}>Remover</button>}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>JPG, PNG ou WebP, com pelo menos 200 × 200 pixels. Aparece por cima do pagamento.</div>
+      </div>
       <div>
         <span className="label">Métodos aceites</span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8 }}>
@@ -82,10 +128,30 @@ export function useLinkForm(onCreated: (l: LinkObj) => void) {
           <select value={exp} onChange={e => setExp(Number(e.target.value))} style={{ border: 0, background: 'transparent', fontSize: 14, color: 'var(--text-2)', textAlign: 'right' }}>{EXPIRY.map(([l, d]) => <option key={d} value={d}>{l}</option>)}</select>
         </div>
       </div>
+      {custom && (
+        <div className="card" style={{ borderRadius: 16, padding: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Valor que o cliente escolhe</div>
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>Opcional. O sugerido aparece já escrito; o cliente pode mudar dentro dos limites.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginTop: 12 }}>
+            {mt('Sugerido', suggested, setSuggested, '500')}
+            {mt('Mínimo', min, setMin, '10')}
+            {mt('Máximo', max, setMax, 'livre')}
+          </div>
+        </div>
+      )}
+      <div className="card" style={{ borderRadius: 16, padding: 16 }}>
+        <div style={{ fontWeight: 600, fontSize: 14 }}>Depois do pagamento</div>
+        <div role="radiogroup" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+          <label className="row" style={{ gap: 10, fontSize: 14, cursor: 'pointer' }}><input type="radio" checked={after === 'page'} onChange={() => setAfter('page')} style={{ accentColor: 'var(--ink)', width: 18, height: 18 }} />Mostrar a confirmação, com uma mensagem sua</label>
+          {after === 'page' && <textarea className="input" rows={2} maxLength={300} value={message} onChange={e => setMessage(e.target.value)} placeholder="Obrigado! Entregamos amanhã até às 12h. Opcional." style={{ height: 'auto', padding: '10px 14px', lineHeight: 1.5, resize: 'vertical', marginLeft: 28, width: 'calc(100% - 28px)' }} />}
+          <label className="row" style={{ gap: 10, fontSize: 14, cursor: 'pointer' }}><input type="radio" checked={after === 'redirect'} onChange={() => setAfter('redirect')} style={{ accentColor: 'var(--ink)', width: 18, height: 18 }} />Enviar o cliente para o seu site</label>
+          {after === 'redirect' && <input className="input" inputMode="url" value={redirect} onChange={e => setRedirect(e.target.value)} placeholder="https://www.exemplo.co.mz/obrigado" style={{ marginLeft: 28, width: 'calc(100% - 28px)' }} />}
+        </div>
+      </div>
       {err && <div className="form-err">{err}</div>}
     </>
   )
-  return { amountBlock, fields, submit, busy, valid }
+  return { amountBlock, fields, submit, busy, valid, tabs, tab, preview }
 }
 
 export function SharePanel({ link, compact }: { link: LinkObj; compact?: boolean }) {

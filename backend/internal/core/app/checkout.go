@@ -36,6 +36,7 @@ type SessionParams struct {
 	ExpiresAt          *int64            `json:"expires_at"`
 	Locale             string            `json:"locale"`
 	Origin             domain.Origin     `json:"-"`
+	SuccessMessage     string            `json:"-"`
 }
 
 var e164MZ = regexp.MustCompile(`^\+258[0-9]{9}$`)
@@ -153,7 +154,7 @@ func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, 
 	cs := &domain.CheckoutSession{
 		ID: domain.ModeID("cs", live), MerchantID: m.ID, Livemode: live, Status: domain.SessionOpen,
 		Amount: p.Amount, Currency: "MZN", Description: domain.Trim(p.Description, 500),
-		SuccessURL: p.SuccessURL, CancelURL: p.CancelURL, CallbackURL: p.CallbackURL,
+		SuccessURL: p.SuccessURL, CancelURL: p.CancelURL, CallbackURL: p.CallbackURL, SuccessMessage: domain.Trim(p.SuccessMessage, 300),
 		ClientReferenceID: domain.Trim(p.ClientReferenceID, 200), LineItems: p.LineItems, Metadata: meta,
 		PaymentMethodTypes: methods, Locale: domain.FirstNonEmpty(p.Locale, "pt-MZ"), ExpiresAt: exp, Origin: p.Origin, CreatedAt: now,
 	}
@@ -203,6 +204,11 @@ func (a *App) CreateLinkSession(ctx context.Context, link *domain.PaymentLink, a
 	}
 	if !link.CustomAmount {
 		amount = link.Amount
+	} else if lo, hi := link.CustomRange(); amount < lo || amount > hi {
+		if amount < lo {
+			return nil, domain.Invalid("amount_too_small", "amount", fmt.Sprintf("O valor mínimo é %s MT.", domain.FormatShort(lo)))
+		}
+		return nil, domain.Invalid("amount_too_large", "amount", fmt.Sprintf("O valor máximo é %s MT.", domain.FormatShort(hi)))
 	}
 	src := domain.SourceLink
 	if link.Kind == "qr" {
@@ -210,8 +216,9 @@ func (a *App) CreateLinkSession(ctx context.Context, link *domain.PaymentLink, a
 	}
 	lid := link.ID
 	return a.CreateSession(ctx, m, link.Livemode, SessionParams{
-		Amount: amount, Description: link.Name, PaymentMethodTypes: link.Methods, SuccessURL: m.SuccessURL, CancelURL: m.CancelURL,
-		Origin: domain.Origin{SourceType: src, PaymentLinkID: &lid, IP: ip, UserAgent: ua, Channel: channel, CreatedBy: link.CreatedBy},
+		Amount: amount, Description: link.Name, PaymentMethodTypes: link.Methods, SuccessURL: domain.FirstNonEmpty(link.RedirectURL, m.SuccessURL), CancelURL: m.CancelURL,
+		SuccessMessage: link.AfterMessage,
+		Origin:         domain.Origin{SourceType: src, PaymentLinkID: &lid, IP: ip, UserAgent: ua, Channel: channel, CreatedBy: link.CreatedBy},
 	})
 }
 

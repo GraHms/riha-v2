@@ -137,7 +137,7 @@ func (srv *Server) linkMeta(c context.Context, merchant, slug string) pageMeta {
 		title = "Pagar " + money(l.Amount) + " a " + m.Name
 	}
 	img := fmt.Sprintf("/og/p/%s/%s.png?v=%s", m.Slug, l.Slug, version(m.Name, l.Name, fmt.Sprint(l.Amount, l.CustomAmount)))
-	return pageMeta{status: 200, title: title, desc: paymentDesc(l.Name, m.Name), image: img, alt: title}
+	return pageMeta{status: 200, title: title, desc: paymentDesc(domain.FirstNonEmpty(l.Details, l.Name), m.Name), image: img, alt: title}
 }
 
 func (srv *Server) sessionMeta(c context.Context, id string) pageMeta {

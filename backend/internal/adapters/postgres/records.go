@@ -105,23 +105,30 @@ type keyRecord struct {
 func (keyRecord) TableName() string { return "api_keys" }
 
 type linkRecord struct {
-	ID           string `gorm:"primaryKey;size:40"`
-	MerchantID   string `gorm:"size:40;uniqueIndex:idx_link_slug;not null"`
-	Slug         string `gorm:"size:80;uniqueIndex:idx_link_slug;not null"`
-	Livemode     bool
-	Name         string `gorm:"size:200"`
-	Amount       int64
-	CustomAmount bool
-	Reusable     bool
-	Methods      StringList `gorm:"type:text"`
-	ExpiresAt    *time.Time
-	Active       bool
-	Kind         string `gorm:"size:20;default:link"`
-	CreatedBy    string `gorm:"size:40"`
-	CreatedVia   string `gorm:"size:20"`
-	Location     string `gorm:"size:120"`
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID              string `gorm:"primaryKey;size:40"`
+	MerchantID      string `gorm:"size:40;uniqueIndex:idx_link_slug;not null"`
+	Slug            string `gorm:"size:80;uniqueIndex:idx_link_slug;not null"`
+	Livemode        bool
+	Name            string `gorm:"size:200"`
+	Amount          int64
+	CustomAmount    bool
+	Reusable        bool
+	Methods         StringList `gorm:"type:text"`
+	ExpiresAt       *time.Time
+	Active          bool
+	Kind            string `gorm:"size:20;default:link"`
+	CreatedBy       string `gorm:"size:40"`
+	CreatedVia      string `gorm:"size:20"`
+	Location        string `gorm:"size:120"`
+	Details         string `gorm:"size:500"`
+	Image           string `gorm:"size:300"`
+	SuggestedAmount int64
+	MinCustom       int64
+	MaxCustom       int64
+	AfterMessage    string `gorm:"size:300"`
+	RedirectURL     string `gorm:"size:1000"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func (linkRecord) TableName() string { return "payment_links" }
@@ -148,6 +155,7 @@ type sessionCheckoutRecord struct {
 	SuccessURL         string     `gorm:"size:1000"`
 	CancelURL          string     `gorm:"size:1000"`
 	CallbackURL        string     `gorm:"size:1000"`
+	SuccessMessage     string     `gorm:"size:300"`
 	ClientReferenceID  string     `gorm:"size:200;index"`
 	CustomerName       string     `gorm:"size:200"`
 	CustomerPhone      string     `gorm:"size:40"`
