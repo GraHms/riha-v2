@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { submitWords } from './LinkCard'
+import { startTelemetry, track } from '../../lib/telemetry'
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../../lib/support'
 import { useParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
@@ -16,7 +17,8 @@ type Session = {
   payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null }
 }
 
-const WALLET_TIMEOUT = 120
+// bim holds a wallet payment for up to 5 minutes while it waits for the customer.
+const WALLET_TIMEOUT = 300
 // The server closes an unanswered payment at 10 minutes, so past this something is wrong.
 const NO_ANSWER_AFTER = 12 * 60
 const MAX_CHECK_GAP = 5_000
@@ -124,6 +126,15 @@ export default function Checkout() {
   })
 
   useEffect(() => { start() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // What the customer's side looks like goes to the payment's trail. It never blocks paying.
+  useEffect(() => { if (id) startTelemetry(id) }, [id])
+  useEffect(() => { if (s) track('method', { method }) }, [method]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (view === 'done') track('result', { status: 'pago', payment: s?.payment?.id })
+    if (view === 'confirm') track('waiting', { payment: s?.payment?.id })
+  }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (s?.payment?.status === 'failed') track('result', { status: 'falhou: ' + (s.payment.failure_code || ''), payment: s.payment.id }) }, [s?.payment?.status, s?.payment?.id])
+  useEffect(() => { if (conn === 'down') track('no_answer') }, [conn])
 
   // The page never opened for lack of a connection: open it when the connection is back.
   const noConnection = loadErr?.code === 'network_error'
@@ -224,6 +235,7 @@ export default function Checkout() {
   }, [view, redirectIn, s?.success_url])
 
   const pay = async () => {
+    track('submit', { method })
     if (!s) return
     setBusy(true); setErr(null)
     // Kept when the answer is lost, so trying again can't start a second payment.
@@ -273,7 +285,7 @@ export default function Checkout() {
   const waitingRef = lostPay.current || s.payment?.status !== 'processing' ? null : s.payment.reference
   const failedRef = s.payment?.status === 'failed' ? s.payment.reference : null
   const noAnswer = elapsed >= NO_ANSWER_AFTER
-  const checkResult = async () => { setManualCheck(true); try { await checkNow.current() } finally { setManualCheck(false) } }
+  const checkResult = async () => { track('check', { payment: s?.payment?.id }); setManualCheck(true); try { await checkNow.current() } finally { setManualCheck(false) } }
   void tick
 
   const items = s.line_items.length ? s.line_items : [{ name: s.description || 'Pagamento', quantity: 1, unit_amount: s.amount }]

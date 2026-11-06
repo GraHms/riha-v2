@@ -40,18 +40,25 @@ func NewHTTPSender(allowPrivate bool) *HTTPSender {
 }
 
 func (s *HTTPSender) Send(ctx context.Context, url string, headers map[string]string, body []byte) (int, error) {
+	code, _, err := s.SendReply(ctx, url, headers, body)
+	return code, err
+}
+
+// SendReply sends a webhook and returns the first 4 KB of the reply.
+func (s *HTTPSender) SendReply(ctx context.Context, url string, headers map[string]string, body []byte) (int, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer resp.Body.Close()
+	reply, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
-	return resp.StatusCode, nil
+	return resp.StatusCode, reply, nil
 }

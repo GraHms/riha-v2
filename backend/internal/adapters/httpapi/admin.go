@@ -34,6 +34,10 @@ func (srv *Server) adminRoutes(a *gin.RouterGroup) {
 	a.GET("/settings", srv.adminSettings)
 	a.PUT("/settings", srv.adminPutSettings)
 	a.GET("/payments", srv.adminPayments)
+	a.GET("/trail/search", srv.adminTrailSearch)
+	a.GET("/trail/thread/:id", srv.adminTrailThread)
+	a.GET("/trail/events", srv.adminTrailEvents)
+	a.GET("/metrics", srv.adminMetrics)
 }
 
 func payoutQuery(merchantID string, live bool, limit int) ports.PayoutQuery {
@@ -72,6 +76,7 @@ func (srv *Server) adminOverview(c *gin.Context) {
 		health[m] = gin.H{"total": h.Total, "success_rate": rate, "status": st}
 	}
 	c.JSON(200, gin.H{
+		"alerts":       len(srv.A.ActiveAlerts(ctx(c))),
 		"volume_today": o.VolumeToday, "volume_week_ago": o.VolumeWeekAgo, "tx_today": o.TxToday, "tx_ok_today": o.TxOkToday,
 		"stack": o.Stack, "volume_14d": o.Volume14d, "health": health,
 		"approvals": applicationsJSON(o.Approvals, false), "pending_approvals": o.PendingApprovals,

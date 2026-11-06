@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
@@ -191,14 +193,22 @@ func (a *App) deliver(ctx context.Context, d *domain.Delivery) {
 	attempt := d.Attempts + 1
 	body := domain.EventPayload(ev, d.Target, attempt)
 	start := time.Now()
-	code, err := a.Sender.Send(ctx, d.URL, map[string]string{
+	headers := map[string]string{
 		"Content-Type": "application/json", "User-Agent": "Riha-Webhooks/1.0",
 		"Riha-Signature": domain.Sign(m.SigningSecret(d.Livemode), a.Now().Unix(), body), "Riha-Event-Id": ev.ID,
-	}, body)
+	}
+	var code int
+	var reply []byte
+	if r, ok := a.Sender.(ports.WebhookReplier); ok {
+		code, reply, err = r.SendReply(ctx, d.URL, headers, body)
+	} else {
+		code, err = a.Sender.Send(ctx, d.URL, headers, body)
+	}
 	d.Attempts, d.LastStatusCode, d.LastDurationMs, d.LastError = attempt, code, time.Since(start).Milliseconds(), ""
 	if err != nil {
 		d.LastError = domain.Trim(err.Error(), 500)
 	}
+	a.traceDelivery(ctx, d, ev, body, reply, err)
 	switch {
 	case code >= 200 && code < 300:
 		d.Status, d.NextAttemptAt = domain.DeliverySucceeded, nil
@@ -237,8 +247,9 @@ func (a *App) Sweep(ctx context.Context) {
 }
 
 const (
-	// After this long with no record at the operator, nobody paid.
-	railNoRecordAfter = 5 * time.Minute
+	// After this long with no record at the operator, nobody paid. bim holds a
+	// payment for up to 5 minutes while the customer answers, so this waits longer.
+	railNoRecordAfter = 7 * time.Minute
 	// After this long without any answer from the operator, stop waiting.
 	railGiveUpAfter = 30 * time.Minute
 	// After this long still pending, the customer has moved on: an error on their
@@ -265,17 +276,17 @@ func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 	case err == nil && known:
 		_ = a.CompletePayment(ctx, p.ID, o)
 	case err == nil && age >= railNoRecordAfter:
-		log.Printf("payment %s (%s): the operator has no answer for it, closed as timed out", p.ID, p.RailReference)
+		a.logPayment(ctx, p.ID, domain.TrailWarn, "payment %s (%s): the operator has no answer for it, closed as timed out", p.ID, p.RailReference)
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case err != nil && age >= railGiveUpAfter:
-		log.Printf("payment %s (%s): no answer from the operator after %s, closed unconfirmed, check it by hand: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
+		a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): no answer from the operator after %s, closed unconfirmed, check it by hand: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case errors.Is(err, ports.ErrStillPending) && age >= railPendingGiveUpAfter:
-		log.Printf("payment %s (%s): no final answer after %s, closed as timed out, CHECK BY HAND if the customer says they paid: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
+		a.logPayment(ctx, p.ID, domain.TrailWarn, "payment %s (%s): no final answer after %s, closed as timed out, CHECK BY HAND if the customer says they paid: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case errors.Is(err, ports.ErrStillPending):
 	case err != nil:
-		log.Printf("payment %s (%s): query failed: %v", p.ID, p.RailReference, err)
+		a.logPayment(ctx, p.ID, domain.TrailWarn, "payment %s (%s): query failed: %v", p.ID, p.RailReference, err)
 	}
 }
 
@@ -295,7 +306,7 @@ func (a *App) CheckClosedPayments(ctx context.Context) {
 	for i := range closed {
 		p := &closed[i]
 		if o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method}); err == nil && known && o.Success {
-			log.Printf("payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND and credit or refund it", p.ID, p.RailReference, p.Amount, o.OperatorReference)
+			a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND and credit or refund it", p.ID, p.RailReference, p.Amount, o.OperatorReference)
 		}
 	}
 }
@@ -327,4 +338,35 @@ func (a *App) RunWorkers(ctx context.Context) {
 	tick(5*time.Minute, func() { a.CheckClosedPayments(ctx) })
 	tick(15*time.Second, func() { a.BillingTick(ctx) })
 	tick(2*time.Second, func() { a.SendQueued(ctx) })
+	tick(time.Minute, func() { a.Watchdog(ctx) })
+	tick(6*time.Hour, func() { a.PruneTrail(ctx) })
+}
+
+// traceDelivery puts a webhook attempt on the trail of the payment or checkout it is about.
+func (a *App) traceDelivery(ctx context.Context, d *domain.Delivery, ev *domain.Event, body, reply []byte, err error) {
+	t := domain.TrailEvent{MerchantID: d.MerchantID, Livemode: d.Livemode, Kind: domain.TrailWebhook, Source: "riha", Method: "POST", Path: hostOf(d.URL),
+		Status: d.LastStatusCode, DurationMs: d.LastDurationMs, Request: domain.RedactBody(body), Response: domain.RedactBody(reply),
+		Data: map[string]any{"event": ev.Type, "event_id": ev.ID, "attempt": d.Attempts, "url": d.URL}}
+	switch {
+	case strings.HasPrefix(ev.ObjectID, "pay_"):
+		t.PaymentID = ev.ObjectID
+	case strings.HasPrefix(ev.ObjectID, "cs_"):
+		t.SessionID = ev.ObjectID
+	}
+	switch {
+	case err != nil:
+		t.Level, t.Title = domain.TrailWarn, fmt.Sprintf("Webhook %s para %s falhou (tentativa %d): %v", ev.Type, hostOf(d.URL), d.Attempts, err)
+	case d.LastStatusCode >= 200 && d.LastStatusCode < 300:
+		t.Title = fmt.Sprintf("Webhook %s entregue a %s: HTTP %d em %d ms", ev.Type, hostOf(d.URL), d.LastStatusCode, d.LastDurationMs)
+	default:
+		t.Level, t.Title = domain.TrailWarn, fmt.Sprintf("Webhook %s para %s respondeu HTTP %d (tentativa %d)", ev.Type, hostOf(d.URL), d.LastStatusCode, d.Attempts)
+	}
+	a.trace(ctx, t)
+}
+
+func hostOf(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return raw
 }

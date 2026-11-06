@@ -1,0 +1,8 @@
+[Unit]
+Description=Restore the newest RIHA backup into a scratch database, to prove it works
+After=postgresql.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/riha-backup.env
+ExecStart=/bin/sh /opt/riha/backup/riha-restore-check.sh

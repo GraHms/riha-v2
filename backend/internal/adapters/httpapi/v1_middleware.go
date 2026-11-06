@@ -3,7 +3,9 @@ package httpapi
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -49,11 +51,65 @@ func apiKey(c *gin.Context) *domain.APIKey { return c.MustGet("api_key").(*domai
 func (srv *Server) apiLog() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
+		var body []byte
+		if c.Request.Body != nil {
+			body, _ = io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
+			c.Request.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		w := &captureWriter{ResponseWriter: c.Writer}
+		c.Writer = w
 		c.Next()
 		k := apiKey(c)
+		took := time.Since(start).Milliseconds()
 		srv.A.LogRequest(ctx(c), &domain.RequestLog{MerchantID: k.MerchantID, Livemode: k.Livemode, Method: c.Request.Method, Path: c.Request.URL.Path,
-			Status: c.Writer.Status(), APIKeyID: k.ID, IP: c.ClientIP(), DurationMs: time.Since(start).Milliseconds(), RequestID: c.GetString("request_id")})
+			Status: c.Writer.Status(), APIKeyID: k.ID, IP: c.ClientIP(), DurationMs: took, RequestID: c.GetString("request_id")})
+		out := w.buf.Bytes()
+		if c.Request.URL.RawQuery != "" && len(body) == 0 {
+			body = []byte(c.Request.URL.RawQuery)
+		}
+		session, payment := threadOf(c.Request.URL.Path, out)
+		srv.A.TraceAPI(ctx(c), domain.TrailEvent{MerchantID: k.MerchantID, Livemode: k.Livemode, SessionID: session, PaymentID: payment,
+			Method: c.Request.Method, Path: c.Request.URL.Path, Status: c.Writer.Status(), DurationMs: took,
+			IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"), Request: domain.RedactBody(body), Response: domain.RedactBody(out),
+			Data: map[string]any{"api_key": "…" + k.Last4, "idempotency_key": c.GetHeader("Idempotency-Key")}})
 	}
+}
+
+var (
+	sessionInPath = regexp.MustCompile(`/(cs_(?:test|live)_[A-Za-z0-9]+)`)
+	paymentInPath = regexp.MustCompile(`/(pay_[A-Za-z0-9]+)`)
+)
+
+// threadOf finds the checkout and payment an API call is about, in its path or its answer.
+func threadOf(path string, response []byte) (string, string) {
+	session, payment := "", ""
+	if m := sessionInPath.FindStringSubmatch(path); m != nil {
+		session = m[1]
+	}
+	if m := paymentInPath.FindStringSubmatch(path); m != nil {
+		payment = m[1]
+	}
+	var r map[string]any
+	if json.Unmarshal(response, &r) == nil {
+		str := func(k string) string { v, _ := r[k].(string); return v }
+		if id := str("id"); session == "" && strings.HasPrefix(id, "cs_") {
+			session = id
+		} else if payment == "" && strings.HasPrefix(id, "pay_") {
+			payment = id
+		}
+		if v := str("payment"); payment == "" && strings.HasPrefix(v, "pay_") {
+			payment = v
+		}
+		if v := str("checkout_session"); session == "" && strings.HasPrefix(v, "cs_") {
+			session = v
+		}
+		if obj, ok := r["payment"].(map[string]any); ok && payment == "" {
+			if id, _ := obj["id"].(string); strings.HasPrefix(id, "pay_") {
+				payment = id
+			}
+		}
+	}
+	return session, payment
 }
 
 type captureWriter struct {

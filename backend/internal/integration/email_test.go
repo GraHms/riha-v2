@@ -410,12 +410,13 @@ func TestRealMoneyRules(t *testing.T) {
 	t.Run("no record at M-Pesa ends it, but not too soon", func(t *testing.T) {
 		rail.known, rail.err = false, nil
 		p := start(true)
-		at(4 * time.Minute)
+		// bim holds a payment for up to 5 minutes while the customer answers.
+		at(6 * time.Minute)
 		a.Sweep(ctx)
 		if status(p) != domain.PaymentProcessing {
 			t.Fatal("ended before the customer's time was up")
 		}
-		at(6 * time.Minute)
+		at(8 * time.Minute)
 		a.Sweep(ctx)
 		if status(p) != domain.PaymentFailed {
 			t.Fatalf("%s", status(p))

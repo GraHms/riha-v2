@@ -116,6 +116,7 @@ type CheckoutSessions interface {
 
 type PaymentQuery struct {
 	MerchantID    string
+	SessionID     string
 	Live          *bool
 	Statuses      []string
 	Source        string
@@ -281,6 +282,11 @@ type WebhookSender interface {
 	Send(ctx context.Context, url string, headers map[string]string, body []byte) (status int, err error)
 }
 
+// WebhookReplier also returns the start of the merchant's reply, for the trail.
+type WebhookReplier interface {
+	SendReply(ctx context.Context, url string, headers map[string]string, body []byte) (status int, reply []byte, err error)
+}
+
 type FileStore interface {
 	Save(ctx context.Context, dir, name, contentType string, r io.Reader) (path string, err error)
 	Read(ctx context.Context, path string) ([]byte, error)
@@ -417,4 +423,24 @@ type Messenger interface {
 
 type Sheet interface {
 	Rows(name string, data []byte) ([][]string, error)
+}
+
+// Trail keeps what happened to checkouts and payments, step by step.
+type Trail interface {
+	Add(ev domain.TrailEvent)
+	Thread(ctx context.Context, sessionID string, paymentIDs []string) ([]domain.TrailEvent, error)
+	ByRequest(ctx context.Context, requestID string) ([]domain.TrailEvent, error)
+	Recent(ctx context.Context, q TrailQuery) ([]domain.TrailEvent, error)
+	Prune(ctx context.Context, bodiesBefore, eventsBefore time.Time) (int64, int64, error)
+	Dropped() int64
+	Written() int64
+}
+
+type TrailQuery struct {
+	MerchantID string
+	Kinds      []string
+	Level      string
+	Search     string
+	Since      *time.Time
+	Limit      int
 }

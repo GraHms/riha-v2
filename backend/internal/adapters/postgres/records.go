@@ -416,6 +416,6 @@ func allRecords() []any {
 		&userRecord{}, &sessionRecord{}, &merchantRecord{}, &documentRecord{}, &bankRecord{}, &keyRecord{},
 		&linkRecord{}, &sessionCheckoutRecord{}, &paymentRecord{}, &refundRecord{}, &ledgerRecord{}, &payoutRecord{},
 		&endpointRecord{}, &domainRecord{}, &eventRecord{}, &deliveryRecord{}, &requestLogRecord{}, &idempotencyRecord{},
-		&auditRecord{}, &settingRecord{}, &emailRecord{}, &passwordResetRecord{},
+		&auditRecord{}, &settingRecord{}, &emailRecord{}, &passwordResetRecord{}, &trailRecord{},
 	}, subscriptionRecords()...)
 }

@@ -219,11 +219,17 @@ func (a *App) CreateLinkSession(ctx context.Context, link *domain.PaymentLink, a
 		src, channel = domain.SourceQR, "qr"
 	}
 	lid := link.ID
-	return a.CreateSession(ctx, m, link.Livemode, SessionParams{
+	cs, err := a.CreateSession(ctx, m, link.Livemode, SessionParams{
 		Amount: amount, Description: link.Name, PaymentMethodTypes: link.Methods, SuccessURL: domain.FirstNonEmpty(link.RedirectURL, m.SuccessURL), CancelURL: m.CancelURL,
 		SuccessMessage: link.AfterMessage, SubmitType: link.SubmitType,
 		Origin: domain.Origin{SourceType: src, PaymentLinkID: &lid, IP: ip, UserAgent: ua, Channel: channel, CreatedBy: link.CreatedBy},
 	})
+	if err == nil {
+		a.trace(ctx, domain.TrailEvent{MerchantID: m.ID, Livemode: cs.Livemode, SessionID: cs.ID, Kind: domain.TrailCheckoutCreated, Source: "customer", IP: ip, UserAgent: ua,
+			Title: fmt.Sprintf("O cliente abriu o link %q (%s MT), canal %s", link.Name, domain.FormatShort(cs.Amount), domain.FirstNonEmpty(channel, "outro")),
+			Data:  map[string]any{"link": link.ID, "channel": channel, "amount": cs.Amount}})
+	}
+	return cs, err
 }
 
 type PayInput struct {
@@ -311,8 +317,17 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		return nil, err
 	}
 	if repeated != nil {
+		a.trace(ctx, domain.TrailEvent{MerchantID: m.ID, Livemode: repeated.Livemode, SessionID: cs.ID, PaymentID: repeated.ID, Kind: domain.TrailSubmitted, Source: "customer",
+			IP: in.PayerIP, UserAgent: in.PayerUA, Title: "O cliente repetiu o pedido com o mesmo código: devolvido o mesmo pagamento, sem cobrar duas vezes", Data: map[string]any{"attempt_id": repeated.AttemptID}})
 		return repeated, nil
 	}
+	phone := ""
+	if in.Phone != "" {
+		phone = domain.MaskPhones(domain.NormalizeMZPhone(in.Phone))
+	}
+	a.trace(ctx, domain.TrailEvent{MerchantID: m.ID, Livemode: p.Livemode, SessionID: cs.ID, PaymentID: p.ID, Kind: domain.TrailSubmitted, Source: "customer",
+		IP: in.PayerIP, UserAgent: in.PayerUA, Title: fmt.Sprintf("O cliente pediu para pagar %s MT por %s%s", domain.FormatShort(p.Amount), domain.FirstNonEmpty(domain.MethodNames[in.Method], in.Method), map[bool]string{true: " com o número " + phone, false: ""}[phone != ""]),
+		Data: map[string]any{"method": in.Method, "amount": p.Amount, "attempt_id": p.AttemptID, "phone": phone, "reference": p.Reference, "operation": p.RailReference}})
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
 		PaymentID: p.ID, Description: p.Description, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
 		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor,
@@ -323,6 +338,8 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		}
 	})
 	if err != nil {
+		a.trace(ctx, domain.TrailEvent{MerchantID: m.ID, Livemode: p.Livemode, SessionID: cs.ID, PaymentID: p.ID, Kind: domain.TrailLog, Source: "riha", Level: domain.TrailWarn,
+			Title: "O pagamento não começou: " + err.Error()})
 		_ = a.Payments.Delete(ctx, p.ID)
 		var ie *domain.InputError
 		if errors.As(err, &ie) {
@@ -376,7 +393,7 @@ func (a *App) keepRailID(paymentID, id string) {
 		return a.Payments.Save(ctx, p)
 	})
 	if err != nil {
-		log.Printf("payment %s: couldn't keep rail id %s: %v", paymentID, id, err)
+		a.logPayment(context.Background(), paymentID, domain.TrailError, "payment %s: couldn't keep rail id %s: %v", paymentID, id, err)
 	}
 }
 
@@ -398,6 +415,16 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			return err
 		}
 		now := a.Now()
+		ev := domain.TrailEvent{MerchantID: p.MerchantID, Livemode: p.Livemode, SessionID: cs.ID, PaymentID: p.ID, Kind: domain.TrailPaymentStatus, Source: "riha",
+			Data: map[string]any{"from": p.Status, "operator_reference": o.OperatorReference, "seconds": int(now.Sub(p.CreatedAt).Seconds())}}
+		if o.Success {
+			ev.Title = fmt.Sprintf("Pagamento concluído, %d s depois do pedido", int(now.Sub(p.CreatedAt).Seconds()))
+			ev.Data["to"] = domain.PaymentSucceeded
+		} else {
+			ev.Title, ev.Level = fmt.Sprintf("Pagamento falhou, %d s depois do pedido: %s", int(now.Sub(p.CreatedAt).Seconds()), domain.FirstNonEmpty(domain.FailureMessages[o.FailureCode], o.FailureCode)), domain.TrailWarn
+			ev.Data["to"], ev.Data["failure_code"] = domain.PaymentFailed, o.FailureCode
+		}
+		a.trace(ctx, ev)
 		if o.Success {
 			p.Status, p.OperatorReference, p.SucceededAt = domain.PaymentSucceeded, o.OperatorReference, &now
 			if err := a.Payments.Save(ctx, p); err != nil {

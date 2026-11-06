@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"riha/internal/core/domain"
 )
 
 const callbackLogLimit = 4000
@@ -29,10 +31,12 @@ func (srv *Server) railCallback(c *gin.Context) {
 	// Only the names of the headers: one of them may hold a signature or a key.
 	log.Printf("bim callback: %s from %s type=%q agent=%q headers=%v query=%q body=%q", c.Request.Method, c.ClientIP(), c.ContentType(), c.GetHeader("User-Agent"), names,
 		clean(c.Request.URL.RawQuery), clean(string(raw)))
+	in := domain.RequestFrom(ctx(c))
 	if op, id := callbackOperation(raw, c.Request.URL.Query()); op != "" {
-		go srv.A.RailCallback(context.Background(), op, id)
+		go srv.A.RailCallback(domain.WithRequest(context.Background(), in), op, id, raw)
 	} else {
 		log.Printf("bim callback: no operation number found")
+		srv.A.TraceCallbackWithoutOperation(ctx(c), c.Request.Method, raw)
 	}
 	c.JSON(200, gin.H{"ok": true})
 }

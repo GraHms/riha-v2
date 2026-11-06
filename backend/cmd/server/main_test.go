@@ -61,7 +61,7 @@ func base(t *testing.T) config.Config {
 
 // With no mtoca settings, a deploy changes nothing: only M-Pesa takes money.
 func TestMtocaIsOffUntilEnabled(t *testing.T) {
-	p, err := paymentRail(base(t))
+	p, err := paymentRail(base(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestEachModeUsesItsOwnMtoca(t *testing.T) {
 	dev, devHits := counted(t)
 	cfg := base(t)
 	cfg.Env, cfg.MtocaEnabled, cfg.MtocaLiveURL, cfg.MtocaTestURL = "development", true, prd.URL, dev.URL
-	p, err := paymentRail(cfg)
+	p, err := paymentRail(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestMpesaFlagMovesItToMtoca(t *testing.T) {
 	cfg := base(t)
 	cfg.Env, cfg.MtocaEnabled, cfg.MpesaViaMtoca, cfg.MtocaLiveURL, cfg.MtocaTestURL = "development", true, true, prd.URL, dev.URL
 	cfg.MpesaAPIKey = ""
-	p, err := paymentRail(cfg)
+	p, err := paymentRail(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestTestModeCanStaySimulated(t *testing.T) {
 	dev, devHits := counted(t)
 	cfg := base(t)
 	cfg.Env, cfg.MtocaEnabled, cfg.MpesaViaMtoca, cfg.MtocaTestOn, cfg.MtocaLiveURL, cfg.MtocaTestURL = "development", true, true, false, prd.URL, dev.URL
-	p, err := paymentRail(cfg)
+	p, err := paymentRail(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,11 +148,11 @@ func TestTestModeCanStaySimulated(t *testing.T) {
 func TestMpesaFlagNeedsMtoca(t *testing.T) {
 	cfg := base(t)
 	cfg.MpesaViaMtoca = true
-	if _, err := paymentRail(cfg); err == nil {
+	if _, err := paymentRail(cfg, nil); err == nil {
 		t.Error("the flag without mtoca must refuse to start, not quietly stay direct")
 	}
 	cfg.MtocaEnabled, cfg.MtocaChannels = true, map[string]string{"bim": "BIM"}
-	if _, err := paymentRail(cfg); err == nil {
+	if _, err := paymentRail(cfg, nil); err == nil {
 		t.Error("the flag without an mpesa channel must refuse to start")
 	}
 }
@@ -182,23 +182,23 @@ func TestProductionRefusesMixedUpSettings(t *testing.T) {
 		cfg := base(t)
 		cfg.MtocaEnabled = true
 		change(&cfg)
-		if _, err := paymentRail(cfg); err == nil {
+		if _, err := paymentRail(cfg, nil); err == nil {
 			t.Errorf("%s must refuse to start", name)
 		}
 	}
 	cfg := base(t)
 	cfg.MpesaAPIKey = ""
-	if _, err := paymentRail(cfg); err == nil {
+	if _, err := paymentRail(cfg, nil); err == nil {
 		t.Error("production with no real rail must refuse to start")
 	}
 	cfg = base(t)
 	cfg.MtocaEnabled = true
-	if _, err := paymentRail(cfg); err != nil {
+	if _, err := paymentRail(cfg, nil); err != nil {
 		t.Errorf("the real addresses must start: %v", err)
 	}
 	for _, live := range []string{"http://mtoca:8080", "http://172.30.5.2:8080"} {
 		cfg.MtocaLiveURL, cfg.MtocaTestURL = live, "http://mtoca-dev:8080"
-		if _, err := paymentRail(cfg); err != nil {
+		if _, err := paymentRail(cfg, nil); err != nil {
 			t.Errorf("%s is private and must start: %v", live, err)
 		}
 	}

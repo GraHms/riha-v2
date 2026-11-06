@@ -73,6 +73,10 @@ export interface CheckoutPort {
 
 export interface AdminPort {
   overview(): Promise<Json>
+  trailSearch(q: string): Promise<Json>
+  trailThread(id: string): Promise<Json>
+  trailEvents(filter: Record<string, string | number | undefined>): Promise<Json>
+  metrics(days: number, live: boolean, merchant?: string): Promise<Json>
   approvals(tab: 'review' | 'leads'): Promise<Json>
   decide(merchantId: string, decision: string, note: string): Promise<Json>
   merchants(status: string, q: string): Promise<Json>

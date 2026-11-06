@@ -12,6 +12,7 @@ func (srv *Server) publicRoutes(g *gin.RouterGroup) {
 	g.GET("/checkout/:id", srv.publicSession)
 	g.POST("/checkout/:id/pay", srv.throttle(srv.payLimiter, "pay"), srv.publicPay)
 	g.POST("/checkout/:id/cancel", srv.publicCancel)
+	g.POST("/checkout/:id/telemetry", srv.throttle(srv.viewLimiter, "telemetry"), srv.publicTelemetry)
 	g.GET("/links/:merchant/:slug", srv.publicLink)
 	g.POST("/links/:merchant/:slug/sessions", srv.throttle(srv.payLimiter, "link"), srv.publicLinkSession)
 	g.GET("/links/:merchant/:slug/image", srv.throttle(srv.viewLimiter, "link-image"), srv.publicLinkImage)
@@ -99,4 +100,16 @@ func (srv *Server) publicLinkImage(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "public, max-age=2592000, immutable")
 	c.Data(200, "image/jpeg", b)
+}
+
+func (srv *Server) publicTelemetry(c *gin.Context) {
+	var in struct {
+		Events []app.ClientEvent `json:"events"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Status(204)
+		return
+	}
+	_ = srv.A.ClientTelemetry(ctx(c), c.Param("id"), in.Events)
+	c.Status(204)
 }

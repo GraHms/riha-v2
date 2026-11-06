@@ -1,0 +1,9 @@
+[Unit]
+Description=Monthly check that the RIHA backup restores
+
+[Timer]
+OnCalendar=*-*-01 03:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

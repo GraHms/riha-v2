@@ -25,10 +25,12 @@ type Config struct {
 	PollEvery time.Duration
 	PollFor   time.Duration
 	// CreateFor is how long to wait for the create call, which mtoca only answers
-	// when bim does. It must stay under the sweep's 5 minutes for a payment with no id.
+	// when bim does. It must stay under the sweep's railNoRecordAfter (7 minutes).
 	CreateFor time.Duration
 	Debug     bool
 	HTTP      *http.Client
+	// Trace receives what was sent to mtoca and what it answered, for the trail.
+	Trace func(domain.TrailEvent)
 }
 
 type Client struct {
@@ -49,11 +51,13 @@ func New(cfg Config) (*Client, error) {
 	if cfg.PollEvery <= 0 {
 		cfg.PollEvery = 3 * time.Second
 	}
+	// bim holds a payment for up to 5 minutes while the customer answers, and
+	// mtoca waits as long for it, so RIHA waits a little longer than both.
 	if cfg.PollFor <= 0 {
-		cfg.PollFor = 4 * time.Minute
+		cfg.PollFor = 5*time.Minute + 30*time.Second
 	}
 	if cfg.CreateFor <= 0 {
-		cfg.CreateFor = 4 * time.Minute
+		cfg.CreateFor = 5*time.Minute + 30*time.Second
 	}
 	h := cfg.HTTP
 	if h == nil {
@@ -111,6 +115,10 @@ func (c *Client) post(ctx context.Context, path, op string, b any) (map[string]a
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	// mtoca writes it in its log, so a payment can be followed into mtoca's records.
+	if id := domain.RequestFrom(ctx).ID; id != "" {
+		req.Header.Set("X-Request-Id", id)
+	}
 	if c.cfg.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
 	}
@@ -200,7 +208,7 @@ func Interpret(m map[string]any) (domain.Outcome, bool) {
 
 // Initiate returns at once and calls mtoca in the background, because mtoca only
 // answers once bim does, and the checkout has to tell the customer to look at their phone.
-func (c *Client) Initiate(_ context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error) {
+func (c *Client) Initiate(ctx context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error) {
 	channel := c.cfg.Channels[req.Method]
 	if channel == "" {
 		return domain.ChargeResult{}, &domain.InputError{Field: "method", Msg: "Este método de pagamento não está disponível."}
@@ -213,15 +221,31 @@ func (c *Client) Initiate(_ context.Context, req domain.ChargeRequest, onComplet
 	}
 	phone := domain.NormalizeMZPhone(req.Phone)
 	b := createBody{OperationNumber: req.Reference, Channel: channel, Amount: amount(req.Amount), PhoneNumber: "258" + phone, Description: description(domain.FirstNonEmpty(req.Description, req.Descriptor))}
-	go c.create(b, req, onComplete)
+	go c.create(b, req, domain.RequestFrom(ctx).ID, onComplete)
 	return domain.ChargeResult{Async: true, Last4: phone[5:]}, nil
 }
 
-func (c *Client) create(b createBody, req domain.ChargeRequest, onComplete func(domain.Outcome)) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.CreateFor)
+func (c *Client) create(b createBody, req domain.ChargeRequest, requestID string, onComplete func(domain.Outcome)) {
+	ctx, cancel := context.WithTimeout(domain.WithRequest(context.Background(), domain.RequestInfo{ID: requestID}), c.cfg.CreateFor)
 	defer cancel()
-	m, _, err := c.post(ctx, "/api/payments", b.OperationNumber, b)
+	body, _ := json.Marshal(b)
+	c.trace(domain.TrailEvent{PaymentID: req.PaymentID, RequestID: requestID, Kind: domain.TrailRailRequest, Source: "riha", Method: http.MethodPost, Path: "mtoca /api/payments",
+		Title:   fmt.Sprintf("Pedido enviado ao bim, via mtoca, no canal %s. O bim pode esperar até 5 minutos pela resposta do cliente.", b.Channel),
+		Request: domain.RedactBody(body), Data: map[string]any{"operation": b.OperationNumber, "channel": b.Channel}})
+	start := time.Now()
+	m, raw, err := c.post(ctx, "/api/payments", b.OperationNumber, b)
+	ev := domain.TrailEvent{PaymentID: req.PaymentID, RequestID: requestID, Kind: domain.TrailRailResponse, Source: "operator", Method: http.MethodPost, Path: "mtoca /api/payments",
+		DurationMs: time.Since(start).Milliseconds(), Response: domain.RedactBody(raw), Data: map[string]any{"operation": b.OperationNumber}}
 	var he *HTTPError
+	switch {
+	case err == nil:
+		ev.Status, ev.Title = http.StatusOK, fmt.Sprintf("O bim respondeu ao pedido em %s", time.Since(start).Round(time.Second))
+	case errors.As(err, &he):
+		ev.Status, ev.Level, ev.Title = he.Status, domain.TrailWarn, fmt.Sprintf("O mtoca recusou o pedido (HTTP %d) em %s", he.Status, time.Since(start).Round(time.Second))
+	default:
+		ev.Level, ev.Title = domain.TrailWarn, fmt.Sprintf("Sem resposta do mtoca ao fim de %s: %v. Vamos perguntar pelo número da operação.", time.Since(start).Round(time.Second), err)
+	}
+	c.trace(ev)
 	switch {
 	case errors.As(err, &he) && he.Status < 500:
 		code := failureFor(he)
@@ -231,14 +255,32 @@ func (c *Client) create(b createBody, req domain.ChargeRequest, onComplete func(
 	case err != nil:
 		// mtoca keeps the outcome, so the operation number is enough to find it.
 		log.Printf("mtoca create op=%s lost its answer, asking by operation number: %v", b.OperationNumber, err)
-		c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, Method: req.Method}, onComplete)
+		c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, Method: req.Method}, requestID, onComplete)
 		return
 	}
 	id := field(m, "vendorTransactionId_NEP", "transactionID_NEP")
 	if id != "" && req.OnRailID != nil {
 		req.OnRailID(id)
 	}
-	c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, RailID: id, Method: req.Method}, onComplete)
+	c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, RailID: id, Method: req.Method}, requestID, onComplete)
+}
+
+func (c *Client) trace(ev domain.TrailEvent) {
+	if c.cfg.Trace != nil {
+		c.cfg.Trace(ev)
+	}
+}
+
+var bimStatus = map[string]string{"N": "pendente", "P": "pago", "R": "recusado", "C": "cancelado"}
+
+// statusTitle says what one of mtoca's status answers means.
+func statusTitle(m map[string]any) string {
+	st := strings.ToUpper(field(m, "paymentStatus"))
+	t := "Estado no bim: " + domain.FirstNonEmpty(bimStatus[st], "desconhecido") + " (" + st + ")"
+	if r := field(m, "rejectionReason"); r != "" {
+		t += ", código de recusa " + r
+	}
+	return t
 }
 
 // failureFor reads a create call that mtoca refused. mtoca answers 409 only when bim
@@ -251,12 +293,31 @@ func failureFor(he *HTTPError) string {
 	return domain.FailOperatorUnavailable
 }
 
-func (c *Client) poll(q domain.StatusQuery, onComplete func(domain.Outcome)) {
+// poll asks mtoca about a payment until it ends. The trail gets the first answer,
+// each change and the end, not every question, with how many questions it took.
+func (c *Client) poll(q domain.StatusQuery, requestID string, onComplete func(domain.Outcome)) {
 	deadline := time.Now().Add(c.cfg.PollFor)
+	started, asked, last := time.Now(), 0, ""
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		out, final, err := c.query(ctx, q)
+		ctx, cancel := context.WithTimeout(domain.WithRequest(context.Background(), domain.RequestInfo{ID: requestID}), 20*time.Second)
+		out, final, m, raw, err := c.ask(ctx, q)
 		cancel()
+		asked++
+		now := ""
+		if err != nil {
+			now = "error: " + err.Error()
+		} else {
+			now = statusTitle(m)
+		}
+		if now != last || final {
+			ev := domain.TrailEvent{PaymentID: q.PaymentID, RequestID: requestID, Kind: domain.TrailRailStatus, Source: "operator", Path: "mtoca /api/payments/status",
+				Title: now, Response: domain.RedactBody(raw), Data: map[string]any{"questions": asked, "seconds": int(time.Since(started).Seconds()), "operation": q.Reference}}
+			if err != nil {
+				ev.Level, ev.Title = domain.TrailWarn, "O mtoca não respondeu à pergunta pelo estado: "+err.Error()
+			}
+			c.trace(ev)
+			last = now
+		}
 		switch {
 		case err != nil:
 			log.Printf("mtoca status op=%s: %v", q.Reference, err)
@@ -265,6 +326,8 @@ func (c *Client) poll(q domain.StatusQuery, onComplete func(domain.Outcome)) {
 			return
 		}
 		if time.Now().After(deadline) {
+			c.trace(domain.TrailEvent{PaymentID: q.PaymentID, RequestID: requestID, Kind: domain.TrailRailStatus, Source: "riha", Level: domain.TrailWarn,
+				Title: fmt.Sprintf("Deixámos de perguntar ao fim de %s sem resposta final. O bim ainda pode avisar, e a verificação periódica continua.", c.cfg.PollFor.Round(time.Second))})
 			return
 		}
 		time.Sleep(c.cfg.PollEvery)
@@ -272,15 +335,20 @@ func (c *Client) poll(q domain.StatusQuery, onComplete func(domain.Outcome)) {
 }
 
 func (c *Client) query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
-	m, _, err := c.post(ctx, "/api/payments/status", q.Reference, statusBody{OperationNumber: q.Reference, TransactionID: q.RailID})
+	out, final, _, _, err := c.ask(ctx, q)
+	return out, final, err
+}
+
+func (c *Client) ask(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, map[string]any, []byte, error) {
+	m, raw, err := c.post(ctx, "/api/payments/status", q.Reference, statusBody{OperationNumber: q.Reference, TransactionID: q.RailID})
 	if err != nil {
-		return domain.Outcome{}, false, err
+		return domain.Outcome{}, false, m, raw, err
 	}
 	out, final := Interpret(m)
 	if final && out.Success && out.OperatorReference == "" {
 		out.OperatorReference = domain.FirstNonEmpty(q.RailID, q.Reference)
 	}
-	return out, final, nil
+	return out, final, m, raw, nil
 }
 
 // NewReference: mtoca takes a 12 digit operation number.
@@ -303,7 +371,18 @@ func (c *Client) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcom
 		c.seen = map[string]time.Time{q.Reference: time.Now()}
 	}
 	c.mu.Unlock()
-	out, final, err := c.query(ctx, q)
+	out, final, m, raw, err := c.ask(ctx, q)
+	ev := domain.TrailEvent{PaymentID: q.PaymentID, RequestID: domain.RequestFrom(ctx).ID, Kind: domain.TrailRailStatus, Source: "operator", Path: "mtoca /api/payments/status",
+		Response: domain.RedactBody(raw), Data: map[string]any{"operation": q.Reference, "urgent": q.Urgent}}
+	switch {
+	case err != nil:
+		ev.Level, ev.Title = domain.TrailWarn, "Verificação ao bim sem resposta: "+err.Error()
+	case q.Urgent:
+		ev.Title = "Confirmação pedida ao bim depois do aviso: " + strings.TrimPrefix(statusTitle(m), "Estado no bim: ")
+	default:
+		ev.Title = "Verificação periódica: " + strings.TrimPrefix(statusTitle(m), "Estado no bim: ")
+	}
+	c.trace(ev)
 	var he *HTTPError
 	if errors.As(err, &he) {
 		switch {

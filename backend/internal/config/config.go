@@ -18,6 +18,7 @@ type Config struct {
 	CookieSecure         bool
 	Seed                 bool
 	CatalogSubdomains    bool
+	BackupStatusFile     string
 	SimulatorDelayMs     int
 	AllowPrivateNetworks bool
 	TrustedProxies       []string
@@ -78,17 +79,20 @@ func Load() Config {
 		}
 	}
 	return Config{
-		Env:                  env("RIHA_ENV", "development"),
-		Addr:                 env("RIHA_ADDR", ":8080"),
-		DatabaseURL:          env("DATABASE_URL", "postgres://riha:riha@localhost:5432/riha?sslmode=disable"),
-		PublicURL:            public,
-		PayURL:               env("RIHA_PAY_URL", public),
-		StaticDir:            env("RIHA_STATIC_DIR", ""),
-		UploadDir:            env("RIHA_UPLOAD_DIR", "./data/uploads"),
-		OutboxDir:            env("RIHA_OUTBOX_DIR", "./data/outbox"),
-		CookieSecure:         flag("RIHA_COOKIE_SECURE", strings.HasPrefix(public, "https://")),
-		Seed:                 flag("RIHA_SEED", false),
-		CatalogSubdomains:    flag("RIHA_CATALOG_SUBDOMAINS", false),
+		Env:               env("RIHA_ENV", "development"),
+		Addr:              env("RIHA_ADDR", ":8080"),
+		DatabaseURL:       env("DATABASE_URL", "postgres://riha:riha@localhost:5432/riha?sslmode=disable"),
+		PublicURL:         public,
+		PayURL:            env("RIHA_PAY_URL", public),
+		StaticDir:         env("RIHA_STATIC_DIR", ""),
+		UploadDir:         env("RIHA_UPLOAD_DIR", "./data/uploads"),
+		OutboxDir:         env("RIHA_OUTBOX_DIR", "./data/outbox"),
+		CookieSecure:      flag("RIHA_COOKIE_SECURE", strings.HasPrefix(public, "https://")),
+		Seed:              flag("RIHA_SEED", false),
+		CatalogSubdomains: flag("RIHA_CATALOG_SUBDOMAINS", false),
+		// Written by the server's nightly backup into the data volume; in production
+		// the alerts say when it is missing or old.
+		BackupStatusFile:     env("RIHA_BACKUP_STATUS_FILE", map[bool]string{true: "/app/data/backup/last-success", false: ""}[env("RIHA_ENV", "development") == "production"]),
 		SimulatorDelayMs:     delay,
 		AllowPrivateNetworks: flag("RIHA_ALLOW_PRIVATE_NETWORKS", dev),
 		TrustedProxies:       proxies,

@@ -15,6 +15,8 @@ export default function AdminShell() {
     ['/admin/aprovacoes', 'shield', 'Aprovações', data?.pending_approvals],
     ['/admin/levantamentos', 'wallet', 'Levantamentos', data?.payout_stats?.pending_count],
     ['/admin/comerciantes', 'store', 'Comerciantes', undefined],
+    ['/admin/rasto', 'search', 'Rasto', undefined],
+    ['/admin/metricas', 'grid', 'Métricas', data?.alerts || undefined],
   ]
   const now = new Date()
   return (

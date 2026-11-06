@@ -230,7 +230,8 @@ func TestMtocaLostAnswerIsCreditedByOperationNumber(t *testing.T) {
 }
 
 // A payment mtoca has never heard of closes at 5 minutes, because nobody can have paid it.
-func TestMtocaNoRecordClosesAfter5Minutes(t *testing.T) {
+// bim can hold a payment for 5 minutes, so no record closes it only after 7.
+func TestMtocaNoRecordClosesAfter7Minutes(t *testing.T) {
 	a, ctx := setup(t)
 	mtocaApp(t, &mtocaFake{noAnswer: true, gone: true}, a)
 	m := approved(t, a, ctx, "Loja Nada", "nada@mtoca.test")
@@ -244,7 +245,7 @@ func TestMtocaNoRecordClosesAfter5Minutes(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 	real := a.Now
-	a.Now = func() time.Time { return real().Add(6 * time.Minute) }
+	a.Now = func() time.Time { return real().Add(8 * time.Minute) }
 	a.Sweep(ctx)
 	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentFailed {
 		t.Fatalf("got %s", got.Status)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -50,6 +52,9 @@ type Deps struct {
 	SubSettings  ports.SubscriptionSettingsRepo
 	Messenger    ports.Messenger
 	Sheets       ports.Sheet
+	// Trail is optional: without it nothing is traced.
+	Trail    ports.Trail
+	Insights ports.Insights
 }
 
 type App struct {
@@ -58,6 +63,8 @@ type App struct {
 	PayURL               string // the address in checkout and payment links
 	AllowPrivateNetworks bool
 	AdminNotifyEmail     string
+	// BackupStatusFile is where the server's backup writes the time of its last success.
+	BackupStatusFile string
 	// ComingSoon lists the methods that can't take money yet.
 	ComingSoon []string
 	// NoLiveRefunds: a live refund must send the money back, and no rail can yet.
@@ -156,4 +163,41 @@ func (a *App) emit(ctx context.Context, merchantID string, live bool, typ, objec
 			EventType: typ, Target: domain.TargetCallback, URL: callbackURL, Status: domain.DeliveryPending, NextAttemptAt: &now, CreatedAt: now, UpdatedAt: now})
 	}
 	return nil
+}
+
+// trace adds an event to the trail, with the request that caused it.
+func (a *App) trace(ctx context.Context, ev domain.TrailEvent) {
+	if a.Trail == nil {
+		return
+	}
+	r := domain.RequestFrom(ctx)
+	ev.RequestID = domain.FirstNonEmpty(ev.RequestID, r.ID)
+	if ev.Level == "" {
+		ev.Level = domain.TrailInfo
+	}
+	if ev.CreatedAt.IsZero() {
+		ev.CreatedAt = time.Now().UTC()
+	}
+	a.Trail.Add(ev)
+}
+
+// logPayment writes a line to the log and to the payment's trail, so what was
+// logged about a payment outlives the log.
+func (a *App) logPayment(ctx context.Context, paymentID, level, format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	log.Print(msg)
+	a.trace(ctx, domain.TrailEvent{PaymentID: paymentID, Kind: domain.TrailLog, Source: "riha", Level: level, Title: msg})
+}
+
+// TraceAPI puts a call to the public API on the trail.
+func (a *App) TraceAPI(ctx context.Context, ev domain.TrailEvent) {
+	ev.Kind, ev.Source = domain.TrailAPI, "api"
+	ev.Title = fmt.Sprintf("API: %s %s respondeu %d em %d ms", ev.Method, ev.Path, ev.Status, ev.DurationMs)
+	switch {
+	case ev.Status >= 500:
+		ev.Level = domain.TrailError
+	case ev.Status >= 400:
+		ev.Level = domain.TrailWarn
+	}
+	a.trace(ctx, ev)
 }

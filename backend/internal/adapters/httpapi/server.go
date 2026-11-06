@@ -84,6 +84,7 @@ func requestID() gin.HandlerFunc {
 		id := "req_" + domain.Token("", 10)
 		c.Set("request_id", id)
 		c.Header("Request-Id", id)
+		c.Request = c.Request.WithContext(domain.WithRequest(c.Request.Context(), domain.RequestInfo{ID: id, IP: c.ClientIP(), UserAgent: c.GetHeader("User-Agent")}))
 		c.Next()
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"riha/internal/adapters/httpapi"
 	"riha/internal/adapters/mail"
 	"riha/internal/adapters/messaging"
+	"riha/internal/adapters/netinfo"
 	"riha/internal/adapters/pdf"
 	"riha/internal/adapters/postgres"
 	"riha/internal/adapters/rails"
@@ -41,12 +42,20 @@ func main() {
 	if err := store.Migrate(); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	payments, err := paymentRail(cfg)
+	// The trail is written in the background, and what is left when the server
+	// stops is written before it exits.
+	trail := postgres.NewTrail(store)
+	trailCtx, stopTrail := context.WithCancel(context.Background())
+	go trail.Run(trailCtx)
+	go netinfo.Load()
+	payments, err := paymentRail(cfg, trail.Add)
 	if err != nil {
 		log.Fatalf("payments: %v", err)
 	}
 	deps := Deps(store, cfg)
 	deps.Rail = payments.Rail
+	deps.Trail = trail
+	deps.Insights = postgres.Insights{Store: store}
 	a := app.New(deps, cfg.PublicURL)
 	a.PayURL = cfg.PayURL
 	a.AllowPrivateNetworks = cfg.AllowPrivateNetworks
@@ -55,6 +64,7 @@ func main() {
 		a.NoLiveRefunds = true
 	}
 	a.AdminNotifyEmail = cfg.AdminNotifyEmail
+	a.BackupStatusFile = cfg.BackupStatusFile
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -83,6 +93,8 @@ func main() {
 	shut, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shut)
+	stopTrail()
+	trail.Wait(5 * time.Second)
 }
 
 func Deps(store *postgres.Store, cfg config.Config) app.Deps {
@@ -118,7 +130,7 @@ type paymentSetup struct {
 // production API for live payments and, unless RIHA_MTOCA_TEST_ON is false, its dev
 // API for test payments. Anything else in test mode is simulated. Production can't start on the simulator alone: it would
 // pass fake money off as real.
-func paymentRail(cfg config.Config) (paymentSetup, error) {
+func paymentRail(cfg config.Config, trace func(domain.TrailEvent)) (paymentSetup, error) {
 	sim := rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond)
 	test := rails.Router{ByMethod: map[string]ports.Rail{}, Fallback: sim}
 	live := rails.Router{ByMethod: map[string]ports.Rail{}}
@@ -132,11 +144,11 @@ func paymentRail(cfg config.Config) (paymentSetup, error) {
 				channels[method] = channel
 			}
 		}
-		liveClient, err := mtoca.New(mtoca.Config{BaseURL: cfg.MtocaLiveURL, Token: cfg.MtocaLiveToken, Channels: channels, Debug: cfg.MtocaDebug})
+		liveClient, err := mtoca.New(mtoca.Config{BaseURL: cfg.MtocaLiveURL, Token: cfg.MtocaLiveToken, Channels: channels, Debug: cfg.MtocaDebug, Trace: trace})
 		if err != nil {
 			return paymentSetup{}, err
 		}
-		testClient, err := mtoca.New(mtoca.Config{BaseURL: cfg.MtocaTestURL, Token: cfg.MtocaTestToken, Channels: channels, Debug: cfg.MtocaDebug})
+		testClient, err := mtoca.New(mtoca.Config{BaseURL: cfg.MtocaTestURL, Token: cfg.MtocaTestToken, Channels: channels, Debug: cfg.MtocaDebug, Trace: trace})
 		if err != nil {
 			return paymentSetup{}, err
 		}

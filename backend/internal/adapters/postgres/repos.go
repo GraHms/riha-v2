@@ -278,6 +278,9 @@ func (r Payments) query(ctx context.Context, q ports.PaymentQuery) *gormDB {
 	if q.Source != "" {
 		db = db.Where("source_type = ?", q.Source)
 	}
+	if q.SessionID != "" {
+		db = db.Where("session_id = ?", q.SessionID)
+	}
 	if q.LinkID != "" {
 		db = db.Where("payment_link_id = ?", q.LinkID)
 	}
