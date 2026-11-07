@@ -10,6 +10,8 @@ export type WalletPrompt = {
   screen: (amount: string) => ReactNode
   actions: [string, string] | null
   stillWaiting: string
+  // Short lines the waiting screen shows one after another while the request is on the phone.
+  cues: (phone: string) => string[]
 }
 
 const CLOSES = 'este pagamento fecha em até 10 minutos e pode tentar de novo nesta página.'
@@ -23,6 +25,7 @@ export function walletPrompt(method: string): WalletPrompt {
       screen: amount => <>Vais pagar <b>{amount} MT</b> na Entidade BIM PAY IZI referente a transacao … Digita o teu PIN</>,
       actions: ['Cancelar', 'Responder'],
       stillWaiting: `Ainda sem confirmação. Se viu um erro no telemóvel, ou o pedido não chegou, ${CLOSES}`,
+      cues: phone => [`O pedido vai aparecer no ${phone}`, 'Aparece em nome de BIM PAY IZI', 'Digite o seu PIN M-Pesa para pagar', 'Tem até 5 minutos para responder'],
     }
   }
   if (method === 'bim') {
@@ -33,6 +36,7 @@ export function walletPrompt(method: string): WalletPrompt {
       screen: amount => <>PAY IZI PAYMENT<br />Confirm your payment to merchant MASHTECHNO LDA<br />Amount: <b>{amount} MZN</b><br />1 - Confirm<br />0 - Cancel</>,
       actions: null,
       stillWaiting: `Ainda sem confirmação. Se ainda não marcou, marque *181#. Se viu um erro no telemóvel, ${CLOSES}`,
+      cues: phone => [`Vai receber um SMS no ${phone}`, 'Marque *181# no telemóvel', 'Escolha 1 - Confirm para pagar', 'Tem até 5 minutos para confirmar'],
     }
   }
   const name = METHOD_NAME[method] ?? method
@@ -43,5 +47,6 @@ export function walletPrompt(method: string): WalletPrompt {
     screen: amount => <>{name}: confirme o pagamento de <b>{amount} MT</b> no telemóvel.</>,
     actions: null,
     stillWaiting: `Ainda sem confirmação. Se viu um erro no telemóvel, ou o pedido não chegou, ${CLOSES}`,
+    cues: phone => [`O pedido vai aparecer no ${phone}`, `Siga as instruções de ${name} no telemóvel`, 'Tem até 5 minutos para responder'],
   }
 }

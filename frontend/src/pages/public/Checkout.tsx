@@ -14,7 +14,7 @@ type Session = {
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
   success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; link?: { details: string; image_url: string }; success_message?: string; submit_type?: string
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
-  payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null }
+  payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null; stage?: string }
 }
 
 // bim holds a wallet payment for up to 5 minutes while it waits for the customer.
@@ -42,13 +42,13 @@ function saveAttempt(key: string, id: string | null) {
   try { if (id) sessionStorage.setItem(key, id); else sessionStorage.removeItem(key) } catch { /* it still works without it */ }
 }
 
-function RefCode({ label, code }: { label: string; code: string }) {
+function RefCode({ label, code, dark }: { label: string; code: string; dark?: boolean }) {
   const [copied, setCopied] = useState(false)
   const copy = () => { navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }).catch(() => {}) }
   return (
     <div className="between" style={{ width: '100%', marginTop: 14, gap: 10, fontSize: 13.5, textAlign: 'left' }}>
-      <span><span className="muted">{label}: </span><b className="mono" style={{ fontSize: 13 }}>{code}</b></span>
-      {navigator.clipboard && <button type="button" className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 13, flex: 'none' }} onClick={copy}>{copied ? 'Copiado' : 'Copiar'}</button>}
+      <span><span className={dark ? undefined : 'muted'} style={dark ? { color: '#93A09A' } : undefined}>{label}: </span><b className="mono" style={{ fontSize: 13 }}>{code}</b></span>
+      {navigator.clipboard && <button type="button" className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 13, flex: 'none', color: dark ? '#C9D3CD' : undefined }} onClick={copy}>{copied ? 'Copiado' : 'Copiar'}</button>}
     </div>
   )
 }
@@ -407,37 +407,13 @@ export default function Checkout() {
           )}
 
           {view === 'confirm' && (
-            <div className="co-center">
-              <div style={{ position: 'relative', width: 250, height: 250, display: 'grid', placeItems: 'center' }}>
-                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(circle,rgba(10,130,5,.14),rgba(10,130,5,0) 70%)' }} />
-                <div style={{ position: 'absolute', inset: 28, borderRadius: '50%', border: '1.5px dashed #C9D9C4', animation: 'spin 18s linear infinite' }} />
-                <div style={{ position: 'relative', width: 200, padding: 16, borderRadius: 16, background: '#2B2F2D', color: '#fff', textAlign: 'left', boxShadow: '0 24px 40px -18px rgba(0,0,0,.6)' }}>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#E6E9E7' }}>{prompt.screen(amount)}</div>
-                  {prompt.actions && <div className="between" style={{ marginTop: 12, fontSize: 12.5, fontWeight: 600, color: 'var(--lime)' }}><span>{prompt.actions[0]}</span><span>{prompt.actions[1]}</span></div>}
-                </div>
-              </div>
-              <h1 className="display" style={{ margin: '14px 0 0', fontSize: 28 }}>{prompt.title}</h1>
-              <p style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: 'var(--muted)', maxWidth: 320 }}>{prompt.steps(<b style={{ color: 'var(--ink)' }}>{waitingPhone}</b>)}</p>
-              {noAnswer ? (
-                <div role="alert" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>Ainda não temos resposta. Se o dinheiro saiu da sua conta, não pague outra vez: escreva para <a href={SUPPORT_MAILTO} style={{ color: 'inherit', fontWeight: 700 }}>{SUPPORT_EMAIL}</a>{waitingRef || attemptRef.current ? <> com o código abaixo</> : null}.</div>
-              ) : conn === 'down' ? (
-                <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}><b>Sem contacto com o servidor.</b> O resultado pode já existir. Não precisa de fazer nada: continuamos a tentar e mostramos assim que o telemóvel voltar a ter internet.</div>
-              ) : conn === 'trying' ? (
-                <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>A tentar contactar o servidor…</div>
-              ) : left === 0 ? (
-                <div role="status" style={{ width: '100%', marginTop: 18, padding: '11px 14px', borderRadius: 12, background: 'var(--sun-soft)', color: '#5B4600', fontSize: 13.5, lineHeight: 1.45, textAlign: 'left' }}>{prompt.stillWaiting}</div>
-              ) : null}
-              <div className="card" style={{ width: '100%', marginTop: 26, borderRadius: 18, padding: 16, textAlign: 'left' }}>
-                <div className="between" style={{ fontSize: 13.5 }}><span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sun)', boxShadow: '0 0 0 4px var(--sun-bg)' }} />{left === 0 ? 'A verificar o resultado…' : 'A aguardar confirmação'}</span>{left > 0 && <span className="mono muted">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span>}</div>
-                <div style={{ height: 6, borderRadius: 3, background: '#EEECE5', marginTop: 12, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (elapsed / WALLET_TIMEOUT) * 100)}%`, height: '100%', borderRadius: 3, background: 'var(--green)', transition: 'width 1s linear' }} /></div>
-              </div>
-              {waitingRef ? <RefCode label="Referência" code={waitingRef} /> : attemptRef.current ? <RefCode label="Código do pedido" code={attemptRef.current} /> : null}
-              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, marginTop: 24 }}>
-                <button className="btn btn-outline btn-block" style={{ height: 52, borderRadius: 15, fontSize: 15 }} onClick={checkResult}>{manualCheck ? 'A verificar…' : 'Verificar o resultado agora'}</button>
-                {checkedAt && <div className="muted" style={{ fontSize: 12.5, textAlign: 'center' }}>Última resposta do servidor às {checkedAt.toLocaleTimeString('pt-PT')}</div>}
-                {s.payment?.status !== 'processing' && <button className="btn btn-ghost" onClick={() => setView('pay')}>Mudar método de pagamento</button>}
-              </div>
-            </div>
+            <WaitScreen
+              s={s} amount={amount} prompt={prompt} walletName={METHOD_NAME[s.payment?.method ?? method] ?? 'carteira'} phone={waitingPhone}
+              stage={lostPay.current ? 'sent' : s.payment?.stage || 'sent'} conn={conn} noAnswer={noAnswer} pastLimit={left === 0}
+              refCode={waitingRef ? { label: 'Referência', code: waitingRef } : attemptRef.current ? { label: 'Código do pedido', code: attemptRef.current } : null}
+              onCheck={checkResult} checking={manualCheck} checkedAt={checkedAt}
+              onChangeMethod={s.payment?.status !== 'processing' ? () => setView('pay') : null}
+            />
           )}
 
           {view === 'done' && s.payment && (
@@ -465,6 +441,93 @@ export default function Checkout() {
           )}
         </div>
       </main>
+    </div>
+  )
+}
+
+// The wait for the wallet: everything RIHA does takes under a second, so what the
+// customer waits for is the phone and the wallet. The steps move on real events: the
+// request is sent, then bim's call comes back once the customer has answered, then the
+// wallet's answer. Nothing here counts down, and no answer is never shown as a failure.
+type WaitProps = {
+  s: Session; amount: string; prompt: ReturnType<typeof walletPrompt>; walletName: string; phone: string
+  stage: string; conn: Conn; noAnswer: boolean; pastLimit: boolean; refCode: { label: string; code: string } | null
+  onCheck: () => void; checking: boolean; checkedAt: Date | null; onChangeMethod: (() => void) | null
+}
+
+function WaitScreen(p: WaitProps) {
+  const off = p.conn === 'down'
+  const answered = p.stage === 'answered'
+  let title: string
+  let lines: string[]
+  if (off) {
+    title = 'Sem ligação à internet'
+    lines = [`O pagamento continua na ${p.walletName}. Quando a ligação voltar, mostramos o resultado.`]
+  } else if (p.noAnswer) {
+    title = `Ainda sem resposta da ${p.walletName}`
+    lines = []
+  } else if (p.pastLimit) {
+    title = `Ainda sem resposta da ${p.walletName}`
+    lines = [p.prompt.stillWaiting]
+  } else if (answered) {
+    title = `A ${p.walletName} está a confirmar`
+    lines = ['Não precisa de fazer mais nada', 'Normalmente demora menos de 1 minuto', `O dinheiro só sai quando a ${p.walletName} confirmar`]
+  } else {
+    title = p.prompt.title
+    lines = p.prompt.cues(p.phone)
+  }
+  const [i, setI] = useState(0)
+  const key = title + lines.length
+  useEffect(() => {
+    setI(0)
+    if (lines.length < 2) return
+    const t = setInterval(() => setI(x => x + 1), 4500)
+    return () => clearInterval(t)
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const line = lines.length ? lines[i % lines.length] : ''
+  const step = answered ? 2 : 1
+
+  return (
+    <div className="wait" role="status" aria-live="polite">
+      {!p.s.livemode && <div className="wait-test">Modo de teste</div>}
+      <div className="wait-top">
+        <Avatar text={p.s.merchant.initials} color={p.s.merchant.avatar_color} size={32} radius={10} font={12} />
+        <span className="wait-name">{p.s.merchant.name}</span>
+        <span className="wait-amt">{p.amount} MT</span>
+      </div>
+
+      <div className="wait-mid">
+        <div className="wait-logo" aria-hidden="true">
+          <div className="wait-ring" />
+          <div className="wait-arc" />
+          <div className="wait-core"><img src="/assets/riha-icon-dark.png" alt="" /></div>
+        </div>
+        {(off || p.conn === 'trying') && (
+          <div className="wait-pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12a10 10 0 0 1 13 0M9 15.5a5 5 0 0 1 6 0M3 3l18 18" /></svg>
+            {off ? 'Sem ligação · a tentar ligar' : 'A tentar contactar o servidor…'}
+          </div>
+        )}
+        <h1 className="wait-title">{title}</h1>
+        {line && <p key={line} className={'wait-line' + (lines.length > 1 ? ' turn' : '')}>{line}</p>}
+        {p.noAnswer && (
+          <div role="alert" className="wait-alert">Se o dinheiro saiu da sua conta, não pague outra vez: escreva para <a href={SUPPORT_MAILTO}>{SUPPORT_EMAIL}</a>{p.refCode ? <> com o código abaixo</> : null}.</div>
+        )}
+        <div className="wait-steps" aria-hidden="true">
+          {[0, 1, 2].map(k => <span key={k} className={k < step ? 'done' : k === step ? 'now' : ''} />)}
+        </div>
+      </div>
+
+      <div className="wait-foot">
+        {p.refCode && <RefCode dark label={p.refCode.label} code={p.refCode.code} />}
+        <button className="wait-check" onClick={p.onCheck}>{p.checking ? 'A verificar…' : 'Verificar o resultado agora'}</button>
+        {p.checkedAt && <div className="wait-small">Última resposta do servidor às {p.checkedAt.toLocaleTimeString('pt-PT')}</div>}
+        {p.onChangeMethod && <button className="wait-check" onClick={p.onChangeMethod}>Mudar método de pagamento</button>}
+        <div className="wait-note">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8EE07F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+          <span>Fique nesta página até a {p.walletName} responder, para não pagar duas vezes. Se a fechar, o pagamento continua: volte a este link para ver o resultado.</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -527,5 +590,37 @@ const CSS = `
   .co-pay{position:sticky;bottom:0;margin-top:auto;padding:14px 0 10px;background:linear-gradient(180deg,rgba(244,243,238,0),#F4F3EE 30%)}
   .co-center{padding-top:26px}
 }
-@media print{.co-side,.co-url,.testbar,button{display:none!important}.co{display:block}}
+.wait{position:fixed;inset:0;z-index:20;background:#0B120E;color:#fff;display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:max(18px,env(safe-area-inset-top)) 22px max(22px,env(safe-area-inset-bottom))}
+.wait>*{width:100%;max-width:440px}
+.wait-test{font-size:12px;font-weight:700;color:#FFD21F;text-align:center;margin-bottom:8px}
+.wait-top{display:flex;align-items:center;gap:10px;font-size:13.5px;color:#A9B5AE;padding-top:6px}
+.wait-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wait-amt{font-weight:700;color:#fff;white-space:nowrap}
+.wait-mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px 0}
+.wait-logo{position:relative;width:150px;height:150px;display:grid;place-items:center;flex:none}
+.wait-ring{position:absolute;inset:0;border-radius:50%;border:2px dashed #2E3A33;animation:waitSpin 14s linear infinite}
+.wait-arc{position:absolute;inset:14px;border-radius:50%;border:3px solid transparent;border-top-color:#8EE07F;animation:waitSpin 1.8s linear infinite}
+.wait-core{width:84px;height:84px;border-radius:50%;background:#fff;display:grid;place-items:center;animation:waitBreath 2.4s ease-in-out infinite}
+.wait-core img{width:46px;height:46px;object-fit:contain}
+.wait-pill{margin-top:22px;height:30px;padding:0 12px;border-radius:999px;background:#3D3000;color:#FFD21F;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.wait-title{font-family:var(--display);font-weight:800;font-size:28px;line-height:1.12;letter-spacing:-0.03em;margin:30px 0 0;text-wrap:balance}
+.wait-line{min-height:48px;margin:12px 0 0;font-size:15.5px;line-height:1.5;color:#C9D3CD;max-width:300px;text-wrap:balance}
+.wait-line.turn{animation:waitLine 4.5s ease both}
+.wait-alert{margin-top:16px;padding:12px 14px;border-radius:14px;background:#3D3000;color:#FFE9A3;font-size:13.5px;line-height:1.5;text-align:left}
+.wait-alert a{color:#fff;font-weight:700}
+.wait-steps{display:flex;gap:6px;margin-top:22px}
+.wait-steps span{width:14px;height:6px;border-radius:3px;background:#2E3A33;transition:width .4s,background .4s}
+.wait-steps span.done{background:#8EE07F}
+.wait-steps span.now{width:34px;background:#8EE07F}
+.wait-foot{display:flex;flex-direction:column;align-items:center;gap:8px}
+.wait-check{width:100%;height:48px;border-radius:14px;border:1.5px solid #2E3A33;background:transparent;color:#fff;font-weight:700;font-size:14.5px;cursor:pointer}
+.wait-check:hover{border-color:#5B6A62}
+.wait-small{font-size:12px;color:#6F7D75}
+.wait-note{margin-top:8px;display:flex;gap:10px;align-items:flex-start;padding:14px;border-radius:16px;background:#1C2620;font-size:13px;line-height:1.5;color:#C9D3CD;text-align:left}
+.wait-note svg{flex:none;margin-top:1px}
+@keyframes waitSpin{to{transform:rotate(360deg)}}
+@keyframes waitBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes waitLine{0%{opacity:0;transform:translateY(6px)}8%{opacity:1;transform:none}92%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.wait-ring,.wait-arc,.wait-core,.wait-line.turn{animation:none}}
+@media print{.wait{display:none!important}.co-side,.co-url,.testbar,button{display:none!important}.co{display:block}}
 `

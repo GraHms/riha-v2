@@ -186,7 +186,20 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	if p := srv.A.LatestPayment(c, cs.ID); p != nil {
 		out["payment"] = gin.H{"id": p.ID, "reference": p.Reference, "attempt_id": p.AttemptID, "status": p.Status, "method": p.Method, "phone_prefix": p.PhonePrefix,
 			"phone_last4": p.PhoneLast4, "card_brand": p.CardBrand, "card_last4": p.CardLast4, "failure_code": p.FailureCode,
-			"failure_message": p.FailureMessage, "created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt)}
+			"failure_message": p.FailureMessage, "created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt), "stage": waitStage(p)}
 	}
 	return out
+}
+
+// waitStage is where a payment in progress is, for the checkout's waiting screen. bim
+// holds the call to it while the customer answers on the phone, and answers the moment
+// they do, so a rail id means the customer is done and the wallet is confirming.
+func waitStage(p *domain.Payment) string {
+	switch {
+	case p.Status != domain.PaymentProcessing:
+		return ""
+	case p.RailID != "":
+		return "answered"
+	}
+	return "sent"
 }
