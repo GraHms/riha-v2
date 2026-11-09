@@ -8,7 +8,12 @@ import { useSession } from '../../../lib/session'
 import { abbrevName, CHANNEL, CHARGE_STATUS, merchantWhen, money, MonthStrip, OUTSIDE_METHODS, StatusPill, SUB_STATUS, VIA } from './common'
 import { useSubs } from './SubsShell'
 
-const KIND: Record<string, string> = { invite: 'Convite', reminder: 'Lembrete', link: 'Link de pagamento', resend: 'Reenvio', last_warning: 'Último aviso', final: 'Ação final', receipt: 'Recibo', price_notice: 'Aviso de preço', pause: 'Pausa', skip: 'Mês saltado', cancel: 'Cancelamento', plan_change: 'Mudança de plano' }
+// What happened to a message: queued (waiting, maybe to be tried again), sent (the
+// SMS provider took it), delivered (it reached the phone) or failed.
+const MSG_DOT: Record<string, string> = { failed: 'var(--red)', queued: '#C9C7BE', sent: '#9BC9A9', delivered: 'var(--green)' }
+const MSG_STATE: Record<string, string> = { queued: 'na fila', sent: 'a caminho', delivered: 'entregue', failed: 'não entregue' }
+
+const KIND: Record<string, string> = { invite: 'Convite', reminder: 'Lembrete', link: 'Link de pagamento', resend: 'Reenvio', last_warning: 'Último aviso', final: 'Ação final', receipt: 'Recibo', welcome: 'Boas-vindas', unfinished: 'Inscrição por concluir', price_notice: 'Aviso de preço', pause: 'Pausa', skip: 'Mês saltado', cancel: 'Cancelamento', plan_change: 'Mudança de plano' }
 const MAPUTO = new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Maputo', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 const hm = (iso: string) => { const p = Object.fromEntries(MAPUTO.formatToParts(new Date(iso)).map(x => [x.type, x.value])); return `${Number(p.day)} ${['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(p.month) - 1]} · ${p.hour}:${p.minute}` }
 
@@ -28,7 +33,7 @@ function chargeDetail(c: any, msgs: any[]) {
 export default function Member() {
   const { id } = useParams()
   const g = useGateway()
-  const { toast } = useSession()
+  const { toast, live: liveMode } = useSession()
   const sx = useSubs()
   const { data, reload } = useQuery(g => g.subscriptions.member(id!), [id, sx.version])
   const [subIdx, setSubIdx] = useState(0)
@@ -83,13 +88,13 @@ export default function Member() {
             ))}
           </div>
           <div className="card" style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line-3)', fontWeight: 700, fontSize: 15.5 }}>Mensagens <span style={{ fontWeight: 400, fontSize: 12.5, color: 'var(--muted)' }}>· SMS e WhatsApp simulados nesta versão</span></div>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line-3)', fontWeight: 700, fontSize: 15.5 }}>Mensagens <span style={{ fontWeight: 400, fontSize: 12.5, color: 'var(--muted)' }}>· {liveMode ? 'por SMS, também quando o cliente escolheu WhatsApp' : 'modo de teste: não são enviadas'}</span></div>
             {data.messages.length === 0 && <div style={{ padding: 20, color: 'var(--muted)', fontSize: 14 }}>Ainda sem mensagens.</div>}
             {data.messages.slice(0, 12).map((x: any) => (
               <div key={x.id} style={{ padding: '11px 20px', borderBottom: '1px solid var(--line-3)', display: 'flex', gap: 12 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: x.status === 'failed' ? 'var(--red)' : x.status === 'queued' ? '#C9C7BE' : 'var(--green)', marginTop: 6, flex: 'none' }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: MSG_DOT[x.status] || 'var(--green)', marginTop: 6, flex: 'none' }} />
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, display: 'flex', gap: 8, flexWrap: 'wrap' }}><b>{KIND[x.kind] || x.kind}</b><span style={{ color: 'var(--muted)' }}>{CHANNEL[x.channel]} · {x.to} · {hm(x.created_at)}</span>{x.status === 'failed' && <span style={{ color: 'var(--red-dark)', fontWeight: 600 }}>Falhou: {x.error}</span>}</div>
+                  <div style={{ fontSize: 13, display: 'flex', gap: 8, flexWrap: 'wrap' }}><b>{KIND[x.kind] || x.kind}</b><span style={{ color: 'var(--muted)' }}>{CHANNEL[x.channel]} · {x.to} · {hm(x.created_at)}</span>{x.status === 'failed' && <span style={{ color: 'var(--red-dark)', fontWeight: 600 }}>Falhou: {x.error}</span>}{x.status === 'queued' && x.error && <span style={{ color: 'var(--muted)' }}>Em espera: {x.error}</span>}{(x.status === 'sent' || x.status === 'delivered') && liveMode && <span style={{ color: 'var(--muted)' }}>{MSG_STATE[x.status]}</span>}</div>
                   <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 3, lineHeight: 1.45 }}>{x.body}</div>
                 </div>
               </div>
@@ -137,7 +142,7 @@ export default function Member() {
 
 function Timeline({ c, msgs, tolerance, finalAction }: { c: any; msgs: any[]; tolerance: number; finalAction: string }) {
   const mine = msgs.filter(m => m.charge_id === c.id).slice().reverse()
-  const items: [string, string, string][] = mine.map(m => [m.status === 'failed' ? 'red' : 'green', `${KIND[m.kind] || m.kind}${m.status === 'failed' ? ' não entregue' : ' entregue'}`, `${hm(m.created_at)} · ${CHANNEL[m.channel]}`])
+  const items: [string, string, string][] = mine.map(m => [m.status === 'failed' ? 'red' : 'green', `${KIND[m.kind] || m.kind} ${MSG_STATE[m.status] || 'a caminho'}`, `${hm(m.created_at)} · ${CHANNEL[m.channel]}`])
   if (c.opened_at) items.push(['green', 'Link aberto', hm(c.opened_at)])
   if (c.last_failure) items.push(['red', c.last_failure, 'última tentativa'])
   if (c.status === 'past_due' || c.status === 'open') {

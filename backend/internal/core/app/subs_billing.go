@@ -52,6 +52,7 @@ func (a *App) BillingTick(ctx context.Context) {
 			return a.refreshMember(ctx, l.MemberID)
 		})
 	}
+	a.remindUnfinished(ctx, now)
 	active, _ := a.Charges.Active(ctx, now.Add(IssueAhead), 300)
 	for _, c := range active {
 		if err := a.advanceCharge(ctx, c.ID); err != nil {
@@ -296,23 +297,6 @@ func (a *App) runStep(ctx context.Context, m *domain.Merchant, set domain.Subscr
 		}
 	}
 	return nil
-}
-
-func (a *App) SendQueued(ctx context.Context) {
-	for i := 0; i < 5; i++ {
-		msgs, err := a.Messages.Queued(ctx, 50)
-		if err != nil || len(msgs) == 0 {
-			return
-		}
-		for _, msg := range msgs {
-			err := a.Messenger.Send(ctx, ports.OutboundMessage{Channel: msg.Channel, To: msg.To, Sender: msg.Sender, Body: msg.Body})
-			msg.Status = "sent"
-			if err != nil {
-				msg.Status, msg.Error = "failed", domain.Trim(err.Error(), 200)
-			}
-			_ = a.Messages.Save(ctx, &msg)
-		}
-	}
 }
 
 func (a *App) SendNextNow(ctx context.Context, m *domain.Merchant, live bool, subID string, actor Actor) error {
@@ -639,9 +623,9 @@ func (a *App) settleCharges(ctx context.Context, cs *domain.CheckoutSession, p *
 				return err
 			}
 		}
-		members[l.MemberID] = true
+		members[l.MemberID] = members[l.MemberID] || wasNew
 	}
-	for id := range members {
+	for id, joined := range members {
 		mem, err := a.Members.Lock(ctx, id)
 		if err != nil {
 			return err
@@ -660,13 +644,56 @@ func (a *App) settleCharges(ctx context.Context, cs *domain.CheckoutSession, p *
 		if err != nil {
 			return err
 		}
-		if a.SubSettingsFor(ctx, m).ReceiptSMS {
+		// The first payment activates the subscription: the receipt says so, and when
+		// the next payment is, whatever the receipt setting, since it's the only
+		// confirmation the customer gets.
+		if joined {
+			if err := a.queueMessage(ctx, m, mem, "", "welcome", a.welcomeBody(ctx, m, mem, p)); err != nil {
+				return err
+			}
+		} else if a.SubSettingsFor(ctx, m).ReceiptSMS {
 			if err := a.queueMessage(ctx, m, mem, "", "receipt", fmt.Sprintf("%s: recebemos %s MT de %s. Ref. %s. Obrigado.", m.Name, domain.FormatShort(p.Amount), mem.Name, p.Reference)); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (a *App) welcomeBody(ctx context.Context, m *domain.Merchant, mem *domain.Member, p *domain.Payment) string {
+	body := fmt.Sprintf("%s: inscrição de %s ativa. Recebemos %s MT (Ref. %s).", m.Name, mem.Name, domain.FormatShort(p.Amount), p.Reference)
+	if at, amount, ok := a.nextPayment(ctx, mem.ID); ok {
+		body += fmt.Sprintf(" Próximo pagamento: %s MT a %s.", domain.FormatShort(amount), domain.ShortDate(at))
+	}
+	return body
+}
+
+// nextPayment is the member's next payment: the earliest next due date of their
+// open subscriptions, and what falls due that day.
+func (a *App) nextPayment(ctx context.Context, memberID string) (time.Time, int64, bool) {
+	subs, err := a.Subs.ByMember(ctx, memberID)
+	if err != nil {
+		return time.Time{}, 0, false
+	}
+	var at time.Time
+	var amount int64
+	for _, s := range subs {
+		if domain.Closed(s.Status) || s.Status == domain.SubIncomplete || s.Status == domain.SubInvited || s.NextDueAt == nil {
+			continue
+		}
+		due := *s.NextDueAt
+		price := s.Amount
+		if s.PendingFrom != nil && !due.Before(*s.PendingFrom) {
+			price = s.PendingAmount
+		}
+		switch {
+		case at.IsZero() || maputoDay(due) < maputoDay(at):
+			at, amount = due, price
+		case maputoDay(due) == maputoDay(at):
+			amount += price
+		}
+	}
+	return at, amount, !at.IsZero()
 }
 
 func (a *App) chargesFailed(ctx context.Context, cs *domain.CheckoutSession, p *domain.Payment) error {
@@ -686,3 +713,41 @@ func (a *App) chargesFailed(ctx context.Context, cs *domain.CheckoutSession, p *
 	}
 	return nil
 }
+
+// UnfinishedAfter is how long after a catalog signup without payment RIHA sends its
+// one reminder. The signup is cancelled a day after it started.
+const UnfinishedAfter = time.Hour
+
+// remindUnfinished sends, once, the link to whoever signed up on a catalog page and
+// left without paying.
+func (a *App) remindUnfinished(ctx context.Context, now time.Time) {
+	subs, _ := a.Subs.StaleIncomplete(ctx, now.Add(-UnfinishedAfter), 200)
+	done := map[string]bool{}
+	for _, s := range subs {
+		if done[s.MemberID] || s.CreatedAt.Before(now.Add(-23*time.Hour)) {
+			continue
+		}
+		done[s.MemberID] = true
+		if n, err := a.Messages.CountRecent(ctx, s.MemberID, "unfinished", now.Add(-48*time.Hour)); err != nil || n > 0 {
+			continue
+		}
+		open, err := a.Charges.Find(ctx, ports.ChargeQuery{SubscriptionIDs: []string{s.ID}, Statuses: domain.UnpaidChargeStatuses, Limit: 1})
+		if err != nil || len(open) == 0 {
+			continue
+		}
+		m, err := a.Merchants.ByID(ctx, s.MerchantID)
+		if err != nil {
+			continue
+		}
+		mem, err := a.Members.Get(ctx, s.MemberID)
+		if err != nil {
+			continue
+		}
+		body := fmt.Sprintf("%s: a inscrição de %s ficou por concluir. Pague hoje para ativar: %s", m.Name, mem.Name, a.chargeLink(&open[0]))
+		if err := a.queueMessage(ctx, m, mem, open[0].ID, "unfinished", body); err != nil {
+			log.Printf("unfinished %s: %v", s.ID, err)
+		}
+	}
+}
+
+func maputoDay(t time.Time) string { return t.In(domain.Maputo).Format("2006-01-02") }

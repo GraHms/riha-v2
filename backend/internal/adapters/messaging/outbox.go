@@ -20,13 +20,19 @@ type Outbox struct {
 	mu  sync.Mutex
 }
 
-func (o *Outbox) Send(_ context.Context, m ports.OutboundMessage) error {
+// Outbox writes messages to a file instead of sending them: for development, test
+// mode, and the channels no provider carries yet.
+func (o *Outbox) Send(_ context.Context, m ports.OutboundMessage) (ports.SentMessage, error) {
 	if strings.HasSuffix(m.To, "9999") {
-		return ErrUndeliverable
+		return ports.SentMessage{}, ErrUndeliverable
 	}
 	if o.Dir == "" {
-		return nil
+		return ports.SentMessage{Channel: m.Channel}, nil
 	}
+	return ports.SentMessage{Channel: m.Channel}, o.write(m)
+}
+
+func (o *Outbox) write(m ports.OutboundMessage) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := os.MkdirAll(o.Dir, 0o750); err != nil {

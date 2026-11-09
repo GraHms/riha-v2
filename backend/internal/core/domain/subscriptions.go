@@ -222,10 +222,26 @@ type Message struct {
 	Sender     string
 	Kind       string
 	Body       string
-	Status     string
-	Error      string
-	CreatedAt  time.Time
+	// Status is queued, sent (the provider took it), delivered (it reached the
+	// phone) or failed.
+	Status string
+	Error  string
+	// ProviderID is the SMS provider's id for the message, which its delivery
+	// reports carry.
+	ProviderID    string
+	Attempts      int
+	NextAttemptAt *time.Time
+	SentAt        *time.Time
+	DeliveredAt   *time.Time
+	CreatedAt     time.Time
 }
+
+const (
+	MessageQueued    = "queued"
+	MessageSent      = "sent"
+	MessageDelivered = "delivered"
+	MessageFailed    = "failed"
+)
 
 type SubscriptionSettings struct {
 	MerchantID    string

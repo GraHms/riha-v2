@@ -147,6 +147,7 @@ func (a *App) alerts(ctx context.Context) []Alert {
 			add(true, "backup", domain.TrailError, fmt.Sprintf("A última cópia de segurança tem %d horas", int(age.Hours())), "O backup noturno falhou. Veja journalctl -u riha-backup.")
 		}
 	}
+	out = append(out, a.smsAlerts()...)
 	return out
 }
 

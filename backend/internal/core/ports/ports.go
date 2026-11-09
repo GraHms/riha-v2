@@ -398,7 +398,8 @@ type Messages interface {
 	Create(ctx context.Context, m *domain.Message) error
 	Save(ctx context.Context, m *domain.Message) error
 	ByMember(ctx context.Context, memberID string, limit int) ([]domain.Message, error)
-	Queued(ctx context.Context, limit int) ([]domain.Message, error)
+	Queued(ctx context.Context, now time.Time, limit int) ([]domain.Message, error)
+	ByProviderID(ctx context.Context, providerID string) (*domain.Message, error)
 	Failed(ctx context.Context, merchantID string, live bool, since time.Time, limit int) ([]domain.Message, error)
 	CountRecent(ctx context.Context, memberID, kind string, since time.Time) (int64, error)
 }
@@ -415,10 +416,41 @@ type OutboundMessage struct {
 	To      string
 	Sender  string
 	Body    string
+	// Live is a message to a real customer. A test-mode message never leaves RIHA.
+	Live bool
 }
 
+// SentMessage is what the provider said when it took a message: its id, which its
+// delivery reports carry, and the channel it actually went on.
+type SentMessage struct {
+	ProviderID string
+	Channel    string
+}
+
+// ErrRetryLater says the message wasn't sent but may be later: the provider is down,
+// busy, or out of credit.
+var ErrRetryLater = errors.New("retry later")
+
 type Messenger interface {
-	Send(ctx context.Context, m OutboundMessage) error
+	Send(ctx context.Context, m OutboundMessage) (SentMessage, error)
+}
+
+// HealthReporter is a messenger that can say how its provider account is.
+type HealthReporter interface {
+	Health() (MessengerHealth, bool)
+}
+
+// MessengerHealth is what an SMS provider last said about the account, for the alerts.
+type MessengerHealth struct {
+	Provider string
+	// Balance is the credit left in meticais, as of BalanceAt; -1 when not known yet.
+	Balance    float64
+	BalanceAt  time.Time
+	LowBalance float64
+	// AccountError is the last refusal that isn't about one message (no credit, a bad
+	// key), and when; cleared by the next message that goes through.
+	AccountError   string
+	AccountErrorAt time.Time
 }
 
 type Sheet interface {

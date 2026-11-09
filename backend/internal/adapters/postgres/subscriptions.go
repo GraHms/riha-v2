@@ -142,19 +142,24 @@ type chargeRecord struct {
 func (chargeRecord) TableName() string { return "subscription_charges" }
 
 type messageRecord struct {
-	ID         string `gorm:"primaryKey;size:40"`
-	MerchantID string `gorm:"size:40;index"`
-	Livemode   bool
-	MemberID   string    `gorm:"size:40;index"`
-	ChargeID   string    `gorm:"size:40"`
-	Channel    string    `gorm:"size:10"`
-	To         string    `gorm:"column:recipient;size:20"`
-	Sender     string    `gorm:"size:20"`
-	Kind       string    `gorm:"size:20"`
-	Body       string    `gorm:"size:1000"`
-	Status     string    `gorm:"size:10;index"`
-	Error      string    `gorm:"size:200"`
-	CreatedAt  time.Time `gorm:"index"`
+	ID            string `gorm:"primaryKey;size:40"`
+	MerchantID    string `gorm:"size:40;index"`
+	Livemode      bool
+	MemberID      string `gorm:"size:40;index"`
+	ChargeID      string `gorm:"size:40"`
+	Channel       string `gorm:"size:10"`
+	To            string `gorm:"column:recipient;size:20"`
+	Sender        string `gorm:"size:20"`
+	Kind          string `gorm:"size:20"`
+	Body          string `gorm:"size:1000"`
+	Status        string `gorm:"size:10;index"`
+	Error         string `gorm:"size:200"`
+	ProviderID    string `gorm:"size:100;index"`
+	Attempts      int
+	NextAttemptAt *time.Time
+	SentAt        *time.Time
+	DeliveredAt   *time.Time
+	CreatedAt     time.Time `gorm:"index"`
 }
 
 func (messageRecord) TableName() string { return "messages" }
@@ -454,8 +459,11 @@ func (r Messages) Save(ctx context.Context, m *domain.Message) error {
 func (r Messages) ByMember(ctx context.Context, memberID string, limit int) ([]domain.Message, error) {
 	return find[messageRecord, domain.Message](r.conn(ctx).Where("member_id = ?", memberID).Order("created_at DESC").Limit(limit))
 }
-func (r Messages) Queued(ctx context.Context, limit int) ([]domain.Message, error) {
-	return find[messageRecord, domain.Message](r.conn(ctx).Where("status = ?", "queued").Order("created_at").Limit(limit))
+func (r Messages) Queued(ctx context.Context, now time.Time, limit int) ([]domain.Message, error) {
+	return find[messageRecord, domain.Message](r.conn(ctx).Where("status = ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)", domain.MessageQueued, now).Order("created_at").Limit(limit))
+}
+func (r Messages) ByProviderID(ctx context.Context, providerID string) (*domain.Message, error) {
+	return first[messageRecord, domain.Message](r.conn(ctx).Where("provider_id = ?", providerID))
 }
 func (r Messages) Failed(ctx context.Context, merchantID string, live bool, since time.Time, limit int) ([]domain.Message, error) {
 	return find[messageRecord, domain.Message](r.conn(ctx).Where("merchant_id = ? AND livemode = ? AND status = ? AND created_at >= ?", merchantID, live, "failed", since).Order("created_at DESC").Limit(limit))

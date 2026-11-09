@@ -25,6 +25,9 @@ type Config struct {
 	// CatalogSubdomains gives each catalog its own subdomain. Only once the
 	// proxy in front answers for them.
 	CatalogSubdomains bool
+	// SMSWebhookToken is the secret in the address MozeSMS sends delivery reports
+	// to; without it, reports aren't taken.
+	SMSWebhookToken string
 }
 
 type Server struct {
@@ -50,6 +53,7 @@ func New(a *app.App, cfg Config) *gin.Engine {
 	r.MaxMultipartMemory = 8 << 20
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
 	r.Any("/callbacks/bim", srv.throttle(srv.limiter, "callback"), srv.railCallback)
+	r.POST("/callbacks/mozesms/:token", srv.throttle(srv.limiter, "callback"), srv.smsReport)
 	r.GET("/robots.txt", srv.robots)
 	r.GET("/sitemap.xml", srv.sitemap)
 	r.GET("/og/*rest", srv.throttle(srv.limiter, "og"), srv.ogImage)

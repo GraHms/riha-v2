@@ -465,7 +465,7 @@ func (srv *Server) resendMember(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	srv.A.SendQueued(ctx(c))
+	srv.A.SendSoon(ctx(c))
 	c.JSON(200, gin.H{"ok": true})
 }
 
@@ -505,7 +505,7 @@ func (srv *Server) paidOutside(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	srv.A.SendQueued(ctx(c))
+	srv.A.SendSoon(ctx(c))
 	c.JSON(200, gin.H{"marked": len(out)})
 }
 
@@ -557,7 +557,7 @@ func (srv *Server) subAction(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	srv.A.SendQueued(ctx(c))
+	srv.A.SendSoon(ctx(c))
 	c.JSON(200, out)
 }
 

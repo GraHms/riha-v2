@@ -102,6 +102,13 @@ Configuration (environment variables):
 | `RIHA_MPESA_VIA_MTOCA` | `false` | send M-Pesa through mtoca instead of the direct connection. It also needs `RIHA_MTOCA_ENABLED` |
 | `RIHA_MTOCA_TEST_ON` | `true` | test payments use mtoca's dev API. Set it to `false` to keep them simulated |
 | `RIHA_MTOCA_DEBUG` | `false` | log every mtoca response (phone numbers masked) |
+| `RIHA_MOZESMS_API_KEY`, `RIHA_MOZESMS_API_SECRET` | empty | MozeSMS credentials (my.mozesms.com, Gestão de APIs). Without them SMS are only written to the outbox |
+| `RIHA_MOZESMS_URL` | `https://api.mozesms.com` | MozeSMS's API |
+| `RIHA_MOZESMS_SENDER` | empty | sender id for SMS whose merchant's own isn't approved. Empty leaves MozeSMS's default |
+| `RIHA_MOZESMS_SENDERS` | empty | sender ids approved at MozeSMS, comma separated. A merchant's sender id is used only if it's in this list |
+| `RIHA_MOZESMS_WEBHOOK_TOKEN` | empty | secret in the delivery-report address, `https://<host>/callbacks/mozesms/<token>`. Without it reports are refused and messages stay at `sent` |
+| `RIHA_MOZESMS_LOW_BALANCE` | `100` | credit, in meticais, under which the admin alerts warn |
+| `RIHA_MOZESMS_ACCENTS` | `false` | keep letters such as ã and ç. Off, they become plain letters so an SMS holds 160 characters and costs one part, not two |
 
 
 
@@ -263,6 +270,16 @@ Background workers time out wallet prompts stuck for more than 3 minutes, expire
 - Subscriptions: team roles for marking payments, customer self-service pause or cancel, card tokenisation for prefilled cards, and the `/docs` page does not yet document the subscription endpoints.
 - The rate limiter and idempotency are per process and in the database; a multi-instance deployment needs a shared limiter.
 - The frontend uses loose `any` types for API payloads (lint warnings). Generating types from an OpenAPI spec would tighten this.
+
+## SMS (MozeSMS)
+
+Messages to customers (invites, reminders, payment links, receipts) are queued in `messages` and sent by `SendQueued`, every 2 seconds and straight after a merchant action. With `RIHA_MOZESMS_API_KEY` set, **live** SMS go through MozeSMS (`backend/internal/adapters/messaging/mozesms.go`). WhatsApp goes by SMS until a provider carries it. Test-mode messages and email stay in the outbox, so a test never texts a real number.
+
+A message is `queued`, then `sent` once MozeSMS takes it (its id is kept in `provider_id`), then `delivered` or `failed` from MozeSMS's delivery report. A refused number fails at once. No credit (402), a refused key (401/403), too many requests (429), a MozeSMS error (5xx) or no answer leave the message queued, tried again after 1 minute, 5, 15, 1 hour and 3 hours, then failed. A message whose answer was lost can be sent twice: that is better than not at all.
+
+Delivery reports come to `POST /callbacks/mozesms/<RIHA_MOZESMS_WEBHOOK_TOKEN>`. MozeSMS doesn't sign them, so the secret in the address is the check. Set that address in the MozeSMS account. A report never undoes a final state, so repeats change nothing.
+
+The admin alerts (and the email the watchdog sends) say when SMS stop going out for lack of credit or a refused key, and when the credit falls under `RIHA_MOZESMS_LOW_BALANCE`. Search the logs for `mozesms`.
 
 ## Payment rails (mtoca)
 

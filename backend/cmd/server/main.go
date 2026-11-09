@@ -54,6 +54,20 @@ func main() {
 	}
 	deps := Deps(store, cfg)
 	deps.Rail = payments.Rail
+	if cfg.MozeSMSKey != "" {
+		sms, err := messaging.NewMozeSMS(messaging.MozeSMSConfig{BaseURL: cfg.MozeSMSURL, APIKey: cfg.MozeSMSKey, APISecret: cfg.MozeSMSSecret,
+			Sender: cfg.MozeSMSSender, Senders: cfg.MozeSMSSenders, LowBalance: cfg.MozeSMSLowBalance, Accents: cfg.MozeSMSAccents})
+		if err != nil {
+			log.Fatalf("sms: %v", err)
+		}
+		deps.Messenger = messaging.Router{SMS: sms, Outbox: deps.Messenger}
+		log.Printf("sms: live SMS go through MozeSMS (sender %q); test-mode messages stay in the outbox", domain.FirstNonEmpty(cfg.MozeSMSSender, "MozeSMS default"))
+		if cfg.MozeSMSWebhookToken == "" {
+			log.Printf("sms: RIHA_MOZESMS_WEBHOOK_TOKEN is not set, so delivery reports are refused and messages stay at sent")
+		}
+	} else if cfg.Env == "production" {
+		log.Printf("sms: RIHA_MOZESMS_API_KEY is not set, so SMS are not sent, only written to the outbox")
+	}
 	deps.Trail = trail
 	deps.Insights = postgres.Insights{Store: store}
 	a := app.New(deps, cfg.PublicURL)
@@ -81,7 +95,7 @@ func main() {
 	}
 	a.RunWorkers(ctx)
 
-	srv := &http.Server{Addr: cfg.Addr, Handler: httpapi.New(a, httpapi.Config{StaticDir: cfg.StaticDir, CookieSecure: cfg.CookieSecure, TrustedProxies: cfg.TrustedProxies, CatalogSubdomains: cfg.CatalogSubdomains}),
+	srv := &http.Server{Addr: cfg.Addr, Handler: httpapi.New(a, httpapi.Config{StaticDir: cfg.StaticDir, CookieSecure: cfg.CookieSecure, TrustedProxies: cfg.TrustedProxies, CatalogSubdomains: cfg.CatalogSubdomains, SMSWebhookToken: cfg.MozeSMSWebhookToken}),
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
 	go func() {
 		log.Printf("RIHA API listening on %s (checkout at %s)", cfg.Addr, cfg.PublicURL)

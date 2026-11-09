@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	"riha/internal/core/domain"
@@ -70,6 +71,9 @@ type App struct {
 	// NoLiveRefunds: a live refund must send the money back, and no rail can yet.
 	NoLiveRefunds bool
 	Now           func() time.Time
+	// sending is held while queued messages go out, so two senders never send the
+	// same message twice.
+	sending sync.Mutex
 }
 
 func New(d Deps, publicURL string) *App {

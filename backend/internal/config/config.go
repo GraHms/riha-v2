@@ -51,6 +51,16 @@ type Config struct {
 	MtocaDebug           bool
 	MpesaViaMtoca        bool
 	MtocaTestOn          bool
+	// MozeSMS sends live SMS when its key and secret are set; without them, SMS stay
+	// in the outbox.
+	MozeSMSURL          string
+	MozeSMSKey          string
+	MozeSMSSecret       string
+	MozeSMSSender       string
+	MozeSMSSenders      []string
+	MozeSMSLowBalance   float64
+	MozeSMSAccents      bool
+	MozeSMSWebhookToken string
 }
 
 func env(k, def string) string {
@@ -125,6 +135,14 @@ func Load() Config {
 		MtocaDebug:           flag("RIHA_MTOCA_DEBUG", false),
 		MpesaViaMtoca:        flag("RIHA_MPESA_VIA_MTOCA", false),
 		MtocaTestOn:          flag("RIHA_MTOCA_TEST_ON", true),
+		MozeSMSURL:           env("RIHA_MOZESMS_URL", "https://api.mozesms.com"),
+		MozeSMSKey:           env("RIHA_MOZESMS_API_KEY", ""),
+		MozeSMSSecret:        env("RIHA_MOZESMS_API_SECRET", ""),
+		MozeSMSSender:        env("RIHA_MOZESMS_SENDER", ""),
+		MozeSMSSenders:       list(env("RIHA_MOZESMS_SENDERS", "")),
+		MozeSMSLowBalance:    number(env("RIHA_MOZESMS_LOW_BALANCE", "100")),
+		MozeSMSAccents:       flag("RIHA_MOZESMS_ACCENTS", false),
+		MozeSMSWebhookToken:  env("RIHA_MOZESMS_WEBHOOK_TOKEN", ""),
 	}
 }
 
@@ -147,4 +165,19 @@ func pairs(s string) map[string]string {
 		}
 	}
 	return out
+}
+
+func list(v string) []string {
+	var out []string
+	for _, p := range strings.Split(v, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func number(v string) float64 {
+	f, _ := strconv.ParseFloat(strings.TrimSpace(v), 64)
+	return f
 }
