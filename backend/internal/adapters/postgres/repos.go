@@ -75,6 +75,9 @@ func (r Merchants) Save(ctx context.Context, m *domain.Merchant) error {
 func (r Merchants) SetFee(ctx context.Context, id string, bps *int) error {
 	return r.conn(ctx).Model(&merchantRecord{}).Where("id = ?", id).Update("fee_bps", bps).Error
 }
+func (r Merchants) SetBeta(ctx context.Context, id string, beta bool) error {
+	return r.conn(ctx).Model(&merchantRecord{}).Where("id = ?", id).Update("beta", beta).Error
+}
 func (r Merchants) filter(ctx context.Context, f ports.MerchantFilter) *gormDB {
 	q := r.conn(ctx).Model(&merchantRecord{})
 	if len(f.Statuses) > 0 {

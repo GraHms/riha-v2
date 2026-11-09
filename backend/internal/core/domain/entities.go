@@ -56,17 +56,19 @@ type Merchant struct {
 	AvatarColor         string
 	Status              string
 	FeeBps              *int
-	SuccessURL          string
-	CancelURL           string
-	SigningSecretTest   string
-	SigningSecretLive   string
-	SMSNotifications    bool
-	EmailNotifications  bool
-	KycSubmittedAt      *time.Time
-	ApprovedAt          *time.Time
-	ReviewNote          string
-	ReviewedBy          string
-	CreatedAt           time.Time
+	// Beta accounts may charge from 1 MT, plans included, to test with real money.
+	Beta               bool
+	SuccessURL         string
+	CancelURL          string
+	SigningSecretTest  string
+	SigningSecretLive  string
+	SMSNotifications   bool
+	EmailNotifications bool
+	KycSubmittedAt     *time.Time
+	ApprovedAt         *time.Time
+	ReviewNote         string
+	ReviewedBy         string
+	CreatedAt          time.Time
 }
 
 func (m *Merchant) SigningSecret(live bool) string {
@@ -150,9 +152,10 @@ type PaymentLink struct {
 	CreatedAt time.Time
 }
 
-// CustomRange is the lowest and highest amount a customer may choose.
-func (l *PaymentLink) CustomRange() (int64, int64) {
-	lo, hi := int64(MinAmount), int64(MaxAmount)
+// CustomRange is the lowest and highest amount a customer may choose; min is the
+// merchant's least (MinAmountFor) when the link sets none.
+func (l *PaymentLink) CustomRange(min int64) (int64, int64) {
+	lo, hi := min, int64(MaxAmount)
 	if l.MinCustom > 0 {
 		lo = l.MinCustom
 	}

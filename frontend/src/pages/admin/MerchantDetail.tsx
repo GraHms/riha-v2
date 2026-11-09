@@ -31,6 +31,11 @@ export default function MerchantDetail() {
     try { const r = await g.admin.setFee(id!, reset ? null : bps); setData(r); toast(reset ? 'Taxa reposta para o valor por omissão' : `Taxa negociada: ${bpsLabel(bps)}`) }
     catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
   }
+  const saveBeta = async (beta: boolean) => {
+    setBusy(true)
+    try { const r = await g.admin.setBeta(id!, beta); setData(r); toast(beta ? 'No programa beta: valores a partir de 1 MT' : 'Fora do programa beta') }
+    catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
+  }
   const saveDefault = async () => {
     try { await g.admin.saveSettings(toBps(def)); toast('Taxa por omissão atualizada'); settings.reload(); reload() } catch (e) { toast(errMsg(e), true) }
   }
@@ -67,6 +72,17 @@ export default function MerchantDetail() {
               {m.fee_negotiated && <button className="btn btn-outline" onClick={() => saveFee(true)} disabled={busy}>Repor {bpsLabel(m.default_fee_bps)}</button>}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 10 }}>Exemplo: num pagamento de 1 250,00 MT a taxa é {fmt(Math.round(125000 * (toBps(fee) || 0) / 10000))} MT.</div>
+          </div>
+          <div className="card" style={{ padding: 22 }}>
+            <div className="between" style={{ gap: 12, alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 16 }}>Programa beta</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>
+                  {m.beta ? 'Pode cobrar a partir de 1 MT, também nos planos de assinatura, para testar com dinheiro real.' : 'Mínimos normais: 10 MT por pagamento e 500 MT por plano de assinatura. No beta, tudo a partir de 1 MT, para testes.'}
+                </div>
+              </div>
+              <button className={'btn ' + (m.beta ? 'btn-outline' : 'btn-green')} style={{ flex: 'none' }} onClick={() => saveBeta(!m.beta)} disabled={busy}>{m.beta ? 'Tirar do beta' : 'Pôr no beta'}</button>
+            </div>
           </div>
           <div className="card" style={{ padding: 22 }}>
             <div style={{ fontWeight: 600, fontSize: 16 }}>Ficha</div>

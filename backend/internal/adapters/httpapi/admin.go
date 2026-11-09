@@ -128,23 +128,32 @@ func (srv *Server) adminMerchant(c *gin.Context) {
 
 func (srv *Server) adminUpdateMerchant(c *gin.Context) {
 	var in struct {
-		FeeBps   *int `json:"fee_bps"`
-		ResetFee bool `json:"reset_fee"`
+		FeeBps   *int  `json:"fee_bps"`
+		ResetFee bool  `json:"reset_fee"`
+		Beta     *bool `json:"beta"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		bad(c, "Pedido inválido.")
 		return
 	}
-	if !in.ResetFee && in.FeeBps == nil {
+	if !in.ResetFee && in.FeeBps == nil && in.Beta == nil {
 		bad(c, "Nada para alterar.")
 		return
 	}
-	if in.ResetFee {
-		in.FeeBps = nil
+	if in.Beta != nil {
+		if err := srv.A.SetMerchantBeta(ctx(c), c.Param("id"), *in.Beta, actor(c)); err != nil {
+			fail(c, err)
+			return
+		}
 	}
-	if err := srv.A.SetMerchantFee(ctx(c), c.Param("id"), in.FeeBps, actor(c)); err != nil {
-		fail(c, err)
-		return
+	if in.ResetFee || in.FeeBps != nil {
+		if in.ResetFee {
+			in.FeeBps = nil
+		}
+		if err := srv.A.SetMerchantFee(ctx(c), c.Param("id"), in.FeeBps, actor(c)); err != nil {
+			fail(c, err)
+			return
+		}
 	}
 	srv.adminMerchant(c)
 }

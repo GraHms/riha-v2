@@ -11,7 +11,29 @@ import (
 const (
 	MinAmount = 1000
 	MaxAmount = 100_000_000
+	// PlanMinAmount is the least a subscription plan may charge: below it, the SMS a
+	// member gets each period cost more than RIHA earns on the payment.
+	PlanMinAmount = 50_000
+	// BetaMinAmount is the least a beta account may charge anywhere, to test with
+	// real money at almost no cost.
+	BetaMinAmount = 100
 )
+
+// MinAmountFor is the least a merchant may charge in one payment.
+func MinAmountFor(m *Merchant) int64 {
+	if m != nil && m.Beta {
+		return BetaMinAmount
+	}
+	return MinAmount
+}
+
+// PlanMinFor is the least a merchant's subscription plan may charge.
+func PlanMinFor(m *Merchant) int64 {
+	if m != nil && m.Beta {
+		return BetaMinAmount
+	}
+	return PlanMinAmount
+}
 
 func RequireApproved(m *Merchant) *Error {
 	switch m.Status {

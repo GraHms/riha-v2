@@ -81,7 +81,7 @@ func (a *App) CreatePlan(ctx context.Context, m *domain.Merchant, live bool, in 
 	if in.Draft {
 		p.Status = domain.PlanDraft
 	}
-	if err := p.Validate(); err != nil {
+	if err := p.Validate(domain.PlanMinFor(m)); err != nil {
 		return nil, err
 	}
 	if p.EndsAt != nil && !p.EndsAt.After(now) {
@@ -154,7 +154,7 @@ func (a *App) UpdatePlan(ctx context.Context, m *domain.Merchant, live bool, id 
 	if p.Status == domain.PlanDraft && !in.Draft {
 		q.Status, q.InCatalog = domain.PlanActive, true
 	}
-	if err := q.Validate(); err != nil {
+	if err := q.Validate(domain.PlanMinFor(m)); err != nil {
 		return nil, err
 	}
 	q.UpdatedAt = a.Now()
@@ -203,8 +203,8 @@ func (a *App) ChangePrice(ctx context.Context, m *domain.Merchant, live bool, pl
 	if e := domain.RequireApproved(m); e != nil {
 		return nil, e
 	}
-	if amount < domain.MinAmount || amount > domain.MaxAmount {
-		return nil, domain.Invalid("amount_invalid", "amount", "Valor inválido.")
+	if err := domain.PlanAmountOK(amount, domain.PlanMinFor(m)); err != nil {
+		return nil, err
 	}
 	if scope != PriceScopeNew && scope != PriceScopeAll && scope != PriceScopeSelected {
 		return nil, domain.Invalid("parameter_invalid", "scope", "Escolha quem passa a pagar o novo valor.")

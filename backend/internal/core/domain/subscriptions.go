@@ -370,13 +370,14 @@ func QuietHours(now time.Time) bool {
 
 func (p *Plan) MonthOn(m time.Month) bool { return p.Months&(1<<(int(m)-1)) != 0 }
 
-func (p *Plan) Validate() error {
+// Validate checks the plan; min is the least it may charge (PlanMinFor).
+func (p *Plan) Validate(min int64) error {
 	p.Name = Trim(strings.TrimSpace(p.Name), 120)
 	if len([]rune(p.Name)) < 2 {
 		return Invalid("parameter_missing", "name", "Indique o nome do plano.")
 	}
-	if p.Amount < MinAmount || p.Amount > MaxAmount {
-		return Invalid("amount_invalid", "amount", fmt.Sprintf("O valor tem de estar entre %s e %s MT.", Format(MinAmount), Format(MaxAmount)))
+	if err := PlanAmountOK(p.Amount, min); err != nil {
+		return err
 	}
 	switch p.Interval {
 	case IntervalWeek, IntervalMonth, IntervalQuarter, IntervalYear:
@@ -807,6 +808,17 @@ func (s *SubscriptionSettings) ValidateCatalog() error {
 		if s.CatalogSlug, err = CleanCatalogSlug(s.CatalogSlug); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// PlanAmountOK says whether a plan may charge amount, given the merchant's minimum.
+func PlanAmountOK(amount, min int64) *Error {
+	if amount < min {
+		return Invalid("amount_too_small", "amount", fmt.Sprintf("Um plano tem de cobrar pelo menos %s MT.", FormatShort(min)))
+	}
+	if amount > MaxAmount {
+		return Invalid("amount_too_large", "amount", fmt.Sprintf("O valor máximo é %s MT.", FormatShort(MaxAmount)))
 	}
 	return nil
 }

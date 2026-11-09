@@ -61,6 +61,7 @@ type Merchants interface {
 	SlugTaken(ctx context.Context, slug string) (bool, error)
 	Save(ctx context.Context, m *domain.Merchant) error
 	SetFee(ctx context.Context, id string, bps *int) error
+	SetBeta(ctx context.Context, id string, beta bool) error
 	List(ctx context.Context, f MerchantFilter) ([]domain.Merchant, error)
 	Count(ctx context.Context, statuses []string) (int64, error)
 }

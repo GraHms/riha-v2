@@ -300,3 +300,42 @@ func TestMemberPageAndCancel(t *testing.T) {
 		t.Fatalf("second cancel %d", code)
 	}
 }
+
+func TestPlanMinimumAndBetaProgram(t *testing.T) {
+	a, ctx := setup(t)
+	m := approved(t, a, ctx, "Loja Beta", "loja@beta.co.mz")
+	plan := func(amount int64) (*domain.Plan, error) {
+		return a.CreatePlan(ctx, m, true, app.PlanInput{Name: "Teste", Amount: amount, Interval: domain.IntervalWeek, Anchor: domain.AnchorFixed,
+			BillingDay: 1, Months: domain.AllMonths, Missed: domain.MissedDebt}, app.Actor{ID: "owner"})
+	}
+	if _, err := plan(40_000); err == nil || !strings.Contains(err.Error(), "pelo menos 500 MT") {
+		t.Fatalf("a 400 MT plan: %v", err)
+	}
+	if _, err := plan(50_000); err != nil {
+		t.Fatalf("a 500 MT plan: %v", err)
+	}
+	one, name := int64(100), "Teste 1 MT"
+	if _, err := a.CreateLink(ctx, m, true, app.LinkParams{Name: &name, Amount: &one}, "owner", "dashboard"); err == nil {
+		t.Fatal("a 1 MT link outside the beta")
+	}
+
+	if err := a.SetMerchantBeta(ctx, m.ID, true, app.Actor{ID: "admin", Role: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	m, _ = a.Merchants.ByID(ctx, m.ID)
+	p, err := plan(100)
+	if err != nil {
+		t.Fatalf("a 1 MT plan in the beta: %v", err)
+	}
+	if _, err := a.CreateLink(ctx, m, true, app.LinkParams{Name: &name, Amount: &one}, "owner", "dashboard"); err != nil {
+		t.Fatalf("a 1 MT link in the beta: %v", err)
+	}
+	// The plan's 1 MT invoice gets through the checkout too.
+	tok, err := a.Subscribe(ctx, m.Slug, app.SubscribeInput{MemberInput: app.MemberInput{PlanIDs: []string{p.ID}, Phone: "841112233", Name: "Ismael"}, Accept: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pay, err := a.PayInvoice(ctx, tok, app.InvoicePay{Method: "mpesa", UseLast: true}); err != nil || pay.Amount != 100 {
+		t.Fatalf("paying 1 MT: %+v %v", pay, err)
+	}
+}

@@ -8,6 +8,7 @@ export type Merchant = {
   id: string; slug: string; name: string; legal_name: string; business_type: string; nuit: string; phone: string; email: string
   city: string; owner_name: string; status: string; fee_bps: number; fee_negotiated: boolean; fee_label: string
   statement_descriptor: string; avatar_color: string; success_url: string; cancel_url: string; sms_notifications: boolean; email_notifications: boolean; coming_soon: string[]; live_refunds: boolean
+  beta?: boolean; min_amount?: number; plan_min_amount?: number
   approved_at: string | null; kyc_submitted_at: string | null; review_note: string; expected_volume: string; created_at: string
 }
 

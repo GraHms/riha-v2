@@ -82,6 +82,7 @@ export interface AdminPort {
   merchants(status: string, q: string): Promise<Json>
   merchant(id: string): Promise<Json>
   setFee(id: string, bps: number | null): Promise<Json>
+  setBeta(id: string, beta: boolean): Promise<Json>
   documentUrl(id: string): string
   payouts(tab: string): Promise<Json>
   payoutAction(ids: string[], action: string, reason?: string): Promise<Json>

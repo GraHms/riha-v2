@@ -103,7 +103,8 @@ export function PlanForm() {
   const { id } = useParams()
   const g = useGateway()
   const nav = useNavigate()
-  const { toast } = useSession()
+  const { toast, me } = useSession()
+  const planMin = me?.merchant?.plan_min_amount ?? 50000
   const shell = useShell()
   const sx = useSubs()
   const [f, setF] = useState<Form>(EMPTY)
@@ -202,7 +203,8 @@ export function PlanForm() {
           <div className="pf-row">
             <label><span className="label">Nome do plano</span><input className={'input' + (err?.param === 'name' ? ' err' : '')} value={f.name} onChange={e => set({ name: e.target.value })} placeholder="Propina · 1ª a 4ª classe" maxLength={120} /></label>
             <label><span className="label">Valor</span><div className={'phone-input' + (err?.param === 'amount' ? ' err' : '')}><input inputMode="decimal" value={id ? money(plan.amount) : f.amount} disabled={!!id} onChange={e => set({ amount: e.target.value })} placeholder="2 500,00" style={{ textAlign: 'right' }} /><span className="cc" style={{ borderLeft: '1px solid #E1DFD7', borderRight: 0 }}>MT</span></div>
-              {id && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 5 }}>Para mudar o valor use <b>Mudar valor</b> no plano.</div>}</label>
+              {id ? <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 5 }}>Para mudar o valor use <b>Mudar valor</b> no plano.</div>
+                : <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 5 }}>Mínimo {money(planMin)} MT{me?.merchant?.beta ? ' (programa beta)' : ''}.</div>}</label>
           </div>
           <span className="label" style={{ marginTop: 16, display: 'block' }}>Frequência</span>
           <div className="seg" style={{ display: 'flex' }}>

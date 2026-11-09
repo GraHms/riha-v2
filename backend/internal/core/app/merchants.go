@@ -278,6 +278,27 @@ func (a *App) SetMerchantFee(ctx context.Context, merchantID string, bps *int, a
 	return nil
 }
 
+// SetMerchantBeta puts a merchant in or out of the beta program, where payments and
+// subscription plans may be as small as 1 MT, for testing with real money.
+func (a *App) SetMerchantBeta(ctx context.Context, merchantID string, beta bool, actor Actor) error {
+	m, err := a.Merchants.ByID(ctx, merchantID)
+	if err != nil {
+		return notFound(err, "O comerciante")
+	}
+	if m.Beta == beta {
+		return nil
+	}
+	if err := a.Merchants.SetBeta(ctx, merchantID, beta); err != nil {
+		return err
+	}
+	what := "saiu do programa beta"
+	if beta {
+		what = "entrou no programa beta (valores a partir de 1 MT)"
+	}
+	a.Record(ctx, m.ID, actor, "beta.changed", m.ID, what)
+	return nil
+}
+
 func (a *App) DocumentContent(ctx context.Context, d *domain.Document) ([]byte, error) {
 	data, err := a.Files.Read(ctx, d.StoredPath)
 	if err != nil {

@@ -91,8 +91,8 @@ func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, 
 	if strings.ToUpper(p.Currency) != "MZN" {
 		return nil, domain.Invalid("currency_unsupported", "currency", "Só aceitamos MZN.")
 	}
-	if p.Amount < domain.MinAmount {
-		return nil, domain.Invalid("amount_too_small", "amount", "O valor mínimo é 1000 centavos (10,00 MT).")
+	if min := domain.MinAmountFor(m); p.Amount < min {
+		return nil, domain.Invalid("amount_too_small", "amount", fmt.Sprintf("O valor mínimo é %d centavos (%s MT).", min, domain.FormatShort(min)))
 	}
 	if p.Amount > domain.MaxAmount {
 		return nil, domain.Invalid("amount_too_large", "amount", "O valor máximo por pagamento é 1 000 000,00 MT.")
@@ -208,7 +208,7 @@ func (a *App) CreateLinkSession(ctx context.Context, link *domain.PaymentLink, a
 	}
 	if !link.CustomAmount {
 		amount = link.Amount
-	} else if lo, hi := link.CustomRange(); amount < lo || amount > hi {
+	} else if lo, hi := link.CustomRange(domain.MinAmountFor(m)); amount < lo || amount > hi {
 		if amount < lo {
 			return nil, domain.Invalid("amount_too_small", "amount", fmt.Sprintf("O valor mínimo é %s MT.", domain.FormatShort(lo)))
 		}

@@ -45,6 +45,7 @@ type merchantRecord struct {
 	AvatarColor         string `gorm:"size:12"`
 	Status              string `gorm:"size:20;index;not null"`
 	FeeBps              *int
+	Beta                bool
 	SuccessURL          string `gorm:"size:500"`
 	CancelURL           string `gorm:"size:500"`
 	SigningSecretTest   string `gorm:"size:80"`

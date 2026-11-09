@@ -35,7 +35,7 @@ type LinkParams struct {
 
 // applyExtras sets what a customer reads before and after paying, and the
 // range of a chosen amount. Only what the request carries changes.
-func (a *App) applyExtras(l *domain.PaymentLink, p LinkParams) error {
+func (a *App) applyExtras(l *domain.PaymentLink, p LinkParams, min int64) error {
 	if p.Details != nil {
 		l.Details = domain.Trim(strings.TrimSpace(*p.Details), 500)
 	}
@@ -75,11 +75,11 @@ func (a *App) applyExtras(l *domain.PaymentLink, p LinkParams) error {
 		n     int64
 		field string
 	}{{l.MinCustom, "min_amount"}, {l.MaxCustom, "max_amount"}, {l.SuggestedAmount, "suggested_amount"}} {
-		if v.n < 0 || (v.n > 0 && (v.n < domain.MinAmount || v.n > domain.MaxAmount)) {
-			return domain.Invalid("amount_invalid", v.field, fmt.Sprintf("Os valores têm de estar entre %s e %s MT.", domain.FormatShort(domain.MinAmount), domain.FormatShort(domain.MaxAmount)))
+		if v.n < 0 || (v.n > 0 && (v.n < min || v.n > domain.MaxAmount)) {
+			return domain.Invalid("amount_invalid", v.field, fmt.Sprintf("Os valores têm de estar entre %s e %s MT.", domain.FormatShort(min), domain.FormatShort(domain.MaxAmount)))
 		}
 	}
-	lo, hi := l.CustomRange()
+	lo, hi := l.CustomRange(min)
 	if lo >= hi {
 		return domain.Invalid("amount_invalid", "max_amount", "O valor máximo tem de ser maior do que o mínimo.")
 	}
@@ -118,8 +118,8 @@ func (a *App) CreateLink(ctx context.Context, m *domain.Merchant, live bool, p L
 	custom := p.CustomAmount != nil && *p.CustomAmount
 	var amount int64
 	if !custom {
-		if p.Amount == nil || *p.Amount < domain.MinAmount {
-			return nil, domain.Invalid("amount_too_small", "amount", "O valor mínimo é 10,00 MT.")
+		if p.Amount == nil || *p.Amount < domain.MinAmountFor(m) {
+			return nil, domain.Invalid("amount_too_small", "amount", "O valor mínimo é "+domain.FormatShort(domain.MinAmountFor(m))+" MT.")
 		}
 		if *p.Amount > domain.MaxAmount {
 			return nil, domain.Invalid("amount_too_large", "amount", "O valor máximo é 1 000 000,00 MT.")
@@ -142,7 +142,7 @@ func (a *App) CreateLink(ctx context.Context, m *domain.Merchant, live bool, p L
 	l := &domain.PaymentLink{ID: domain.NewID("plink"), MerchantID: m.ID, Livemode: live, Name: domain.Trim(name, 200), Slug: a.uniqueLinkSlug(ctx, m.ID, base),
 		Amount: amount, CustomAmount: custom, Reusable: p.Reusable == nil || *p.Reusable, Methods: methods, Active: true,
 		Kind: kind, CreatedBy: actor, CreatedVia: via, Location: p.Location, CreatedAt: now}
-	if err := a.applyExtras(l, p); err != nil {
+	if err := a.applyExtras(l, p, domain.MinAmountFor(m)); err != nil {
 		return nil, err
 	}
 	if p.ExpiresAt != nil && *p.ExpiresAt > 0 {
@@ -193,7 +193,7 @@ func (a *App) UpdateLink(ctx context.Context, m *domain.Merchant, live bool, id 
 		}
 	}
 	if p.Amount != nil && !l.CustomAmount {
-		if *p.Amount < domain.MinAmount || *p.Amount > domain.MaxAmount {
+		if *p.Amount < domain.MinAmountFor(m) || *p.Amount > domain.MaxAmount {
 			return nil, domain.Invalid("amount_invalid", "amount", "Valor fora dos limites.")
 		}
 		l.Amount = *p.Amount
@@ -206,7 +206,7 @@ func (a *App) UpdateLink(ctx context.Context, m *domain.Merchant, live bool, id 
 			l.ExpiresAt = &t
 		}
 	}
-	if err := a.applyExtras(l, p); err != nil {
+	if err := a.applyExtras(l, p, domain.MinAmountFor(m)); err != nil {
 		return nil, err
 	}
 	return l, a.Links.Save(ctx, l)

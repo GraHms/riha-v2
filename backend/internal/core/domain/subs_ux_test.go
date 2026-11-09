@@ -89,7 +89,7 @@ func TestCatalogSlug(t *testing.T) {
 func TestHighlightsAndLimitsValidate(t *testing.T) {
 	p := &Plan{Name: "Curso", Amount: 100000, Interval: IntervalMonth, Anchor: AnchorFixed, BillingDay: 5, Months: AllMonths, Missed: MissedDebt,
 		Highlights: []string{"  Material  incluído ", "", "Material incluído", "Lanche"}}
-	if err := p.Validate(); err != nil {
+	if err := p.Validate(PlanMinAmount); err != nil {
 		t.Fatal(err)
 	}
 	if len(p.Highlights) != 2 || p.Highlights[0] != "Material incluído" {
@@ -97,7 +97,7 @@ func TestHighlightsAndLimitsValidate(t *testing.T) {
 	}
 	end := at("2027-01-01")
 	p.Cycles, p.EndsAt = 3, &end
-	if err := p.Validate(); err == nil {
+	if err := p.Validate(PlanMinAmount); err == nil {
 		t.Fatal("both a number of payments and an end date")
 	}
 }
@@ -110,5 +110,27 @@ func TestSubmitTypeKeepsOldRequestsWorking(t *testing.T) {
 	}
 	if _, err := CleanSubmitType("comprar"); err == nil {
 		t.Error("comprar is not a button word")
+	}
+}
+
+func TestPlanMinimumAndBeta(t *testing.T) {
+	p := &Plan{Name: "Ginásio", Amount: 49_900, Interval: IntervalMonth, Anchor: AnchorFixed, BillingDay: 5, Months: AllMonths, Missed: MissedDebt}
+	regular, beta := &Merchant{}, &Merchant{Beta: true}
+	if err := p.Validate(PlanMinFor(regular)); err == nil || err.Error() != "Um plano tem de cobrar pelo menos 500 MT." {
+		t.Fatalf("499 MT plan: %v", err)
+	}
+	p.Amount = 50_000
+	if err := p.Validate(PlanMinFor(regular)); err != nil {
+		t.Fatalf("500 MT plan: %v", err)
+	}
+	p.Amount = 100
+	if err := p.Validate(PlanMinFor(beta)); err != nil {
+		t.Fatalf("1 MT plan on a beta account: %v", err)
+	}
+	if p.Amount = 99; p.Validate(PlanMinFor(beta)) == nil {
+		t.Fatal("below 1 MT even on beta")
+	}
+	if MinAmountFor(regular) != 1000 || MinAmountFor(beta) != 100 || MinAmountFor(nil) != 1000 {
+		t.Fatal("payment minimums")
 	}
 }

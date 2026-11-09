@@ -130,6 +130,7 @@ export function httpGateway(t = new Transport()): Gateway {
       merchants: (status, q) => get('/admin/merchants?' + qs({ status, q })),
       merchant: id => get('/admin/merchants/' + encodeURIComponent(id)),
       setFee: (id, bps) => send('PATCH', '/admin/merchants/' + encodeURIComponent(id), bps === null ? { reset_fee: true } : { fee_bps: bps }),
+      setBeta: (id, beta) => send('PATCH', '/admin/merchants/' + encodeURIComponent(id), { beta }),
       documentUrl: id => t.url('/admin/documents/' + encodeURIComponent(id)),
       payouts: tab => get('/admin/payouts?' + qs({ tab })),
       payoutAction: (ids, action, reason = '') => post('/admin/payouts/action', { ids, action, reason }),
