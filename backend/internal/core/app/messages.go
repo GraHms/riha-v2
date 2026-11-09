@@ -95,6 +95,35 @@ func (a *App) MessageReport(ctx context.Context, providerID, status, why string,
 	return a.Messages.Save(ctx, msg)
 }
 
+// CheckMessage asks the SMS provider what became of a message, when a delivery
+// report says something happened to it. The report itself decides nothing: anyone
+// can post one, so only the provider's answer, asked with RIHA's key, counts.
+func (a *App) CheckMessage(ctx context.Context, providerID string, reportedAt time.Time) error {
+	if providerID == "" {
+		return nil
+	}
+	msg, err := a.Messages.ByProviderID(ctx, providerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			log.Printf("messages: report for unknown message %.40s", providerID)
+			return nil
+		}
+		return err
+	}
+	if msg.Status != domain.MessageSent {
+		return nil
+	}
+	c, ok := a.Messenger.(ports.MessageStatusChecker)
+	if !ok {
+		return nil
+	}
+	status, why, err := c.MessageStatus(ctx, providerID)
+	if err != nil {
+		return err
+	}
+	return a.MessageReport(ctx, providerID, status, why, reportedAt)
+}
+
 // smsAlerts are the SMS provider's account problems: no credit, a refused key, or
 // credit running low.
 func (a *App) smsAlerts() []Alert {

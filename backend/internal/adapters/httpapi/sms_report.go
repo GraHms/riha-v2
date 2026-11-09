@@ -1,10 +1,16 @@
 package httpapi
 
 import (
-	"crypto/subtle"
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,31 +19,61 @@ import (
 	"riha/internal/core/domain"
 )
 
-// smsReport takes MozeSMS's delivery reports. MozeSMS doesn't sign them, so the
-// address carries a secret only RIHA and MozeSMS know.
+// smsReport takes MozeSMS's delivery reports. MozeSMS doesn't document how it signs
+// them, so a report decides nothing: RIHA asks MozeSMS, with its own key, what
+// became of the message, and that answer counts. A forged report costs one lookup
+// of a message RIHA sent, and changes nothing.
 func (srv *Server) smsReport(c *gin.Context) {
-	want := srv.cfg.SMSWebhookToken
-	if want == "" || subtle.ConstantTimeCompare([]byte(c.Param("token")), []byte(want)) != 1 {
-		c.JSON(404, gin.H{"error": gin.H{"code": "route_not_found", "message": "Rota desconhecida."}})
-		return
-	}
 	raw, _ := io.ReadAll(io.LimitReader(c.Request.Body, 64<<10))
+	srv.logSMSReport(c, raw)
 	var r messaging.MozeSMSReport
 	if err := json.Unmarshal(raw, &r); err != nil || r.Data.MessageID == "" {
-		log.Printf("mozesms report: not understood (%d bytes)", len(raw))
 		c.JSON(200, gin.H{"ok": true})
 		return
 	}
-	status, why := r.Outcome()
 	// MozeSMS gives report times in Maputo time, without a zone.
 	var at time.Time
 	if t, err := time.ParseInLocation("2006-01-02 15:04:05", r.Data.DeliveryTime, domain.Maputo); err == nil {
 		at = t.UTC()
 	}
-	if err := srv.A.MessageReport(ctx(c), r.Data.MessageID, status, why, at); err != nil {
+	check, cancel := context.WithTimeout(ctx(c), 8*time.Second)
+	defer cancel()
+	if err := srv.A.CheckMessage(check, r.Data.MessageID, at); err != nil {
 		log.Printf("mozesms report: %v", err)
-		c.JSON(500, gin.H{"ok": false})
-		return
 	}
 	c.JSON(200, gin.H{"ok": true})
+}
+
+// logSMSReport logs what a report looked like, without values that could be
+// secrets: the names of its headers, its event, and whether any header holds an
+// HMAC-SHA256 of the body made with the webhook secret. That is how to find out
+// MozeSMS's signature, and then require it.
+func (srv *Server) logSMSReport(c *gin.Context, raw []byte) {
+	names := make([]string, 0, len(c.Request.Header))
+	for k := range c.Request.Header {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	var ev struct {
+		Event string `json:"event"`
+	}
+	_ = json.Unmarshal(raw, &ev)
+	signed := "no secret set"
+	if secret := srv.cfg.SMSWebhookSecret; secret != "" {
+		signed = "no header matches"
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(raw)
+		sum := mac.Sum(nil)
+		for _, k := range names {
+			v := strings.TrimSpace(c.Request.Header.Get(k))
+			v = strings.TrimPrefix(strings.TrimPrefix(v, "sha256="), "sha256:")
+			if hmac.Equal([]byte(strings.ToLower(v)), []byte(hex.EncodeToString(sum))) || v == base64.StdEncoding.EncodeToString(sum) {
+				signed = "HMAC-SHA256 of the body in " + k
+			}
+			if v == secret {
+				signed = "the secret itself in " + k
+			}
+		}
+	}
+	log.Printf("mozesms report: %s from %s, %d bytes, headers=%v, signature: %s", domain.FirstNonEmpty(ev.Event, "?"), c.ClientIP(), len(raw), names, signed)
 }

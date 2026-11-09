@@ -29,3 +29,10 @@ func (r Router) Health() (ports.MessengerHealth, bool) {
 	}
 	return ports.MessengerHealth{}, false
 }
+
+func (r Router) MessageStatus(ctx context.Context, providerID string) (string, string, error) {
+	if c, ok := r.SMS.(ports.MessageStatusChecker); ok {
+		return c.MessageStatus(ctx, providerID)
+	}
+	return "", "", nil
+}

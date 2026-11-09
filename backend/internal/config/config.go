@@ -53,14 +53,14 @@ type Config struct {
 	MtocaTestOn          bool
 	// MozeSMS sends live SMS when its key and secret are set; without them, SMS stay
 	// in the outbox.
-	MozeSMSURL          string
-	MozeSMSKey          string
-	MozeSMSSecret       string
-	MozeSMSSender       string
-	MozeSMSSenders      []string
-	MozeSMSLowBalance   float64
-	MozeSMSAccents      bool
-	MozeSMSWebhookToken string
+	MozeSMSURL           string
+	MozeSMSKey           string
+	MozeSMSSecret        string
+	MozeSMSSender        string
+	MozeSMSSenders       []string
+	MozeSMSLowBalance    float64
+	MozeSMSAccents       bool
+	MozeSMSWebhookSecret string
 }
 
 func env(k, def string) string {
@@ -142,7 +142,7 @@ func Load() Config {
 		MozeSMSSenders:       list(env("RIHA_MOZESMS_SENDERS", "")),
 		MozeSMSLowBalance:    number(env("RIHA_MOZESMS_LOW_BALANCE", "100")),
 		MozeSMSAccents:       flag("RIHA_MOZESMS_ACCENTS", false),
-		MozeSMSWebhookToken:  env("RIHA_MOZESMS_WEBHOOK_TOKEN", ""),
+		MozeSMSWebhookSecret: env("RIHA_MOZESMS_WEBHOOK_SECRET", ""),
 	}
 }
 

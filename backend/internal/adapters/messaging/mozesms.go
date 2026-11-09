@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -125,6 +126,37 @@ func (c *MozeSMS) Send(ctx context.Context, m ports.OutboundMessage) (ports.Sent
 	}
 }
 
+// MessageStatus asks MozeSMS what became of a message: delivered, failed, or ""
+// while it's still on its way.
+func (c *MozeSMS) MessageStatus(ctx context.Context, providerID string) (string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.cfg.BaseURL, "/")+"/sms/status/"+url.PathEscape(providerID), nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("X-API-Key", c.cfg.APIKey)
+	req.Header.Set("X-API-Secret", c.cfg.APISecret)
+	res, err := c.http.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("MozeSMS sem resposta: %w", err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+	var out struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+		Data    struct {
+			Status        string `json:"status"`
+			GatewayStatus string `json:"gateway_status"`
+			ErrorCode     string `json:"error_code"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil || res.StatusCode/100 != 2 || !out.Success {
+		return "", "", fmt.Errorf("MozeSMS status %d: %s", res.StatusCode, domain.Trim(domain.FirstNonEmpty(out.Error, string(b)), 150))
+	}
+	status, why := StatusOutcome(out.Data.GatewayStatus, out.Data.Status, out.Data.ErrorCode)
+	return status, why, nil
+}
+
 // sender is the merchant's sender id when MozeSMS approved it, else RIHA's.
 func (c *MozeSMS) sender(want string) string {
 	for _, s := range c.cfg.Senders {
@@ -171,20 +203,31 @@ type MozeSMSReport struct {
 // Outcome is what a report means for the message: delivered, failed, or nothing
 // final yet (accepted, pending, unknown).
 func (r MozeSMSReport) Outcome() (status, why string) {
-	g := strings.ToUpper(strings.TrimSpace(r.Data.GatewayStatus))
-	ev := strings.TrimPrefix(strings.ToLower(r.Event), "sms.")
+	return StatusOutcome(r.Data.GatewayStatus, strings.TrimPrefix(strings.ToLower(r.Event), "sms."), r.Data.ErrorCode)
+}
+
+// StatusOutcome reads MozeSMS's gateway status, or else its own status (in English
+// or Portuguese, it uses both), as delivered, failed or not final ("").
+func StatusOutcome(gateway, status, errorCode string) (string, string) {
+	g := strings.ToUpper(strings.TrimSpace(gateway))
+	ev := strings.ToLower(strings.TrimSpace(status))
 	switch {
-	case g == "DELIVERED" || g == "" && ev == "delivered":
+	case g == "DELIVERED" || g == "" && (ev == "delivered" || ev == "entregue"):
 		return domain.MessageDelivered, ""
 	case g == "UNDELIVERED" || g == "FAILED" || g == "EXPIRED" || g == "UNDELIVERABLE" || g == "REJECTED" || g == "DELETED",
-		g == "" && (ev == "failed" || ev == "rejected" || ev == "expired" || ev == "undelivered" || ev == "undeliverable" || ev == "cancelled"):
+		g == "" && (ev == "failed" || ev == "rejected" || ev == "expired" || ev == "undelivered" || ev == "undeliverable" || ev == "cancelled" ||
+			ev == "falhado" || ev == "falhou" || ev == "rejeitado" || ev == "expirado" || ev == "cancelado"):
+		if g == "" {
+			g = map[string]string{"expired": "EXPIRED", "expirado": "EXPIRED", "rejected": "REJECTED", "rejeitado": "REJECTED", "undeliverable": "UNDELIVERABLE",
+				"cancelled": "DELETED", "cancelado": "DELETED"}[ev]
+		}
 		why := map[string]string{"EXPIRED": "expirou sem chegar ao telefone", "REJECTED": "rejeitada pela operadora", "DELETED": "cancelada",
 			"UNDELIVERABLE": "número sem entrega"}[g]
 		if why == "" {
 			why = "não chegou ao telefone"
 		}
-		if r.Data.ErrorCode != "" {
-			why += " (código " + domain.Trim(r.Data.ErrorCode, 20) + ")"
+		if errorCode != "" {
+			why += " (código " + domain.Trim(errorCode, 20) + ")"
 		}
 		return domain.MessageFailed, why
 	}

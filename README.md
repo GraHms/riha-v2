@@ -106,7 +106,7 @@ Configuration (environment variables):
 | `RIHA_MOZESMS_URL` | `https://api.mozesms.com` | MozeSMS's API |
 | `RIHA_MOZESMS_SENDER` | empty | sender id for SMS whose merchant's own isn't approved. Empty leaves MozeSMS's default |
 | `RIHA_MOZESMS_SENDERS` | empty | sender ids approved at MozeSMS, comma separated. A merchant's sender id is used only if it's in this list |
-| `RIHA_MOZESMS_WEBHOOK_TOKEN` | empty | secret in the delivery-report address, `https://<host>/callbacks/mozesms/<token>`. Without it reports are refused and messages stay at `sent` |
+| `RIHA_MOZESMS_WEBHOOK_SECRET` | empty | the webhook secret from the MozeSMS account. Their signature isn't documented, so for now it only shows in the log whether a report's headers carry an HMAC of the body made with it |
 | `RIHA_MOZESMS_LOW_BALANCE` | `100` | credit, in meticais, under which the admin alerts warn |
 | `RIHA_MOZESMS_ACCENTS` | `false` | keep letters such as ã and ç. Off, they become plain letters so an SMS holds 160 characters and costs one part, not two |
 
@@ -277,7 +277,7 @@ Messages to customers (invites, reminders, payment links, receipts) are queued i
 
 A message is `queued`, then `sent` once MozeSMS takes it (its id is kept in `provider_id`), then `delivered` or `failed` from MozeSMS's delivery report. A refused number fails at once. No credit (402), a refused key (401/403), too many requests (429), a MozeSMS error (5xx) or no answer leave the message queued, tried again after 1 minute, 5, 15, 1 hour and 3 hours, then failed. A message whose answer was lost can be sent twice: that is better than not at all.
 
-Delivery reports come to `POST /callbacks/mozesms/<RIHA_MOZESMS_WEBHOOK_TOKEN>`. MozeSMS doesn't sign them, so the secret in the address is the check. Set that address in the MozeSMS account. A report never undoes a final state, so repeats change nothing.
+Delivery reports come to `POST /callbacks/mozesms`, the address to set in the MozeSMS account. MozeSMS doesn't document how it signs them, so a report decides nothing: RIHA asks MozeSMS with its own key what became of the message (`GET /sms/status/<id>`), and that answer counts. A forged report costs one lookup and changes nothing, and a report never undoes a final state. The log line `mozesms report:` gives each report's header names and whether one holds an HMAC-SHA256 of the body made with `RIHA_MOZESMS_WEBHOOK_SECRET`, which is how to find their signature and then require it.
 
 The admin alerts (and the email the watchdog sends) say when SMS stop going out for lack of credit or a refused key, and when the credit falls under `RIHA_MOZESMS_LOW_BALANCE`. Search the logs for `mozesms`.
 

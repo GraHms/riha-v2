@@ -435,6 +435,12 @@ type Messenger interface {
 	Send(ctx context.Context, m OutboundMessage) (SentMessage, error)
 }
 
+// MessageStatusChecker is a messenger that can ask its provider what became of a
+// message it took: delivered, failed, or "" while it isn't final.
+type MessageStatusChecker interface {
+	MessageStatus(ctx context.Context, providerID string) (status, why string, err error)
+}
+
 // HealthReporter is a messenger that can say how its provider account is.
 type HealthReporter interface {
 	Health() (MessengerHealth, bool)

@@ -151,3 +151,34 @@ func (c *countSMS) Send(_ context.Context, m ports.OutboundMessage) (ports.SentM
 	c.last = m
 	return ports.SentMessage{ProviderID: "p", Channel: m.Channel}, nil
 }
+
+func TestMozeSMSMessageStatus(t *testing.T) {
+	var path string
+	answers := []string{
+		`{"success":true,"data":{"id":"a","status":"delivered"}}`,
+		`{"success":true,"data":{"id":"a","status":"entregue"}}`,
+		`{"success":true,"data":{"id":"a","status":"expired"}}`,
+		`{"success":true,"data":{"id":"a","status":"sent"}}`,
+	}
+	n := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.EscapedPath()
+		if r.Header.Get("X-API-Secret") != "s" {
+			w.WriteHeader(401)
+			return
+		}
+		_, _ = w.Write([]byte(answers[n]))
+		n++
+	}))
+	defer srv.Close()
+	c, _ := NewMozeSMS(MozeSMSConfig{BaseURL: srv.URL, APIKey: "k", APISecret: "s"})
+	for i, want := range []string{domain.MessageDelivered, domain.MessageDelivered, domain.MessageFailed, ""} {
+		got, why, err := c.MessageStatus(context.Background(), "MTIz/fDE3+Nw==")
+		if err != nil || got != want {
+			t.Fatalf("answer %d: %q %q %v", i, got, why, err)
+		}
+	}
+	if path != "/sms/status/MTIz%2FfDE3+Nw==" {
+		t.Fatalf("path %q", path)
+	}
+}

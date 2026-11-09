@@ -20,6 +20,17 @@ import (
 type flakySMS struct {
 	refuse int
 	sent   []ports.OutboundMessage
+	// status is what the provider answers when asked about a message.
+	status  map[string]string
+	lookups int
+}
+
+func (f *flakySMS) MessageStatus(_ context.Context, id string) (string, string, error) {
+	f.lookups++
+	if f.status[id] == domain.MessageFailed {
+		return domain.MessageFailed, "rejeitada pela operadora", nil
+	}
+	return f.status[id], "", nil
 }
 
 func (f *flakySMS) Send(_ context.Context, m ports.OutboundMessage) (ports.SentMessage, error) {
@@ -38,7 +49,7 @@ func TestSMSRetriesAndDeliveryReports(t *testing.T) {
 	a, ctx := setup(t)
 	clock := at("2026-11-09 10:00")
 	a.Now = func() time.Time { return clock }
-	sms := &flakySMS{refuse: 1}
+	sms := &flakySMS{refuse: 1, status: map[string]string{}}
 	a.Messenger = sms
 	m := approved(t, a, ctx, "Ginásio Força", "forca@ginasio.co.mz")
 	queue := func(id, to, channel string) {
@@ -83,43 +94,39 @@ func TestSMSRetriesAndDeliveryReports(t *testing.T) {
 		t.Fatalf("after the wait: %+v, sent %+v", x, sms.sent)
 	}
 
-	// The delivery report comes to the webhook, behind its secret.
-	srv := httptest.NewServer(httpapi.New(a, httpapi.Config{SMSWebhookToken: "tok_secret"}))
+	// A report only makes RIHA ask MozeSMS: while MozeSMS says it isn't final, a
+	// report claiming delivery changes nothing.
+	srv := httptest.NewServer(httpapi.New(a, httpapi.Config{SMSWebhookSecret: "whsec"}))
 	defer srv.Close()
 	report := `{"event":"sms.delivered","timestamp":"2026-11-09T12:00:35+02:00","webhook_id":"w1","data":{"message_id":"moze-1","external_id":"SMS_1","phone":"258841110001",
 		"status":"entregue","gateway_status":"DELIVERED","error_code":"","delivery_time":"2026-11-09 12:00:31","delivered_to_device":true}}`
-	post := func(path, body string) int {
-		res, err := http.Post(srv.URL+path, "application/json", strings.NewReader(body))
+	post := func(body string) int {
+		res, err := http.Post(srv.URL+"/callbacks/mozesms", "application/json", strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
 		res.Body.Close()
 		return res.StatusCode
 	}
-	if code := post("/callbacks/mozesms/wrong", report); code != 404 {
-		t.Fatalf("a report with the wrong secret got %d", code)
+	if code := post(report); code != 200 || get("msg_a").Status != domain.MessageSent || sms.lookups != 1 {
+		t.Fatalf("a report MozeSMS doesn't back changed the message (%d, %s, %d lookups)", code, get("msg_a").Status, sms.lookups)
 	}
-	if get("msg_a").Status != domain.MessageSent {
-		t.Fatal("a report with the wrong secret changed the message")
-	}
-	if code := post("/callbacks/mozesms/tok_secret", report); code != 200 {
+	sms.status["moze-1"] = domain.MessageDelivered
+	if code := post(report); code != 200 {
 		t.Fatalf("report got %d", code)
 	}
 	x = get("msg_a")
 	if x.Status != domain.MessageDelivered || x.DeliveredAt == nil || !x.DeliveredAt.Equal(at("2026-11-09 12:00").Add(31*time.Second)) {
 		t.Fatalf("after the report: %+v", x)
 	}
-	// A late failure doesn't undo a delivery, and an unknown message is ignored.
-	_ = post("/callbacks/mozesms/tok_secret", strings.Replace(strings.Replace(report, "DELIVERED", "FAILED", 1), "sms.delivered", "sms.failed", 1))
-	if code := post("/callbacks/mozesms/tok_secret", strings.Replace(report, "moze-1", "moze-404", 1)); code != 200 || get("msg_a").Status != domain.MessageDelivered {
-		t.Fatalf("a later report undid the delivery (%d)", code)
+	// Once final, reports don't even ask; unknown messages and junk are ignored.
+	sms.status["moze-1"] = domain.MessageFailed
+	_ = post(strings.Replace(report, "sms.delivered", "sms.failed", 1))
+	if code := post(strings.Replace(report, "moze-1", "moze-404", 1)); code != 200 || get("msg_a").Status != domain.MessageDelivered || sms.lookups != 2 {
+		t.Fatalf("a later report changed a delivered message (%d, %d lookups)", code, sms.lookups)
 	}
-
-	// Without a secret configured, reports aren't taken at all.
-	off := httptest.NewServer(httpapi.New(a, httpapi.Config{}))
-	defer off.Close()
-	if res, err := http.Post(off.URL+"/callbacks/mozesms/", "application/json", strings.NewReader(report)); err != nil || res.StatusCode != 404 {
-		t.Fatalf("reports must be refused without a secret: %v", err)
+	if code := post("not json"); code != 200 {
+		t.Fatalf("junk got %d", code)
 	}
 }
 
