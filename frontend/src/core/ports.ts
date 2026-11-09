@@ -131,6 +131,8 @@ export interface PublicSubscriptionsPort {
   subscribe(merchant: string, input: Json): Promise<{ token: string }>
   invoice(token: string): Promise<Json>
   pay(token: string, input: Json): Promise<Json>
+  member(token: string): Promise<Json>
+  cancel(token: string, subscriptionId: string): Promise<Json>
 }
 
 export interface Gateway {

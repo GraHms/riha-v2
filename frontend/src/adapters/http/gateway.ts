@@ -116,6 +116,8 @@ export function httpGateway(t = new Transport()): Gateway {
       subscribe: (m, input) => post<{ token: string }>('/public/subscriptions/subscribe/' + encodeURIComponent(m), input),
       invoice: tok => get('/public/invoices/' + encodeURIComponent(tok)),
       pay: (tok, input) => post(`/public/invoices/${encodeURIComponent(tok)}/pay`, input),
+      member: tok => get('/public/members/' + encodeURIComponent(tok)),
+      cancel: (tok, subscriptionId) => post(`/public/members/${encodeURIComponent(tok)}/cancel`, { subscription_id: subscriptionId }),
     },
     admin: {
       overview: () => get('/admin/overview'),

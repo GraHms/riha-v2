@@ -361,6 +361,7 @@ type Members interface {
 	ByID(ctx context.Context, merchantID, id string) (*domain.Member, error)
 	Get(ctx context.Context, id string) (*domain.Member, error)
 	Lock(ctx context.Context, id string) (*domain.Member, error)
+	ByToken(ctx context.Context, token string) (*domain.Member, error)
 	Identity(ctx context.Context, merchantID string, live bool, phone, nameKey string) (*domain.Member, error)
 	Find(ctx context.Context, q MemberQuery) ([]domain.Member, error)
 	Count(ctx context.Context, q MemberQuery) (int64, error)

@@ -19,6 +19,7 @@ const SubsSettings = lazy(() => import('./pages/app/subs/SubsSettings'))
 const CatalogPage = lazy(() => import('./pages/public/subs/Subscribe').then(m => ({ default: m.CatalogPage })))
 const PlanPage = lazy(() => import('./pages/public/subs/Subscribe').then(m => ({ default: m.PlanPage })))
 const Invoice = lazy(() => import('./pages/public/subs/Invoice'))
+const MemberPage = lazy(() => import('./pages/public/subs/MemberPage'))
 const Kyc = lazy(() => import('./pages/public/Kyc'))
 const AppShell = lazy(() => import('./pages/app/AppShell'))
 const Overview = lazy(() => import('./pages/app/Overview'))
@@ -56,6 +57,7 @@ function CatalogSite() {
       <Routes>
         <Route path="/" element={<CatalogPage catalog={CATALOG} />} />
         <Route path="/i/:token" element={<Invoice />} />
+        <Route path="/m/:token" element={<MemberPage />} />
         {['/entrar', '/registo', '/recuperar', '/docs', '/painel/*', '/admin/*', '/verificacao'].map(p => <Route key={p} path={p} element={<ToMainSite />} />)}
         <Route path="/:slug" element={<PlanPage catalog={CATALOG} />} />
         <Route path="*" element={<ToMainSite />} />
@@ -124,6 +126,7 @@ export default function App() {
       <Route path="/s/:merchant/:slug" element={<PlanPage />} />
       <Route path="/a/:merchant" element={<CatalogPage />} />
       <Route path="/i/:token" element={<Invoice />} />
+      <Route path="/m/:token" element={<MemberPage />} />
 
       <Route path="/painel" element={<RequireMerchant><AppShell /></RequireMerchant>}>
         <Route index element={<Overview />} />

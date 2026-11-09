@@ -51,6 +51,8 @@ func (srv *Server) publicSubscriptionRoutes(g *gin.RouterGroup) {
 	g.POST("/subscriptions/subscribe/:merchant", srv.throttle(srv.payLimiter, "subscribe"), srv.publicSubscribe)
 	g.GET("/invoices/:token", srv.throttle(srv.viewLimiter, "invoice-view"), srv.publicInvoice)
 	g.POST("/invoices/:token/pay", srv.throttle(srv.payLimiter, "invoice"), srv.payInvoice)
+	g.GET("/members/:token", srv.throttle(srv.viewLimiter, "member-view"), srv.publicMember)
+	g.POST("/members/:token/cancel", srv.throttle(srv.payLimiter, "member-cancel"), srv.cancelByMember)
 }
 
 func short(t *time.Time) string {
@@ -719,4 +721,63 @@ func lastDue(p *domain.Plan, anchor time.Time) string {
 	}
 	ds := domain.Schedule(p, anchor, n)
 	return domain.PeriodLabel(p, ds[len(ds)-1])
+}
+
+// publicMember is the member's own page: subscriptions, payments and what failed.
+func (srv *Server) publicMember(c *gin.Context) {
+	v, err := srv.A.MemberPortal(ctx(c), c.Param("token"))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	subs := []gin.H{}
+	for _, ps := range v.Subs {
+		x := gin.H{"id": ps.Sub.ID, "plan_name": "", "schedule": "", "amount": ps.Sub.Amount, "status": ps.Sub.Status, "next_due": "", "debt": ps.Debt,
+			"can_cancel": !domain.Closed(ps.Sub.Status), "canceled_at": short(ps.Sub.CanceledAt)}
+		if ps.Plan != nil {
+			x["plan_name"], x["schedule"] = ps.Plan.Name, ps.Plan.ScheduleLabel()
+		}
+		if ps.Sub.NextDueAt != nil && !domain.Closed(ps.Sub.Status) {
+			x["next_due"] = domain.LongDate(*ps.Sub.NextDueAt)
+		}
+		if ps.Sub.PendingFrom != nil && !domain.Closed(ps.Sub.Status) {
+			x["new_amount"], x["new_from"] = ps.Sub.PendingAmount, domain.LongDate(*ps.Sub.PendingFrom)
+		}
+		subs = append(subs, x)
+	}
+	pays := []gin.H{}
+	for _, ch := range v.Charges {
+		x := gin.H{"id": ch.ID, "label": ch.Label, "plan_name": "", "amount": ch.Amount, "status": ch.Status, "due": domain.ShortDate(ch.DueAt),
+			"paid_at": short(ch.PaidAt), "method": methodNames[ch.Method], "outside": domain.OutsideMethods[ch.OutsideMethod], "failure": ""}
+		if p := v.Plans[ch.PlanID]; p != nil {
+			x["plan_name"] = p.Name
+		}
+		if ch.Unpaid() {
+			x["failure"] = ch.LastFailure
+		}
+		pays = append(pays, x)
+	}
+	pay := ""
+	if v.PayToken != "" {
+		pay = "/i/" + v.PayToken
+	}
+	c.Header("Cache-Control", "no-store")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.JSON(200, gin.H{"merchant": merchantBrand(v.Merchant), "member": gin.H{"name": v.Member.Name, "phone_masked": domain.MaskPhone(v.Member.Phone), "channel": v.Member.Channel},
+		"subscriptions": subs, "payments": pays, "due": v.Due, "pay_url": pay, "test_mode": !v.Member.Livemode})
+}
+
+func (srv *Server) cancelByMember(c *gin.Context) {
+	var in struct {
+		SubscriptionID string `json:"subscription_id"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil || in.SubscriptionID == "" {
+		bad(c, "Pedido inválido.")
+		return
+	}
+	if err := srv.A.CancelByMember(ctx(c), c.Param("token"), in.SubscriptionID, c.ClientIP()); err != nil {
+		fail(c, err)
+		return
+	}
+	srv.publicMember(c)
 }

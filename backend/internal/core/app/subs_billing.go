@@ -652,7 +652,7 @@ func (a *App) settleCharges(ctx context.Context, cs *domain.CheckoutSession, p *
 				return err
 			}
 		} else if a.SubSettingsFor(ctx, m).ReceiptSMS {
-			if err := a.queueMessage(ctx, m, mem, "", "receipt", fmt.Sprintf("%s: recebemos %s MT de %s. Ref. %s. Obrigado.", m.Name, domain.FormatShort(p.Amount), mem.Name, p.Reference)); err != nil {
+			if err := a.queueMessage(ctx, m, mem, "", "receipt", fmt.Sprintf("%s: recebemos %s MT de %s. Ref. %s. Ver: %s", m.Name, domain.FormatShort(p.Amount), mem.Name, p.Reference, a.memberLink(mem))); err != nil {
 				return err
 			}
 		}
@@ -660,12 +660,34 @@ func (a *App) settleCharges(ctx context.Context, cs *domain.CheckoutSession, p *
 	return nil
 }
 
+// welcomeBody says which plans the member joined at which merchant, what they paid,
+// when the next payment is, and where to see and manage it all.
 func (a *App) welcomeBody(ctx context.Context, m *domain.Merchant, mem *domain.Member, p *domain.Payment) string {
-	body := fmt.Sprintf("%s: inscrição de %s ativa. Recebemos %s MT (Ref. %s).", m.Name, mem.Name, domain.FormatShort(p.Amount), p.Reference)
+	body := fmt.Sprintf("%s: inscrição de %s em %s ativa. Pagou %s MT.", m.Name, firstName(mem.Name), a.planNames(ctx, mem.ID), domain.FormatShort(p.Amount))
 	if at, amount, ok := a.nextPayment(ctx, mem.ID); ok {
-		body += fmt.Sprintf(" Próximo pagamento: %s MT a %s.", domain.FormatShort(amount), domain.ShortDate(at))
+		body += fmt.Sprintf(" Próximo: %s MT a %s.", domain.FormatShort(amount), domain.ShortDate(at))
 	}
-	return body
+	return body + " Gerir: " + a.memberLink(mem)
+}
+
+// planNames are the plans of the member's open subscriptions, as "A + B".
+func (a *App) planNames(ctx context.Context, memberID string) string {
+	subs, _ := a.Subs.ByMember(ctx, memberID)
+	var names []string
+	seen := map[string]bool{}
+	for _, s := range subs {
+		if domain.Closed(s.Status) || s.Status == domain.SubIncomplete || s.Status == domain.SubInvited || seen[s.PlanID] {
+			continue
+		}
+		seen[s.PlanID] = true
+		if p, err := a.Plans.Get(ctx, s.PlanID); err == nil {
+			names = append(names, p.Name)
+		}
+	}
+	if len(names) == 0 {
+		return "a assinatura"
+	}
+	return strings.Join(names, " + ")
 }
 
 // nextPayment is the member's next payment: the earliest next due date of their

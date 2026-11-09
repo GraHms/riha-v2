@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -187,7 +188,8 @@ func TestCatalogSignupGetsWelcomeOrOneReminder(t *testing.T) {
 		t.Fatalf("after the first payment: %+v", got)
 	}
 	body := got["welcome"][0].Body
-	if !strings.HasPrefix(body, "Escola Sol: inscrição de Ivan Nhantumbo ativa. Recebemos 2\u00a0500 MT (Ref. RH-") || !strings.HasSuffix(body, "Próximo pagamento: 2\u00a0500 MT a 5 nov.") {
+	link := "http://localhost:5173/m/" + v.Member.Token
+	if body != "Escola Sol: inscrição de Ivan em Propina 5ª a 7ª classe ativa. Pagou 2\u00a0500 MT. Próximo: 2\u00a0500 MT a 5 nov. Gerir: "+link || len(v.Member.Token) < 16 {
 		t.Fatalf("welcome %q", body)
 	}
 
@@ -221,5 +223,80 @@ func TestCatalogSignupGetsWelcomeOrOneReminder(t *testing.T) {
 	}
 	if n := len(kinds(t, a, ctx, v2.Member.ID)["welcome"]); n != 1 {
 		t.Fatalf("welcome after the reminder: %d", n)
+	}
+}
+
+func TestMemberPageAndCancel(t *testing.T) {
+	a, ctx := setup(t)
+	clock := at("2026-10-19 10:00")
+	a.Now = func() time.Time { return clock }
+	m := approved(t, a, ctx, "Ginásio Força", "forca@ginasio.co.mz")
+	p := schoolPlan(t, a, ctx, m, "Mensalidade", 150000, domain.MissedDebt)
+	m.Status = domain.MerchantActive
+	join := func(phone, name string) *app.InvoiceView {
+		tok, err := a.Subscribe(ctx, m.Slug, app.SubscribeInput{MemberInput: app.MemberInput{PlanIDs: []string{p.ID}, Phone: phone,
+			Fields: map[string]string{"Nome do aluno": name, "Turma": "A"}}, Accept: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.PayInvoice(ctx, tok, app.InvoicePay{Method: "mpesa", UseLast: true}); err != nil {
+			t.Fatal(err)
+		}
+		v, _ := a.Invoice(ctx, tok, false)
+		return v
+	}
+	ana, rui := join("841112233", "Ana Tembe"), join("841114455", "Rui Sitoe")
+
+	srv := httptest.NewServer(httpapi.New(a, httpapi.Config{}))
+	defer srv.Close()
+	call := func(method, path, body string) (int, map[string]any) {
+		req, _ := http.NewRequest(method, srv.URL+path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Requested-With", "riha")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var out map[string]any
+		_ = json.NewDecoder(res.Body).Decode(&out)
+		return res.StatusCode, out
+	}
+	code, page := call("GET", "/api/public/members/"+ana.Member.Token, "")
+	subs, _ := page["subscriptions"].([]any)
+	pays, _ := page["payments"].([]any)
+	if code != 200 || len(subs) != 1 || len(pays) == 0 || page["due"].(float64) != 0 {
+		t.Fatalf("page %d %v", code, page)
+	}
+	sub := subs[0].(map[string]any)
+	if sub["plan_name"] != "Mensalidade" || sub["status"] != domain.SubActive || sub["can_cancel"] != true || sub["next_due"] == "" {
+		t.Fatalf("subscription %v", sub)
+	}
+	if first := pays[len(pays)-1].(map[string]any); first["status"] != domain.ChargePaid || first["method"] != "M-Pesa" {
+		t.Fatalf("first payment %v", first)
+	}
+	if code, _ := call("GET", "/api/public/members/not-a-real-token-at-all", ""); code != 404 {
+		t.Fatalf("unknown token got %d", code)
+	}
+	// Ana's link can't cancel Rui's subscription.
+	ruiSubs, _ := a.Subs.ByMember(ctx, rui.Member.ID)
+	if code, _ := call("POST", "/api/public/members/"+ana.Member.Token+"/cancel", `{"subscription_id":"`+ruiSubs[0].ID+`"}`); code != 404 {
+		t.Fatalf("cancelling someone else's subscription got %d", code)
+	}
+	if s, _ := a.Subs.Get(ctx, ruiSubs[0].ID); s.Status != domain.SubActive {
+		t.Fatalf("rui's subscription is %s", s.Status)
+	}
+	code, page = call("POST", "/api/public/members/"+ana.Member.Token+"/cancel", `{"subscription_id":"`+sub["id"].(string)+`"}`)
+	sub = page["subscriptions"].([]any)[0].(map[string]any)
+	if code != 200 || sub["status"] != domain.SubCanceled || sub["can_cancel"] != false || sub["next_due"] != "" {
+		t.Fatalf("after cancelling %d %v", code, sub)
+	}
+	got := kinds(t, a, ctx, ana.Member.ID)
+	if len(got["cancel"]) != 1 || !strings.Contains(got["cancel"][0].Body, "Mensalidade de Ana Tembe foi cancelada") {
+		t.Fatalf("cancel message %+v", got["cancel"])
+	}
+	// Cancelling again changes nothing and sends nothing.
+	if code, _ := call("POST", "/api/public/members/"+ana.Member.Token+"/cancel", `{"subscription_id":"`+sub["id"].(string)+`"}`); code != 200 || len(kinds(t, a, ctx, ana.Member.ID)["cancel"]) != 1 {
+		t.Fatalf("second cancel %d", code)
 	}
 }

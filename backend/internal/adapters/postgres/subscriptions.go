@@ -241,6 +241,9 @@ func (r Members) ByID(ctx context.Context, merchantID, id string) (*domain.Membe
 func (r Members) Get(ctx context.Context, id string) (*domain.Member, error) {
 	return first[memberRecord, domain.Member](r.conn(ctx).Where("id = ?", id))
 }
+func (r Members) ByToken(ctx context.Context, token string) (*domain.Member, error) {
+	return first[memberRecord, domain.Member](r.conn(ctx).Where("token = ?", token))
+}
 func (r Members) Lock(ctx context.Context, id string) (*domain.Member, error) {
 	return first[memberRecord, domain.Member](r.conn(ctx).Clauses(forUpdate).Where("id = ?", id))
 }
