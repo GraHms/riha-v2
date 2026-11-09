@@ -306,14 +306,18 @@ func (a *App) mailPayoutRequested(ctx context.Context, p *domain.Payout, m *doma
 		return err
 	}
 	return a.adminAlert(ctx, "admin.payout_requested", domain.Notice{
-		Subject: "Novo levantamento " + p.Ref() + ": " + mt(p.Amount), Title: "Novo pedido de levantamento",
+		Subject: "Novo levantamento " + p.Ref() + ": transferir " + mt(p.Net()), Title: "Novo pedido de levantamento",
 		Rows:   append([]domain.NoticeRow{{Label: "Comerciante", Value: m.Name}}, payoutRows(p)...),
 		Action: "Abrir levantamentos", URL: a.link("/admin/levantamentos"),
 	})
 }
 
 func payoutRows(p *domain.Payout) []domain.NoticeRow {
-	return []domain.NoticeRow{{Label: "Referência", Value: p.Ref()}, {Label: "Valor", Value: mt(p.Amount)}, {Label: "Banco", Value: p.BankName}, {Label: "NIB", Value: "•••• " + p.NIB[len(p.NIB)-4:]}}
+	rows := []domain.NoticeRow{{Label: "Referência", Value: p.Ref()}, {Label: "Valor", Value: mt(p.Amount)}}
+	if p.Fee > 0 {
+		rows = append(rows, domain.NoticeRow{Label: "Taxa de transferência", Value: "−" + mt(p.Fee)}, domain.NoticeRow{Label: "Recebe", Value: mt(p.Net())})
+	}
+	return append(rows, domain.NoticeRow{Label: "Banco", Value: p.BankName}, domain.NoticeRow{Label: "NIB", Value: "•••• " + p.NIB[len(p.NIB)-4:]})
 }
 
 func (a *App) mailPayoutState(ctx context.Context, p *domain.Payout, m *domain.Merchant) error {

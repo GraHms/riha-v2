@@ -134,3 +134,23 @@ func TestPlanMinimumAndBeta(t *testing.T) {
 		t.Fatal("payment minimums")
 	}
 }
+
+func TestTransferFee(t *testing.T) {
+	tp := TransferPricing{Fee: DefaultTransferFee, FreeFrom: DefaultFreeTransferFrom}
+	for _, c := range []struct {
+		bank, nib string
+		amount    int64
+		fee       int64
+	}{
+		{"FNB", "001200001234567890123", 500_000, 12_000},
+		{"FNB", "001200001234567890123", 999_999, 12_000},
+		{"FNB", "001200001234567890123", 1_000_000, 0},
+		{"Millennium bim", "000100003150000777712", 500_000, 0},
+		{"BCI", "000100003150000777712", 500_000, 0},
+		{"Millennium bim", "", 20_000, 0},
+	} {
+		if got := tp.FeeFor(c.bank, c.nib, c.amount); got != c.fee {
+			t.Errorf("%s %q %d: fee %d, want %d", c.bank, c.nib, c.amount, got, c.fee)
+		}
+	}
+}

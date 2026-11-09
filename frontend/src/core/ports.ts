@@ -94,6 +94,7 @@ export interface AdminPort {
   emailPayoutStatement(id: string): Promise<{ to: string }>
   settings(): Promise<Json>
   saveSettings(defaultFeeBps: number): Promise<Json>
+  saveTransferFee(fee: number, freeFrom: number): Promise<Json>
 }
 
 export interface SubscriptionsPort {

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { errMsg } from '../../core/model'
 import { useGateway } from '../../core/gateway'
 import { useQuery } from '../../core/useQuery'
-import { bpsLabel, fmt, fullDate, MERCHANT_STATUS, methodLine, PAYOUT_STATUS, relDate, STATUS } from '../../lib/format'
+import { bpsLabel, fmt, fullDate, MERCHANT_STATUS, methodLine, parseMT, PAYOUT_STATUS, relDate, STATUS } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Avatar, Icon, Modal, Pill, Spinner } from '../../components/ui'
 import { RiskPill } from './common'
@@ -22,6 +22,9 @@ export default function MerchantDetail() {
   const [def, setDef] = useState('')
   useEffect(() => { if (m) setFee((m.fee_bps / 100).toString().replace('.', ',')) }, [m?.fee_bps]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (settings.data) setDef((settings.data.default_fee_bps / 100).toString().replace('.', ',')) }, [settings.data])
+  const [tfee, setTfee] = useState('')
+  const [tfrom, setTfrom] = useState('')
+  useEffect(() => { if (settings.data?.transfer_fee !== undefined) { setTfee(String(settings.data.transfer_fee / 100)); setTfrom(String(settings.data.free_transfer_from / 100)) } }, [settings.data])
   if (!m) return <div className="page"><Spinner dark /></div>
   const toBps = (v: string) => Math.round(parseFloat(v.replace(',', '.')) * 100)
   const saveFee = async (reset = false) => {
@@ -35,6 +38,10 @@ export default function MerchantDetail() {
     setBusy(true)
     try { const r = await g.admin.setBeta(id!, beta); setData(r); toast(beta ? 'No programa beta: valores a partir de 1 MT' : 'Fora do programa beta') }
     catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
+  }
+  const saveTransfer = async () => {
+    const fee = parseMT(tfee), from = parseMT(tfrom)
+    try { await g.admin.saveTransferFee(fee, from); toast('Taxa de transferência atualizada'); settings.reload() } catch (e) { toast(errMsg(e), true) }
   }
   const saveDefault = async () => {
     try { await g.admin.saveSettings(toBps(def)); toast('Taxa por omissão atualizada'); settings.reload(); reload() } catch (e) { toast(errMsg(e), true) }
@@ -96,6 +103,15 @@ export default function MerchantDetail() {
             <div style={{ fontWeight: 600, fontSize: 16 }}>Taxa por omissão da plataforma</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Aplica-se a todos os comerciantes sem taxa negociada.</div>
             <div className="row" style={{ marginTop: 12, gap: 8 }}><div style={{ position: 'relative', width: 140 }}><input className="input" value={def} onChange={e => setDef(e.target.value.replace(/[^\d.,]/g, ''))} style={{ paddingRight: 30, fontWeight: 600 }} aria-label="Taxa por omissão" /><span style={{ position: 'absolute', right: 14, top: 14, color: 'var(--muted)' }}>%</span></div><button className="btn btn-outline" onClick={saveDefault}>Atualizar</button></div>
+          </div>
+          <div className="card" style={{ padding: 22 }}>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>Levantamentos para outros bancos</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>O dinheiro da RIHA está no Millennium bim. Cada transferência para outro banco custa-nos uma taxa; abaixo do limite, o comerciante paga-a. Contas bim nunca pagam.</div>
+            <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label style={{ width: 130 }}><span className="label">Taxa</span><div style={{ position: 'relative' }}><input className="input" inputMode="decimal" value={tfee} onChange={e => setTfee(e.target.value.replace(/[^\d.,\s]/g, ''))} style={{ paddingRight: 36, fontWeight: 600 }} /><span style={{ position: 'absolute', right: 12, top: 14, color: 'var(--muted)' }}>MT</span></div></label>
+              <label style={{ width: 160 }}><span className="label">Grátis a partir de</span><div style={{ position: 'relative' }}><input className="input" inputMode="decimal" value={tfrom} onChange={e => setTfrom(e.target.value.replace(/[^\d.,\s]/g, ''))} style={{ paddingRight: 36, fontWeight: 600 }} /><span style={{ position: 'absolute', right: 12, top: 14, color: 'var(--muted)' }}>MT</span></div></label>
+              <button className="btn btn-outline" onClick={saveTransfer}>Atualizar</button>
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

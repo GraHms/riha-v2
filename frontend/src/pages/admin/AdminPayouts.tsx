@@ -25,7 +25,8 @@ export default function AdminPayouts() {
   const rows: any[] = data?.data || []
   const st = data?.stats
   const ids = rows.filter(p => picked[p.id]).map(p => p.id)
-  const sum = rows.filter(p => picked[p.id]).reduce((a, p) => a + p.amount, 0)
+  // What goes to the bank is the net: the amount less the transfer fee.
+  const sum = rows.filter(p => picked[p.id]).reduce((a, p) => a + (p.net ?? p.amount), 0)
   const allOn = rows.length > 0 && ids.length === rows.length
 
   const act = async (list: string[], action: string, why = '') => {
@@ -74,7 +75,7 @@ export default function AdminPayouts() {
                 <span className="mono" style={{ fontSize: 12.5 }}>{p.reference}</span>
                 <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{p.merchant_name}</div><div style={{ fontSize: 12, color: 'var(--muted)' }}>Pedido {relDate(p.requested_at_iso)}</div></div>
                 <div style={{ fontSize: 13, color: 'var(--text-2)', minWidth: 0 }}>{p.bank_account.bank} <span className="mono">•• {p.nib_last4}</span><div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.bank_account.holder}</div></div>
-                <div className="tnum" style={{ textAlign: 'right', fontWeight: 600, fontSize: 14 }}>{fmt(p.amount)} MT</div>
+                <div className="tnum" style={{ textAlign: 'right', fontWeight: 600, fontSize: 14 }}>{fmt(p.net ?? p.amount)} MT{p.fee > 0 && <div style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--muted)' }}>{fmt(p.amount)} − taxa {fmt(p.fee)}</div>}</div>
                 <SlaBar p={p} />
                 <div><Pill {...(ST as any)[p.status]} />{p.failure_reason && <div style={{ fontSize: 11.5, color: 'var(--red-dark)', marginTop: 3 }} title={p.failure_reason}>{p.failure_reason.slice(0, 28)}…</div>}</div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
@@ -129,7 +130,7 @@ function CompleteModal({ ids, rows, onClose, onDone }: { ids: string[]; rows: an
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const total = rows.reduce((a, p) => a + p.amount, 0)
+  const total = rows.reduce((a, p) => a + (p.net ?? p.amount), 0)
   const go = async () => {
     if (!file) return
     setBusy(true); setErr('')

@@ -250,7 +250,7 @@ func TestPaymentAndPayoutEmails(t *testing.T) {
 		t.Fatalf("bank change: %v", got)
 	}
 
-	po, err := a.RequestPayout(ctx, m.ID, true, 20000, "ana")
+	po, err := a.RequestPayout(ctx, m.ID, true, 30000, "ana")
 	if err != nil {
 		t.Fatal(err)
 	}

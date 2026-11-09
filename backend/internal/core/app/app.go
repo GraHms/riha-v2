@@ -105,6 +105,41 @@ func (a *App) SetDefaultFeeBps(ctx context.Context, bps int) error {
 	return a.Settings.Set(ctx, SettingDefaultFee, strconv.Itoa(bps))
 }
 
+const (
+	SettingTransferFee      = "transfer_fee"
+	SettingFreeTransferFrom = "free_transfer_from"
+)
+
+// TransferPricing is what withdrawals to banks other than bim cost, as set by the
+// admin, or the defaults.
+func (a *App) TransferPricing(ctx context.Context) domain.TransferPricing {
+	t := domain.TransferPricing{Fee: domain.DefaultTransferFee, FreeFrom: domain.DefaultFreeTransferFrom}
+	if v, err := a.Settings.Get(ctx, SettingTransferFee); err == nil {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
+			t.Fee = n
+		}
+	}
+	if v, err := a.Settings.Get(ctx, SettingFreeTransferFrom); err == nil {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
+			t.FreeFrom = n
+		}
+	}
+	return t
+}
+
+func (a *App) SetTransferPricing(ctx context.Context, t domain.TransferPricing) error {
+	if t.Fee < 0 || t.Fee > 100_000 {
+		return domain.Invalid("parameter_invalid", "transfer_fee", "A taxa de transferência tem de estar entre 0 e 1 000 MT.")
+	}
+	if t.FreeFrom < 0 || t.FreeFrom > domain.MaxAmount {
+		return domain.Invalid("parameter_invalid", "free_transfer_from", "Valor inválido.")
+	}
+	if err := a.Settings.Set(ctx, SettingTransferFee, strconv.FormatInt(t.Fee, 10)); err != nil {
+		return err
+	}
+	return a.Settings.Set(ctx, SettingFreeTransferFrom, strconv.FormatInt(t.FreeFrom, 10))
+}
+
 func (a *App) FeeBpsFor(ctx context.Context, m *domain.Merchant) int {
 	if m.FeeBps != nil {
 		return *m.FeeBps

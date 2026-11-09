@@ -91,7 +91,7 @@ func PayoutResource(p *Payout) M {
 		paid = p.PaidAt.Unix()
 	}
 	return M{
-		"id": p.ID, "object": "payout", "reference": p.Ref(), "status": p.Status, "amount": p.Amount, "currency": "MZN",
+		"id": p.ID, "object": "payout", "reference": p.Ref(), "status": p.Status, "amount": p.Amount, "fee": p.Fee, "net": p.Net(), "currency": "MZN",
 		"bank_account": M{"bank": p.BankName, "holder": p.Holder, "nib": nib},
 		"requested_at": p.RequestedAt.Unix(), "due_at": p.DueAt.Unix(), "failure_reason": null(p.FailureReason),
 		"livemode": p.Livemode, "paid_at": paid,

@@ -250,6 +250,7 @@ type payoutRecord struct {
 	MerchantID    string `gorm:"size:40;index;not null"`
 	Livemode      bool   `gorm:"index"`
 	Amount        int64
+	Fee           int64
 	Status        string `gorm:"size:20;index"`
 	BankName      string `gorm:"size:80"`
 	Holder        string `gorm:"size:200"`

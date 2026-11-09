@@ -142,6 +142,7 @@ export function httpGateway(t = new Transport()): Gateway {
       emailPayoutStatement: id => post<{ to: string }>(`/admin/payouts/${encodeURIComponent(id)}/email`),
       settings: () => get('/admin/settings'),
       saveSettings: default_fee_bps => send('PUT', '/admin/settings', { default_fee_bps }),
+      saveTransferFee: (transfer_fee, free_transfer_from) => send('PUT', '/admin/settings', { transfer_fee, free_transfer_from }),
     },
   }
 }

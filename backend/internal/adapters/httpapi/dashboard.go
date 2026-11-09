@@ -499,7 +499,19 @@ func (srv *Server) balance(c *gin.Context) {
 	c.JSON(200, gin.H{"available": s.Available, "in_transit": s.InTransit, "in_transit_due": due,
 		"paid_previous_month": gin.H{"count": s.PaidPrevCount, "total": s.PaidPrev},
 		"paid_this_month":     gin.H{"count": s.PaidThisCount, "total": s.PaidThis},
-		"min_payout":          domain.MinPayout, "can_payout": s.CanPayout})
+		"min_payout":          domain.MinPayout, "can_payout": s.CanPayout, "transfer": srv.transferJSON(c)})
+}
+
+// transferJSON says what a withdrawal to the merchant's bank costs, so the form can
+// show it before they ask.
+func (srv *Server) transferJSON(c *gin.Context) gin.H {
+	t := srv.A.TransferPricing(ctx(c))
+	bim := true
+	bank := ""
+	if b, err := srv.A.Banks.ByMerchant(ctx(c), merchant(c).ID); err == nil {
+		bim, bank = domain.IsBimAccount(b.BankName, b.NIB), b.BankName
+	}
+	return gin.H{"fee": t.Fee, "free_from": t.FreeFrom, "bank": bank, "bank_is_bim": bim}
 }
 
 func (srv *Server) listPayouts(c *gin.Context) {

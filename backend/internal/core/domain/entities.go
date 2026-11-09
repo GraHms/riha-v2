@@ -297,6 +297,7 @@ const (
 	LedgerPayment        = "payment"
 	LedgerPayout         = "payout"
 	LedgerPayoutReversal = "payout_reversal"
+	LedgerTransferFee    = "transfer_fee"
 	LedgerRefund         = "refund"
 )
 

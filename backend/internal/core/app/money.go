@@ -22,7 +22,12 @@ func (a *App) RequestPayout(ctx context.Context, merchantID string, live bool, a
 		if err != nil {
 			return domain.Invalid("bank_account_missing", "bank_account", "Adicione uma conta bancária em Definições antes de levantar.")
 		}
-		if amount < domain.MinPayout {
+		fee := a.TransferPricing(ctx).FeeFor(bank.BankName, bank.NIB, amount)
+		if amount-fee < domain.MinPayout {
+			if fee > 0 {
+				return domain.Invalid("amount_too_small", "amount", fmt.Sprintf("Para %s, levante pelo menos %s MT: recebe 100 MT depois da taxa de transferência de %s MT.",
+					bank.BankName, domain.FormatShort(domain.MinPayout+fee), domain.FormatShort(fee)))
+			}
 			return domain.Invalid("amount_too_small", "amount", "O levantamento mínimo é 100,00 MT.")
 		}
 		bal, err := a.Ledger.Balance(ctx, merchantID, live)
@@ -37,14 +42,19 @@ func (a *App) RequestPayout(ctx context.Context, merchantID string, live bool, a
 			return err
 		}
 		now := a.Now()
-		p := &domain.Payout{ID: domain.NewID("po"), Number: num, MerchantID: merchantID, Livemode: live, Amount: amount,
+		p := &domain.Payout{ID: domain.NewID("po"), Number: num, MerchantID: merchantID, Livemode: live, Amount: amount, Fee: fee,
 			Status: domain.PayoutNew, BankName: bank.BankName, Holder: bank.Holder, NIB: bank.NIB,
 			RequestedBy: actor, RequestedAt: now, DueAt: now.Add(domain.PayoutSLA), UpdatedAt: now}
 		if err := a.Payouts.Create(ctx, p); err != nil {
 			return err
 		}
-		if err := a.ledger(ctx, merchantID, live, domain.LedgerPayout, -amount, p.ID, "Levantamento "+p.Ref()); err != nil {
+		if err := a.ledger(ctx, merchantID, live, domain.LedgerPayout, -p.Net(), p.ID, "Levantamento "+p.Ref()); err != nil {
 			return err
+		}
+		if fee > 0 {
+			if err := a.ledger(ctx, merchantID, live, domain.LedgerTransferFee, -fee, p.ID, "Taxa de transferência para "+bank.BankName+" · "+p.Ref()); err != nil {
+				return err
+			}
 		}
 		out = p
 		if err := a.emit(ctx, merchantID, live, "payout.created", p.ID, domain.PayoutResource(p), ""); err != nil {

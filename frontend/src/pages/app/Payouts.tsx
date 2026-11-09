@@ -69,11 +69,12 @@ export default function Payouts() {
                 <span style={{ minWidth: 0 }}><span className="mono" style={{ fontSize: 12.5, display: 'block' }}>{p.reference}</span><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{relDate(p.requested_at_iso)}</span></span>
                 <span style={{ color: 'var(--text-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${p.bank_account.bank} · NIB ${p.bank_account.nib}`}>{p.bank_account.bank} · NIB {p.bank_account.nib}</span>
                 <span><Pill {...PAYOUT_STATUS[p.status]} /></span>
-                <span className="tnum" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(p.amount)} MT</span>
+                <span className="tnum" style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(p.amount)} MT{p.fee > 0 && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 400, color: 'var(--muted)' }}>recebe {fmt(p.net)} · taxa {fmt(p.fee)}</span>}</span>
                 <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>{p.status === 'paid' && <a className="btn btn-outline btn-sm" href={g.payouts.statementUrl(p.id)} target="_blank" rel="noreferrer" title="Comprovativo completo em PDF">PDF</a>}{p.has_receipt && <a className="btn btn-outline btn-sm" href={g.payouts.receiptUrl(p.id)} title={p.receipt_name}>Talão</a>}</span>
               </div>
               <div className="only-mobile" style={{ padding: '12px 16px', borderTop: '1px solid var(--line-3)' }}>
                 <div className="between"><span className="mono" style={{ fontSize: 12.5 }}>{p.reference}</span><span className="tnum" style={{ fontWeight: 600 }}>{fmt(p.amount)} MT</span></div>
+                {p.fee > 0 && <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>recebe {fmt(p.net)} MT · taxa {fmt(p.fee)} MT</div>}
                 <div className="between" style={{ marginTop: 4 }}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{relDate(p.requested_at_iso)}</span><Pill {...PAYOUT_STATUS[p.status]} /></div>
                 {p.failure_reason && <div style={{ fontSize: 12.5, color: 'var(--red-dark)', marginTop: 4 }}>{p.failure_reason}</div>}
                 {p.status === 'paid' && <div className="row" style={{ gap: 6, marginTop: 8 }}><a className="btn btn-outline btn-sm" href={g.payouts.statementUrl(p.id)} target="_blank" rel="noreferrer">Comprovativo PDF</a>{p.has_receipt && <a className="btn btn-outline btn-sm" href={g.payouts.receiptUrl(p.id)}>Talão do banco</a>}</div>}
@@ -108,7 +109,12 @@ export function WithdrawForm({ onDone, inSheet }: { onDone?: () => void; inSheet
   const acct = bank.data?.account
   const due = new Date(Date.now() + 72 * 3600 * 1000)
   const blocked = merchant.status !== 'active'
-  const disabled = busy || !amt || over || amt < 10000 || !acct || blocked
+  // RIHA's money is at Millennium bim: a transfer to another bank costs a fee,
+  // which the merchant pays below a threshold; bim accounts never pay it.
+  const tr = bal.data?.transfer
+  const fee = tr && !tr.bank_is_bim && amt > 0 && amt < tr.free_from ? tr.fee : 0
+  const net = amt - fee
+  const disabled = busy || !amt || over || net < 10000 || !acct || blocked
   const request = async () => {
     setBusy(true); setErr('')
     try { const p = await g.payouts.request(amt); toast(`Levantamento ${p.reference} pedido`); setW(''); bump(); onDone?.() }
@@ -124,7 +130,7 @@ export function WithdrawForm({ onDone, inSheet }: { onDone?: () => void; inSheet
               <span className="display" style={{ fontSize: 17, color: 'var(--muted-2)' }}>MT</span>
             </div>
           </div>
-          <div className="between" style={{ marginTop: 8 }}><span style={{ fontSize: 12.5, color: over ? 'var(--red-dark)' : 'var(--muted)', minWidth: 0 }}>{over ? 'Acima do saldo disponível' : amt > 0 && amt < 10000 ? 'O mínimo é 100,00 MT' : `Disponível: ${fmt(available)} MT`}</span><button className="btn" style={{ height: 30, padding: '0 11px', borderRadius: 999, background: 'var(--paper-2)', fontSize: 12.5 }} onClick={() => setW(fmt(available).replace(/\u00A0/g, ' '))}>Máximo</button></div>
+          <div className="between" style={{ marginTop: 8 }}><span style={{ fontSize: 12.5, color: over ? 'var(--red-dark)' : 'var(--muted)', minWidth: 0 }}>{over ? 'Acima do saldo disponível' : amt > 0 && net < 10000 ? (fee ? `O mínimo é ${fmt(10000 + fee)} MT (recebe 100 MT depois da taxa)` : 'O mínimo é 100,00 MT') : `Disponível: ${fmt(available)} MT`}</span><button className="btn" style={{ height: 30, padding: '0 11px', borderRadius: 999, background: 'var(--paper-2)', fontSize: 12.5 }} onClick={() => setW(fmt(available).replace(/\u00A0/g, ' '))}>Máximo</button></div>
           {acct ? (
             <div className="row" style={{ marginTop: 16, padding: '12px 14px', borderRadius: 14, background: inSheet ? '#fff' : 'var(--paper)', border: inSheet ? '1px solid var(--line)' : 0 }}>
               <div style={{ width: 38, height: 38, flex: 'none', borderRadius: 11, background: '#fff', display: 'grid', placeItems: 'center' }}><Icon name="bank" size={18} /></div>
@@ -134,11 +140,37 @@ export function WithdrawForm({ onDone, inSheet }: { onDone?: () => void; inSheet
           ) : (
             <button className="btn btn-outline btn-block" style={{ marginTop: 16 }} onClick={() => nav('/painel/definicoes/banco')}><Icon name="bank" size={17} />Adicionar conta bancária</button>
           )}
+          {acct && tr && <TransferNote tr={tr} amt={amt} fee={fee} net={net} available={available} onPick={v => setW(fmt(v).replace(/\u00A0/g, ' '))} inSheet={inSheet} />}
           <div style={{ display: 'flex', gap: 10, marginTop: 14, fontSize: 13, lineHeight: 1.45, color: 'var(--text-2)' }}><Icon name="clock" size={17} stroke={2} style={{ marginTop: 1 }} />Processado em até 72 horas. Se pedir hoje, chega até {weekday(due).toLowerCase()}, {shortDate(due)}.</div>
           {blocked && <div className="form-err" style={{ marginTop: 12, background: 'var(--sun-soft)', color: '#5B4600' }}>{NOT_APPROVED}</div>}
           {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
-          <button className="btn btn-green btn-block" style={{ marginTop: 16, height: 52, borderRadius: 14, fontSize: 15.5 }} disabled={disabled} onClick={request}>{busy ? <Spinner /> : !acct ? 'Adicione uma conta bancária' : available < 10000 ? 'Ainda sem saldo para levantar' : `Levantar ${fmt(amt)} MT`}</button>
+          <button className="btn btn-green btn-block" style={{ marginTop: 16, height: 52, borderRadius: 14, fontSize: 15.5 }} disabled={disabled} onClick={request}>{busy ? <Spinner /> : !acct ? 'Adicione uma conta bancária' : available < 10000 ? 'Ainda sem saldo para levantar' : fee ? `Levantar ${fmt(amt)} MT · recebe ${fmt(net)} MT` : `Levantar ${fmt(amt)} MT`}</button>
           {!live && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, textAlign: 'center' }}>Em modo de teste os levantamentos são concluídos automaticamente em segundos.</div>}
     </>
+  )
+}
+
+// TransferNote says, before the merchant asks, what reaches their bank and why a
+// fee applies: RIHA's money is at Millennium bim, and bim charges for transfers to
+// other banks. RIHA pays it from the free threshold up, and bim accounts never pay.
+function TransferNote({ tr, amt, fee, net, available, onPick, inSheet }: { tr: any; amt: number; fee: number; net: number; available: number; onPick: (v: number) => void; inSheet?: boolean }) {
+  const bank = tr.bank || 'o seu banco'
+  const box = { marginTop: 12, padding: '12px 14px', borderRadius: 14, fontSize: 13, lineHeight: 1.5, background: inSheet ? '#fff' : 'var(--paper)', border: inSheet ? '1px solid var(--line)' : 0 }
+  if (tr.bank_is_bim) {
+    return <div style={{ ...box, display: 'flex', gap: 10 }}><Icon name="check" size={17} stroke={2.2} color="var(--green-dark)" style={{ marginTop: 1, flex: 'none' }} /><span>Sem taxa de transferência: a sua conta é no Millennium bim, o mesmo banco onde a RIHA guarda o dinheiro.</span></div>
+  }
+  if (!fee) {
+    return <div style={{ ...box, display: 'flex', gap: 10 }}><Icon name="check" size={17} stroke={2.2} color="var(--green-dark)" style={{ marginTop: 1, flex: 'none' }} /><span>Sem taxa de transferência. A partir de {fmt(tr.free_from, false)} MT, a transferência para {bank} fica por nossa conta.</span></div>
+  }
+  return (
+    <div style={box}>
+      <div className="between"><span style={{ color: 'var(--muted)' }}>Levanta</span><span className="tnum">{fmt(amt)} MT</span></div>
+      <div className="between" style={{ marginTop: 2 }}><span style={{ color: 'var(--muted)' }}>Taxa de transferência para {bank}</span><span className="tnum">−{fmt(fee)} MT</span></div>
+      <div className="between" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line-3)', fontWeight: 600 }}><span>Recebe no {bank}</span><span className="tnum">{fmt(Math.max(0, net))} MT</span></div>
+      <div style={{ marginTop: 10, color: 'var(--text-2)' }}>
+        <b>Porquê?</b> O dinheiro da RIHA está no Millennium bim, e o banco cobra {fmt(fee, false)} MT por cada transferência para outro banco. Levantamentos a partir de {fmt(tr.free_from, false)} MT, ou para uma conta bim, não pagam taxa.
+      </div>
+      {available >= tr.free_from && <button className="btn" style={{ marginTop: 10, height: 32, padding: '0 12px', borderRadius: 999, background: 'var(--green-bg)', color: 'var(--green-dark)', fontSize: 12.5, fontWeight: 600 }} onClick={() => onPick(tr.free_from)}>Levantar {fmt(tr.free_from, false)} MT sem taxa</button>}
+    </div>
   )
 }

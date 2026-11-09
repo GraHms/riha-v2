@@ -339,3 +339,49 @@ func TestPlanMinimumAndBetaProgram(t *testing.T) {
 		t.Fatalf("paying 1 MT: %+v %v", pay, err)
 	}
 }
+
+func TestWithdrawalTransferFee(t *testing.T) {
+	a, ctx := setup(t)
+	m := approved(t, a, ctx, "Loja Taxa", "loja@taxa.co.mz")
+	pay(t, a, ctx, m, 3_000_000, "841234567")
+	bal := a.Balance(ctx, m.ID, false)
+	if _, err := a.SaveBankAccount(ctx, m, app.BankInput{BankName: "FNB", Holder: "Loja Taxa", NIB: "001200004821130101135"}, app.Actor{}); err != nil {
+		t.Fatal(err)
+	}
+	// Below 10 000 MT to another bank: the 120 MT fee comes out of the amount.
+	if _, err := a.RequestPayout(ctx, m.ID, false, 20_000, "u"); err == nil || !strings.Contains(err.Error(), "pelo menos 220 MT") {
+		t.Fatalf("200 MT to FNB: %v", err)
+	}
+	po, err := a.RequestPayout(ctx, m.ID, false, 500_000, "u")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if po.Fee != 12_000 || po.Net() != 488_000 || a.Balance(ctx, m.ID, false) != bal-500_000 {
+		t.Fatalf("5 000 MT to FNB: fee %d, net %d, balance %d", po.Fee, po.Net(), a.Balance(ctx, m.ID, false))
+	}
+	// A failed transfer gives back everything, fee included.
+	if _, err := a.TransitionPayout(ctx, po.ID, domain.ActReject, "NIB errado", "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if b := a.Balance(ctx, m.ID, false); b != bal {
+		t.Fatalf("after the rejection: %d, want %d", b, bal)
+	}
+	// From 10 000 MT RIHA pays the transfer.
+	if po, err = a.RequestPayout(ctx, m.ID, false, 1_000_000, "u"); err != nil || po.Fee != 0 {
+		t.Fatalf("10 000 MT to FNB: %+v %v", po, err)
+	}
+	// A bim account never pays.
+	if _, err := a.SaveBankAccount(ctx, m, app.BankInput{BankName: "Millennium bim", Holder: "Loja Taxa", NIB: "000100004821130101135"}, app.Actor{}); err != nil {
+		t.Fatal(err)
+	}
+	if po, err = a.RequestPayout(ctx, m.ID, false, 20_000, "u"); err != nil || po.Fee != 0 {
+		t.Fatalf("200 MT to bim: %+v %v", po, err)
+	}
+	// The admin can change both numbers.
+	if err := a.SetTransferPricing(ctx, domain.TransferPricing{Fee: 10_000, FreeFrom: 500_000}); err != nil {
+		t.Fatal(err)
+	}
+	if tp := a.TransferPricing(ctx); tp.FeeFor("FNB", "001200004821130101135", 400_000) != 10_000 || tp.FeeFor("FNB", "001200004821130101135", 500_000) != 0 {
+		t.Fatalf("changed pricing %+v", tp)
+	}
+}

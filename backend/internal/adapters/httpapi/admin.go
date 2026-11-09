@@ -239,29 +239,53 @@ func (srv *Server) adminPayoutExport(c *gin.Context) {
 	w := csv.NewWriter(c.Writer)
 	_ = w.Write([]string{"referencia", "banco", "nib", "titular", "valor_mzn", "descritivo", "prazo"})
 	for _, p := range ps {
-		_ = w.Write([]string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(p.Amount), "RIHA " + p.Ref(), isoT(p.DueAt)})
+		// The bank is sent what the merchant receives: the amount less the transfer fee.
+		_ = w.Write([]string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(p.Net()), "RIHA " + p.Ref(), isoT(p.DueAt)})
 	}
 	w.Flush()
 }
 
 func (srv *Server) adminSettings(c *gin.Context) {
-	c.JSON(200, gin.H{"default_fee_bps": srv.A.DefaultFeeBps(ctx(c))})
+	t := srv.A.TransferPricing(ctx(c))
+	c.JSON(200, gin.H{"default_fee_bps": srv.A.DefaultFeeBps(ctx(c)), "transfer_fee": t.Fee, "free_transfer_from": t.FreeFrom})
 }
 
 func (srv *Server) adminPutSettings(c *gin.Context) {
 	var in struct {
-		DefaultFeeBps int `json:"default_fee_bps"`
+		DefaultFeeBps    *int   `json:"default_fee_bps"`
+		TransferFee      *int64 `json:"transfer_fee"`
+		FreeTransferFrom *int64 `json:"free_transfer_from"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		bad(c, "Pedido inválido.")
 		return
 	}
+	if in.TransferFee != nil || in.FreeTransferFrom != nil {
+		t := srv.A.TransferPricing(ctx(c))
+		old := t
+		if in.TransferFee != nil {
+			t.Fee = *in.TransferFee
+		}
+		if in.FreeTransferFrom != nil {
+			t.FreeFrom = *in.FreeTransferFrom
+		}
+		if err := srv.A.SetTransferPricing(ctx(c), t); err != nil {
+			fail(c, err)
+			return
+		}
+		srv.A.Record(ctx(c), "", actor(c), "platform.transfer_fee", "", fmt.Sprintf("%s MT abaixo de %s MT → %s MT abaixo de %s MT",
+			domain.FormatShort(old.Fee), domain.FormatShort(old.FreeFrom), domain.FormatShort(t.Fee), domain.FormatShort(t.FreeFrom)))
+	}
+	if in.DefaultFeeBps == nil {
+		srv.adminSettings(c)
+		return
+	}
 	old := srv.A.DefaultFeeBps(ctx(c))
-	if err := srv.A.SetDefaultFeeBps(ctx(c), in.DefaultFeeBps); err != nil {
+	if err := srv.A.SetDefaultFeeBps(ctx(c), *in.DefaultFeeBps); err != nil {
 		fail(c, err)
 		return
 	}
-	srv.A.Record(ctx(c), "", actor(c), "platform.default_fee", "", domain.FormatBps(old)+" → "+domain.FormatBps(in.DefaultFeeBps))
+	srv.A.Record(ctx(c), "", actor(c), "platform.default_fee", "", domain.FormatBps(old)+" → "+domain.FormatBps(*in.DefaultFeeBps))
 	srv.adminSettings(c)
 }
 

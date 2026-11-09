@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -18,7 +19,37 @@ const (
 const (
 	PayoutSLA = 72 * time.Hour
 	MinPayout = 10000
+	// RIHA's money is at Millennium bim. A transfer to another bank costs RIHA
+	// DefaultTransferFee; from DefaultFreeTransferFrom RIHA pays it itself.
+	DefaultTransferFee      = 12_000
+	DefaultFreeTransferFrom = 1_000_000
+	// BimBankCode is how a NIB at Millennium bim starts.
+	BimBankCode = "0001"
 )
+
+// IsBimAccount says whether a bank account is at Millennium bim, where a transfer
+// from RIHA's own account costs nothing. The NIB's first four digits name the bank.
+func IsBimAccount(bankName, nib string) bool {
+	if strings.HasPrefix(nib, BimBankCode) {
+		return true
+	}
+	n := strings.ToLower(bankName)
+	return strings.Contains(n, "millennium") || n == "bim" || strings.HasPrefix(n, "bim ")
+}
+
+// TransferPricing is what a withdrawal to another bank costs the merchant: Fee,
+// unless the amount is at least FreeFrom, or the account is at bim.
+type TransferPricing struct {
+	Fee      int64
+	FreeFrom int64
+}
+
+func (t TransferPricing) FeeFor(bankName, nib string, amount int64) int64 {
+	if IsBimAccount(bankName, nib) || amount >= t.FreeFrom {
+		return 0
+	}
+	return t.Fee
+}
 
 const (
 	ActReview  = "review"
@@ -32,11 +63,14 @@ var OpenPayoutStatuses = []string{PayoutNew, PayoutReview, PayoutSent}
 var PendingPayoutStatuses = []string{PayoutNew, PayoutReview}
 
 type Payout struct {
-	ID            string
-	Number        int64
-	MerchantID    string
-	Livemode      bool
+	ID         string
+	Number     int64
+	MerchantID string
+	Livemode   bool
+	// Amount leaves the merchant's balance; Fee is the transfer fee within it, so
+	// the bank receives Net().
 	Amount        int64
+	Fee           int64
 	Status        string
 	BankName      string
 	Holder        string
@@ -62,6 +96,9 @@ type Payout struct {
 func (p *Payout) HasReceipt() bool { return p.ReceiptPath != "" }
 
 func (p *Payout) Ref() string { return fmt.Sprintf("LV-%04d", p.Number) }
+
+// Net is what reaches the merchant's bank: the amount less the transfer fee.
+func (p *Payout) Net() int64 { return p.Amount - p.Fee }
 
 func (p *Payout) Pending() bool { return p.Status == PayoutNew || p.Status == PayoutReview }
 

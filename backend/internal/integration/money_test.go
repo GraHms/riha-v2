@@ -157,7 +157,10 @@ func TestMoneyFlow(t *testing.T) {
 	if b := a.Balance(ctx, m.ID, false); b != bal {
 		t.Fatalf("rejected payout not restored: %d", b)
 	}
-	po2, _ := a.RequestPayout(ctx, m.ID, false, 20000, "u")
+	po2, err := a.RequestPayout(ctx, m.ID, false, 30000, "u")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := a.TransitionPayout(ctx, po2.ID, domain.ActApprove, "", "admin"); err != nil {
 		t.Fatal(err)
 	}
