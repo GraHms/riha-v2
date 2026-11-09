@@ -24,7 +24,7 @@ func TestSubscriptionPagesAreRealPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := httpapi.New(a, httpapi.Config{StaticDir: dir})
-	for path, code := range map[string]int{"/i/qualquertoken": 200, "/s/loja/plano": 404, "/a/loja": 404} {
+	for path, code := range map[string]int{"/i/qualquertoken": 200, "/m/qualquertoken": 200, "/s/loja/plano": 404, "/a/loja": 404} {
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != code || !strings.Contains(w.Body.String(), "noindex") || !strings.Contains(w.Body.String(), `id="root"`) {

@@ -65,6 +65,8 @@ func (srv *Server) metaFor(c context.Context, host, path string) pageMeta {
 			m = srv.planMeta(c, slug, seg[0])
 		case seg[0] == "i" && len(seg) == 2:
 			m = private("Pagamento")
+		case seg[0] == "m" && len(seg) == 2:
+			m = private("A sua inscrição")
 		default:
 			m = private("Página não encontrada")
 			m.status = http.StatusNotFound
@@ -103,6 +105,8 @@ func (srv *Server) metaFor(c context.Context, host, path string) pageMeta {
 	// stay out of search and their previews say nothing about the person.
 	case seg[0] == "i" && len(seg) == 2:
 		return private("Pagamento")
+	case seg[0] == "m" && len(seg) == 2:
+		return private("A sua inscrição")
 	case seg[0] == "a" && len(seg) == 2:
 		return srv.catalogMeta(c, seg[1])
 	case seg[0] == "s" && len(seg) == 3:
@@ -238,7 +242,7 @@ func (srv *Server) servePage(c *gin.Context) {
 
 func (srv *Server) robots(c *gin.Context) {
 	c.Header("Cache-Control", "public, max-age=3600")
-	c.String(200, "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /painel\nDisallow: /verificacao\nDisallow: /i/\nDisallow: /api/\nDisallow: /v1/\n\nSitemap: %s\n", srv.url("/sitemap.xml"))
+	c.String(200, "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /painel\nDisallow: /verificacao\nDisallow: /i/\nDisallow: /m/\nDisallow: /api/\nDisallow: /v1/\n\nSitemap: %s\n", srv.url("/sitemap.xml"))
 }
 
 func (srv *Server) sitemap(c *gin.Context) {
