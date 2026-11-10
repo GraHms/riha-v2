@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -89,9 +90,12 @@ func (srv *Server) adminApprovals(c *gin.Context) {
 	if c.Query("tab") == "leads" {
 		statuses = []string{domain.MerchantLead}
 	}
-	q := srv.A.ApprovalQueue(ctx(c), statuses, 200)
+	page, _ := strconv.Atoi(c.Query("page"))
+	q := app.ApprovalQuery{Statuses: statuses, Query: c.Query("q"), Sort: c.Query("sort"), Page: max(page, 1), PerPage: 50}
+	list, total := srv.A.ApprovalQueue(ctx(c), q)
 	leads, _ := srv.A.Merchants.Count(ctx(c), []string{domain.MerchantLead})
-	c.JSON(200, gin.H{"data": applicationsJSON(q, true), "pending": srv.A.PendingApprovals(ctx(c)), "leads": leads})
+	c.JSON(200, gin.H{"data": applicationsJSON(list, true), "pending": srv.A.PendingApprovals(ctx(c)), "leads": leads,
+		"total": total, "page": q.Page, "per_page": q.PerPage})
 }
 
 func (srv *Server) adminMerchants(c *gin.Context) {

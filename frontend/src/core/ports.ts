@@ -77,7 +77,7 @@ export interface AdminPort {
   trailThread(id: string): Promise<Json>
   trailEvents(filter: Record<string, string | number | undefined>): Promise<Json>
   metrics(days: number, live: boolean, merchant?: string): Promise<Json>
-  approvals(tab: 'review' | 'leads'): Promise<Json>
+  approvals(tab: 'review' | 'leads', o?: { q?: string; sort?: string; page?: number }): Promise<Json>
   decide(merchantId: string, decision: string, note: string): Promise<Json>
   merchants(status: string, q: string): Promise<Json>
   merchant(id: string): Promise<Json>

@@ -6,9 +6,15 @@ import { useQuery } from '../../core/useQuery'
 import { useSession } from '../../lib/session'
 import { Avatar, Icon, Pill, Spinner } from '../../components/ui'
 import { fileSize } from '../public/Kyc'
-import { RISK, submittedAgo } from './common'
+import { RISK, submittedAgo, V1Tag } from './common'
 
 const DOC_LABEL: Record<string, string> = { id_front: 'BI · frente', id_back: 'BI · verso', registration: 'Certidão comercial', nib_proof: 'Comprovativo NIB' }
+// The queue's own order comes first: submissions in the order they arrived,
+// leads newest first.
+const SORTS: Record<'review' | 'leads', [string, string][]> = {
+  review: [['', 'Por ordem de chegada'], ['newest', 'Mais recentes'], ['name', 'Nome (A–Z)']],
+  leads: [['', 'Mais recentes'], ['oldest', 'Mais antigas'], ['name', 'Nome (A–Z)']],
+}
 const CK: Record<string, [string, string, string]> = { ok: ['✓', '#E2F3DE', '#0A6B05'], warn: ['!', '#FFF3C4', '#7A5A00'], bad: ['×', '#FFE3E1', '#C2080D'] }
 
 export default function Approvals() {
@@ -16,7 +22,25 @@ export default function Approvals() {
   const g = useGateway()
   const [sp, setSp] = useSearchParams()
   const tab = sp.get('tab') === 'leads' ? 'leads' : 'review'
-  const { data, reload } = useQuery(g => g.admin.approvals(tab), [tab])
+  const q = sp.get('q') || ''
+  const sort = sp.get('sort') || ''
+  const page = Math.max(1, Number(sp.get('page')) || 1)
+  // Changes some of the list's settings and keeps the rest in the address.
+  const go = (patch: Record<string, string | number>) => {
+    const all: Record<string, string | number> = { tab: tab === 'leads' ? 'leads' : '', q, sort, page, id: sp.get('id') || '', ...patch }
+    setSp(Object.fromEntries(Object.entries(all).filter(([k, v]) => v !== '' && !(k === 'page' && Number(v) <= 1)).map(([k, v]) => [k, String(v)])))
+  }
+  const [term, setTerm] = useState(q)
+  useEffect(() => setTerm(q), [q])
+  useEffect(() => {
+    if (term.trim() === q) return
+    const t = setTimeout(() => go({ q: term.trim(), page: 1, id: '' }), 300)
+    return () => clearTimeout(t)
+  }, [term])
+  const { data, reload } = useQuery(g => g.admin.approvals(tab, { q, sort, page }), [tab, q, sort, page])
+  const total: number = data?.total ?? 0
+  const perPage: number = data?.per_page ?? 50
+  const from = (page - 1) * perPage
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState('')
   const list: any[] = data?.data || []
@@ -31,8 +55,7 @@ export default function Approvals() {
     try {
       await g.admin.decide(app.id, decision, note)
       toast(`${msg}: ${app.name}`)
-      const next = list.find(a => a.id !== app.id)
-      setSp(next ? { id: next.id, tab } : { tab })
+      go({ id: list.find(a => a.id !== app.id)?.id || '' })
       reload()
     } catch (e) { toast(errMsg(e), true) } finally { setBusy('') }
   }
@@ -40,12 +63,20 @@ export default function Approvals() {
   return (
     <div className="appr">
       <style>{`.appr{display:flex;height:100%}.appr-list{width:380px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;height:100%}.appr-main{flex:1;min-width:0;display:flex;flex-direction:column;height:100%}
+      .appr-filters{display:flex;gap:8px;margin-top:14px}.appr-search{flex:1;min-width:0;height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border:1px solid #E1DFD7;border-radius:999px;background:#fff;color:var(--muted)}.appr-search:focus-within{border-color:var(--ink)}.appr-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13.5px;color:var(--ink)}
+      .appr-filters .pf{height:36px;padding:0 26px 0 12px;border-radius:999px;border:1px dashed #E1DFD7;font-weight:600;font-size:13px;appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%230B120E'/%3E%3C/svg%3E") no-repeat right 11px center;max-width:150px}
       @media(max-width:860px){.appr{flex-direction:column;height:auto}.appr-list{width:100%;height:auto;border-right:0}.appr-list .scroll{max-height:none;flex-direction:row;overflow-x:auto}.appr-list .scroll>button{flex:none;width:260px}.appr-main{height:auto}.appr-foot{flex-wrap:wrap;position:sticky;bottom:0}.appr-foot input{flex-basis:100%!important}}`}</style>
       <div className="appr-list">
         <div style={{ padding: '24px 22px 14px' }}><h1 className="h1" style={{ fontSize: 28 }}>Aprovações</h1><div style={{ fontSize: 13.5, color: 'var(--muted)', marginTop: 4 }}>{data?.pending ?? '…'} contas à espera de verificação · {data?.leads ?? '…'} leads</div>
           <div className="tabs" style={{ marginTop: 14 }}>
-            <button className={tab === 'review' ? 'on' : ''} onClick={() => setSp({})}>Por rever<span className="count">{data?.pending ?? '·'}</span></button>
-            <button className={tab === 'leads' ? 'on' : ''} onClick={() => setSp({ tab: 'leads' })}>Leads<span className="count">{data?.leads ?? '·'}</span></button>
+            <button className={tab === 'review' ? 'on' : ''} onClick={() => setSp(q ? { q } : {})}>Por rever<span className="count">{data?.pending ?? '·'}</span></button>
+            <button className={tab === 'leads' ? 'on' : ''} onClick={() => setSp(q ? { tab: 'leads', q } : { tab: 'leads' })}>Leads<span className="count">{data?.leads ?? '·'}</span></button>
+          </div>
+          <div className="appr-filters">
+            <div className="appr-search"><Icon name="search" size={15} /><input type="search" value={term} onChange={e => setTerm(e.target.value)} placeholder="Nome, email ou telefone" title="Pesquisa por nome, dono, email, NUIT ou telefone" aria-label="Pesquisar contas" /></div>
+            <select className="pf" value={sort} onChange={e => go({ sort: e.target.value, page: 1, id: '' })} aria-label="Ordenar">
+              {SORTS[tab].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
           </div>
         </div>
         <div className="scroll" style={{ flex: 1, overflow: 'auto', padding: '0 12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -53,15 +84,24 @@ export default function Approvals() {
             const on = a.id === app?.id
             const pill = a.status === 'lead' ? ['Lead', '#EDECE6', '#3E4742'] : a.status === 'info_requested' ? ['Docs pedidos', '#EDECE6', '#3E4742'] : ['Risco ' + a.risk.toLowerCase(), ...RISK[a.risk]]
             return (
-              <button key={a.id} onClick={() => setSp({ id: a.id, tab })} className="row" style={{ padding: 12, borderRadius: 14, border: `1px solid ${on ? '#E2E0D8' : 'transparent'}`, background: on ? '#fff' : 'transparent', textAlign: 'left' }}>
+              <button key={a.id} onClick={() => go({ id: a.id })} className="row" style={{ padding: 12, borderRadius: 14, border: `1px solid ${on ? '#E2E0D8' : 'transparent'}`, background: on ? '#fff' : 'transparent', textAlign: 'left' }}>
                 <Avatar text={a.initials} color={a.avatar_color} size={40} radius={12} font={13.5} />
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 1 }}>{a.city || a.email} · {submittedAgo(a.submitted_at || a.created_at)}</div></div>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}{a.imported_from === 'v1' && <V1Tag />}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 1 }}>{a.city || a.email} · {submittedAgo(a.submitted_at || a.created_at)}</div></div>
                 <Pill t={pill[0]} bg={pill[1]} fg={pill[2]} style={{ fontSize: 11 }} />
               </button>
             )
           })}
-          {data && !list.length && <div className="empty">{tab === 'leads' ? 'Sem leads por contactar.' : 'Fila vazia. Bom trabalho.'}</div>}
+          {data && !list.length && <div className="empty">{q ? `Nenhuma conta encontrada para “${q}”.` : tab === 'leads' ? 'Sem leads por contactar.' : 'Fila vazia. Bom trabalho.'}</div>}
         </div>
+        {data && total > 0 && (q || total > perPage) && (
+          <div className="between" style={{ flex: 'none', padding: '10px 22px', fontSize: 13, color: 'var(--muted)', borderTop: '1px solid var(--line)' }}>
+            <span>{`${from + 1}–${from + list.length} de ${total}`}</span>
+            <span style={{ display: 'flex', gap: 14 }}>
+              {page > 1 && <button className="link-btn" onClick={() => go({ page: page - 1, id: '' })}>Anteriores</button>}
+              {from + list.length < total && <button className="link-btn" onClick={() => go({ page: page + 1, id: '' })}>Seguintes</button>}
+            </span>
+          </div>
+        )}
       </div>
       {app && (
         <div className="appr-main">

@@ -125,7 +125,7 @@ export function httpGateway(t = new Transport()): Gateway {
       trailThread: id => get('/admin/trail/thread/' + encodeURIComponent(id)),
       trailEvents: f => get('/admin/trail/events?' + qs(f)),
       metrics: (days, live, merchant) => get('/admin/metrics?' + qs({ days, live: String(live), merchant })),
-      approvals: tab => get('/admin/approvals?' + qs({ tab: tab === 'leads' ? 'leads' : '' })),
+      approvals: (tab, o = {}) => get('/admin/approvals?' + qs({ tab: tab === 'leads' ? 'leads' : '', q: o.q, sort: o.sort, page: o.page && o.page > 1 ? o.page : undefined })),
       decide: (id, decision, note) => post(`/admin/merchants/${encodeURIComponent(id)}/decision`, { decision, note }),
       merchants: (status, q) => get('/admin/merchants?' + qs({ status, q })),
       merchant: id => get('/admin/merchants/' + encodeURIComponent(id)),

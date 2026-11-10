@@ -246,19 +246,49 @@ func (a *App) Application(ctx context.Context, m *domain.Merchant) Application {
 	return Application{Merchant: *m, Checks: checks, Risk: domain.Risk(checks), Documents: docs, Bank: bank}
 }
 
-func (a *App) ApprovalQueue(ctx context.Context, statuses []string, limit int) []Application {
-	order := "kyc_submitted_at NULLS LAST, created_at"
-	// Leads never submitted anything, and the v1 import brought in hundreds
-	// of old ones, so the newest signups go first or they fall off the list.
-	if len(statuses) == 1 && statuses[0] == domain.MerchantLead {
-		order = "created_at DESC"
+// ApprovalQuery picks a page of the approvals queue.
+type ApprovalQuery struct {
+	Statuses []string
+	Query    string // name, owner, email, NUIT or phone
+	Sort     string // a key of ApprovalSorts; empty takes the queue's own order
+	Page     int    // from 1
+	PerPage  int
+}
+
+// ApprovalSorts are the orders the queue can be listed in. Each ends on id so
+// pages don't overlap when two accounts share a time.
+var ApprovalSorts = map[string]string{
+	"submitted": "kyc_submitted_at NULLS LAST, created_at, id",
+	"newest":    "created_at DESC, id",
+	"oldest":    "created_at, id",
+	"name":      "LOWER(name), id",
+}
+
+// ApprovalQueue returns one page of the queue and how many match in all.
+// Submitted accounts wait in the order they arrived; leads never submitted
+// anything, so they list newest first, the signups worth calling today.
+func (a *App) ApprovalQueue(ctx context.Context, q ApprovalQuery) ([]Application, int64) {
+	order, ok := ApprovalSorts[q.Sort]
+	if !ok {
+		order = ApprovalSorts["submitted"]
+		if len(q.Statuses) == 1 && q.Statuses[0] == domain.MerchantLead {
+			order = ApprovalSorts["newest"]
+		}
 	}
-	ms, _ := a.Merchants.List(ctx, ports.MerchantFilter{Statuses: statuses, OrderBy: order, Limit: limit})
+	if q.PerPage <= 0 {
+		q.PerPage = 50
+	}
+	if q.Page < 1 {
+		q.Page = 1
+	}
+	f := ports.MerchantFilter{Statuses: q.Statuses, Query: q.Query, OrderBy: order, Limit: q.PerPage, Offset: (q.Page - 1) * q.PerPage}
+	ms, _ := a.Merchants.List(ctx, f)
+	total, _ := a.Merchants.CountMatching(ctx, f)
 	out := make([]Application, 0, len(ms))
 	for i := range ms {
 		out = append(out, a.Application(ctx, &ms[i]))
 	}
-	return out
+	return out, total
 }
 
 func (a *App) PendingApprovals(ctx context.Context) int64 {
@@ -431,7 +461,7 @@ func (a *App) PlatformOverview(ctx context.Context) *PlatformOverview {
 	for _, h := range hs {
 		o.Health[h.Method] = h
 	}
-	o.Approvals = a.ApprovalQueue(ctx, []string{domain.MerchantInReview}, 4)
+	o.Approvals, _ = a.ApprovalQueue(ctx, ApprovalQuery{Statuses: []string{domain.MerchantInReview}, PerPage: 4})
 	o.PendingApprovals = a.PendingApprovals(ctx)
 	live := true
 	o.PayoutsDue = a.PayoutRows(ctx, ports.PayoutQuery{Live: &live, Statuses: domain.PendingPayoutStatuses, OrderBy: "due_at", Limit: 4})

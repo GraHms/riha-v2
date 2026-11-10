@@ -120,7 +120,8 @@ func applicationJSON(a *app.Application, full bool) gin.H {
 	o := gin.H{"id": m.ID, "name": m.Name, "legal_name": m.LegalName, "owner_name": m.OwnerName, "business_type": m.BusinessType,
 		"nuit": m.NUIT, "city": m.City, "phone": m.Phone, "email": m.Email, "expected_volume": m.ExpectedVolume,
 		"avatar_color": m.AvatarColor, "initials": domain.Initials(m.Name), "status": m.Status, "risk": a.Risk,
-		"submitted_at": iso(m.KycSubmittedAt), "created_at": isoT(m.CreatedAt), "review_note": m.ReviewNote}
+		"submitted_at": iso(m.KycSubmittedAt), "created_at": isoT(m.CreatedAt), "review_note": m.ReviewNote,
+		"imported_from": m.ImportedFrom}
 	if full {
 		o["checks"] = a.Checks
 		o["documents"] = docsJSON(a.Documents)

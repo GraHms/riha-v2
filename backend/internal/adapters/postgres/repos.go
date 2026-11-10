@@ -84,8 +84,18 @@ func (r Merchants) filter(ctx context.Context, f ports.MerchantFilter) *gormDB {
 		q = q.Where("status IN ?", f.Statuses)
 	}
 	if s := strings.TrimSpace(f.Query); s != "" {
-		like := "%" + strings.ToLower(s) + "%"
-		q = q.Where("LOWER(name) LIKE ? OR nuit LIKE ? OR LOWER(email) LIKE ?", like, like, like)
+		like := "%" + likeEscape(strings.ToLower(s)) + "%"
+		where, args := "LOWER(name) LIKE ? OR LOWER(owner_name) LIKE ? OR nuit LIKE ? OR LOWER(email) LIKE ?", []any{like, like, like, like}
+		// A phone is typed with or without spaces and the 258.
+		if d := strings.Map(func(r rune) rune {
+			if r >= '0' && r <= '9' {
+				return r
+			}
+			return -1
+		}, s); len(d) >= 3 {
+			where, args = where+" OR phone LIKE ?", append(args, "%"+d+"%")
+		}
+		q = q.Where(where, args...)
 	}
 	return q
 }
@@ -97,7 +107,15 @@ func (r Merchants) List(ctx context.Context, f ports.MerchantFilter) ([]domain.M
 	if f.Limit > 0 {
 		q = q.Limit(f.Limit)
 	}
+	if f.Offset > 0 {
+		q = q.Offset(f.Offset)
+	}
 	return find[merchantRecord, domain.Merchant](q)
+}
+func (r Merchants) CountMatching(ctx context.Context, f ports.MerchantFilter) (int64, error) {
+	var n int64
+	err := r.filter(ctx, f).Count(&n).Error
+	return n, err
 }
 func (r Merchants) Count(ctx context.Context, statuses []string) (int64, error) {
 	var n int64
@@ -400,4 +418,9 @@ func (r Payouts) PaidBetween(ctx context.Context, merchantID string, live bool, 
 }
 func (r Payouts) TestModeToSettle(ctx context.Context, before time.Time, limit int) ([]domain.Payout, error) {
 	return find[payoutRecord, domain.Payout](r.conn(ctx).Where("livemode = ? AND status IN ? AND updated_at < ?", false, []string{domain.PayoutNew, domain.PayoutSent}, before).Limit(limit))
+}
+
+// likeEscape makes % and _ in a search mean themselves, not wildcards.
+func likeEscape(s string) string {
+	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s)
 }

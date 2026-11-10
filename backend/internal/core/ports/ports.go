@@ -50,6 +50,7 @@ type MerchantFilter struct {
 	Statuses []string
 	Query    string
 	Limit    int
+	Offset   int
 	OrderBy  string
 }
 
@@ -64,6 +65,8 @@ type Merchants interface {
 	SetBeta(ctx context.Context, id string, beta bool) error
 	List(ctx context.Context, f MerchantFilter) ([]domain.Merchant, error)
 	Count(ctx context.Context, statuses []string) (int64, error)
+	// CountMatching counts what List would return without its limit.
+	CountMatching(ctx context.Context, f MerchantFilter) (int64, error)
 }
 
 type Documents interface {
