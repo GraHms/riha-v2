@@ -247,7 +247,13 @@ func (a *App) Application(ctx context.Context, m *domain.Merchant) Application {
 }
 
 func (a *App) ApprovalQueue(ctx context.Context, statuses []string, limit int) []Application {
-	ms, _ := a.Merchants.List(ctx, ports.MerchantFilter{Statuses: statuses, OrderBy: "kyc_submitted_at NULLS LAST, created_at", Limit: limit})
+	order := "kyc_submitted_at NULLS LAST, created_at"
+	// Leads never submitted anything, and the v1 import brought in hundreds
+	// of old ones, so the newest signups go first or they fall off the list.
+	if len(statuses) == 1 && statuses[0] == domain.MerchantLead {
+		order = "created_at DESC"
+	}
+	ms, _ := a.Merchants.List(ctx, ports.MerchantFilter{Statuses: statuses, OrderBy: order, Limit: limit})
 	out := make([]Application, 0, len(ms))
 	for i := range ms {
 		out = append(out, a.Application(ctx, &ms[i]))
