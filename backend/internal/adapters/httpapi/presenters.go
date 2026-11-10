@@ -135,7 +135,7 @@ func merchantRowJSON(r *app.MerchantRow) gin.H {
 	m := &r.Merchant
 	return gin.H{"id": m.ID, "name": m.Name, "city": m.City, "status": m.Status, "initials": domain.Initials(m.Name), "avatar_color": m.AvatarColor,
 		"volume_30d": r.Volume30d, "balance": r.Balance, "main_method": r.MainMethod, "created_at": isoT(m.CreatedAt),
-		"fee_bps": r.FeeBps, "fee_negotiated": m.FeeBps != nil, "email": m.Email, "beta": m.Beta}
+		"fee_bps": r.FeeBps, "fee_negotiated": m.FeeBps != nil, "email": m.Email, "beta": m.Beta, "imported_from": m.ImportedFrom}
 }
 
 func publicMerchant(m *domain.Merchant) gin.H {

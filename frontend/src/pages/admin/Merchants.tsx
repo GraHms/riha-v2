@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '../../core/useQuery'
 import { bpsLabel, fmt, METHOD_NAME, MERCHANT_STATUS, monthName } from '../../lib/format'
 import { Avatar, Pill } from '../../components/ui'
+import { V1Tag } from './common'
 
 const TABS: [string, string][] = [['', 'Todos'], ['active', 'Ativos'], ['review', 'Em verificação'], ['suspended', 'Suspensos']]
 const GRID = 'minmax(0,1.5fr) 130px 140px 150px 90px 120px 110px 70px'
@@ -29,7 +30,7 @@ export default function Merchants() {
             const d = new Date(r.created_at)
             return (
               <div key={r.id} className="trow click" style={{ gridTemplateColumns: GRID }} onClick={() => nav('/admin/comerciantes/' + r.id)}>
-                <div className="row" style={{ minWidth: 0 }}><Avatar text={r.initials} color={r.avatar_color} size={36} radius={11} font={12.5} /><div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div><div style={{ fontSize: 12, color: 'var(--muted)' }}>{r.city || r.email}</div></div></div>
+                <div className="row" style={{ minWidth: 0 }}><Avatar text={r.initials} color={r.avatar_color} size={36} radius={11} font={12.5} /><div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}{r.imported_from === 'v1' && <V1Tag />}</div><div style={{ fontSize: 12, color: 'var(--muted)' }}>{r.city || r.email}</div></div></div>
                 <div><Pill {...st} /></div>
                 <div className="tnum" style={{ textAlign: 'right', fontSize: 14 }}>{r.volume_30d ? fmt(r.volume_30d, false) + ' MT' : '—'}</div>
                 <div className="tnum" style={{ textAlign: 'right', fontSize: 14, fontWeight: 600 }}>{fmt(r.balance)} MT</div>

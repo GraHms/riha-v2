@@ -27,3 +27,8 @@ export const submittedAgo = (iso: string | null) => {
   const d = Math.floor(h / 24)
   return d === 1 ? 'há 1 dia' : `há ${d} dias`
 }
+
+// Marks an account brought over from the first RIHA.
+export const V1Tag = ({ big }: { big?: boolean }) => (
+  <span title="Conta trazida da primeira versão da RIHA" style={{ marginLeft: 8, verticalAlign: 'middle', fontFamily: 'var(--font-sans, inherit)', fontSize: big ? 12 : 10.5, fontWeight: 600, letterSpacing: 0.2, padding: big ? '3px 8px' : '1px 6px', borderRadius: 999, background: '#EDECE6', color: '#5B5A55' }}>v1</span>
+)

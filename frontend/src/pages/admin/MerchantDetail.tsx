@@ -6,7 +6,7 @@ import { useQuery } from '../../core/useQuery'
 import { bpsLabel, fmt, fullDate, MERCHANT_STATUS, methodLine, parseMT, PAYOUT_STATUS, relDate, STATUS } from '../../lib/format'
 import { useSession } from '../../lib/session'
 import { Avatar, Icon, Modal, Pill, Spinner } from '../../components/ui'
-import { RiskPill } from './common'
+import { RiskPill, V1Tag } from './common'
 
 export default function MerchantDetail() {
   const { id } = useParams()
@@ -57,7 +57,7 @@ export default function MerchantDetail() {
       <button className="btn btn-ghost" style={{ padding: 0, height: 32 }} onClick={() => nav('/admin/comerciantes')}><Icon name="arrowLeft" size={16} stroke={2.2} />Comerciantes</button>
       <div className="row" style={{ gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
         <Avatar text={m.initials} color={m.avatar_color} size={56} radius={16} font={18} />
-        <div style={{ flex: 1, minWidth: 220 }}><div className="display" style={{ fontSize: 28 }}>{m.name}</div><div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 2 }}>{m.legal_name || '—'} · {m.email}</div></div>
+        <div style={{ flex: 1, minWidth: 220 }}><div className="display" style={{ fontSize: 28 }}>{m.name}{m.imported_from === 'v1' && <V1Tag big />}</div><div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 2 }}>{m.legal_name || '—'} · {m.email}</div></div>
         <Pill {...st} style={{ fontSize: 12.5, padding: '5px 11px' }} /><RiskPill risk={m.risk} />
         {m.status === 'suspended' ? <button className="btn btn-green" onClick={() => setConfirm('reactivate')}>Reativar</button> : <button className="btn btn-danger" onClick={() => setConfirm('suspend')}>Suspender</button>}
         {(m.status === 'in_review' || m.status === 'info_requested') && <button className="btn btn-outline" onClick={() => nav('/admin/aprovacoes?id=' + m.id)}>Rever verificação</button>}

@@ -57,7 +57,11 @@ type Merchant struct {
 	Status              string
 	FeeBps              *int
 	// Beta accounts may charge from 1 MT, plans included, to test with real money.
-	Beta               bool
+	Beta bool
+	// ImportedFrom is "v1" for an account brought over from the first RIHA, and
+	// V1ID is its id there, so an import run twice doesn't bring it in twice.
+	ImportedFrom       string
+	V1ID               string
 	SuccessURL         string
 	CancelURL          string
 	SigningSecretTest  string

@@ -46,6 +46,8 @@ type merchantRecord struct {
 	Status              string `gorm:"size:20;index;not null"`
 	FeeBps              *int
 	Beta                bool
+	ImportedFrom        string `gorm:"size:10;not null;default:''"`
+	V1ID                string `gorm:"column:v1_id;size:40;not null;default:'';index"`
 	SuccessURL          string `gorm:"size:500"`
 	CancelURL           string `gorm:"size:500"`
 	SigningSecretTest   string `gorm:"size:80"`

@@ -79,6 +79,11 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if len(os.Args) > 1 && os.Args[1] == "import-v1" {
+		code := importV1(ctx, a, os.Args[2:])
+		stop()
+		os.Exit(code)
+	}
 	if err := a.EnsureAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword); err != nil {
 		log.Fatalf("admin: %v", err)
 	}
