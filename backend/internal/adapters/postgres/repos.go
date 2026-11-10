@@ -305,9 +305,18 @@ func (r Payments) query(ctx context.Context, q ports.PaymentQuery) *gormDB {
 	if q.LinkID != "" {
 		db = db.Where("payment_link_id = ?", q.LinkID)
 	}
+	if q.Method != "" {
+		db = db.Where("method = ?", q.Method)
+	}
+	if q.PaidLate {
+		db = db.Where("paid_late")
+	}
+	if q.Duplicates {
+		db = db.Where("duplicate_of <> ''")
+	}
 	if s := strings.TrimSpace(q.Search); s != "" {
 		like := "%" + strings.ToLower(s) + "%"
-		db = db.Where("LOWER(customer_name) LIKE ? OR LOWER(reference) LIKE ? OR LOWER(client_reference_id) LIKE ? OR id = ? OR phone_last4 = ? OR attempt_id = ? OR rail_reference = ? OR rail_id = ?", like, like, like, s, s, strings.ToUpper(s), s, s)
+		db = db.Where("LOWER(customer_name) LIKE ? OR LOWER(reference) LIKE ? OR LOWER(client_reference_id) LIKE ? OR id = ? OR phone_last4 = ? OR attempt_id = ? OR rail_reference = ? OR rail_id = ? OR operator_reference = ?", like, like, like, s, s, strings.ToUpper(s), s, s, s)
 	}
 	if q.From != nil {
 		db = db.Where("created_at >= ?", *q.From)
@@ -334,6 +343,28 @@ func (r Payments) Count(ctx context.Context, q ports.PaymentQuery) (int64, error
 }
 func (r Payments) RecentlyTimedOut(ctx context.Context, since time.Time, limit int) ([]domain.Payment, error) {
 	return find[paymentRecord, domain.Payment](r.conn(ctx).Where("livemode AND status = ? AND failure_code IN ? AND rail_reference <> '' AND failed_at >= ?", domain.PaymentFailed, []string{domain.FailCustomerTimeout, domain.FailNotCompleted}, since).Order("failed_at DESC").Limit(limit))
+}
+
+func (r Payments) DueRechecks(ctx context.Context, now time.Time, limit int) ([]domain.Payment, error) {
+	return find[paymentRecord, domain.Payment](r.conn(ctx).Where("status = ? AND recheck_at <= ?", domain.PaymentUnconfirmed, now).Order("recheck_at").Limit(limit))
+}
+
+func (r Payments) SetRecheck(ctx context.Context, id string, at time.Time, rechecks int) error {
+	return r.conn(ctx).Model(&paymentRecord{}).Where("id = ? AND status = ?", id, domain.PaymentUnconfirmed).
+		Updates(map[string]any{"recheck_at": at, "rechecks": rechecks}).Error
+}
+
+func (r Payments) LaterTwin(ctx context.Context, p *domain.Payment) (*domain.Payment, error) {
+	if p.PhoneLast4 == "" {
+		return nil, nil
+	}
+	got, err := find[paymentRecord, domain.Payment](r.conn(ctx).Where(
+		"merchant_id = ? AND livemode = ? AND amount = ? AND phone_prefix = ? AND phone_last4 = ? AND id <> ? AND created_at > ? AND created_at < ? AND status IN ?",
+		p.MerchantID, p.Livemode, p.Amount, p.PhonePrefix, p.PhoneLast4, p.ID, p.CreatedAt, p.CreatedAt.Add(48*time.Hour), domain.SettledStatuses).Order("created_at").Limit(1))
+	if err != nil || len(got) == 0 {
+		return nil, err
+	}
+	return &got[0], nil
 }
 
 func (r Payments) StaleProcessing(ctx context.Context, before time.Time, limit int) ([]domain.Payment, error) {

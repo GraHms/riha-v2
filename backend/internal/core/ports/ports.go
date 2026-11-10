@@ -126,6 +126,9 @@ type PaymentQuery struct {
 	Source        string
 	LinkID        string
 	Search        string
+	Method        string
+	PaidLate      bool // only those paid after they were left unconfirmed
+	Duplicates    bool // only those that may duplicate another payment
 	From, To      *time.Time
 	StartingAfter *domain.Payment
 	Limit, Offset int
@@ -148,6 +151,13 @@ type Payments interface {
 	BySessionAttempt(ctx context.Context, sessionID, attemptID string) (*domain.Payment, error)
 	// RecentlyTimedOut lists live payments that timed out since a time.
 	RecentlyTimedOut(ctx context.Context, since time.Time, limit int) ([]domain.Payment, error)
+	// DueRechecks lists unconfirmed payments due to be asked about again.
+	DueRechecks(ctx context.Context, now time.Time, limit int) ([]domain.Payment, error)
+	SetRecheck(ctx context.Context, id string, at time.Time, rechecks int) error
+	// LaterTwin finds a payment the same customer made to the same merchant for
+	// the same amount after this one, and that succeeded: the retry this one
+	// duplicates if it turns out paid.
+	LaterTwin(ctx context.Context, p *domain.Payment) (*domain.Payment, error)
 }
 
 type Refunds interface {

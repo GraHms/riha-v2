@@ -32,6 +32,7 @@ const LinkDetail = lazy(() => import('./pages/app/LinkDetail'))
 const AdminShell = lazy(() => import('./pages/admin/AdminShell'))
 const AdminOverview = lazy(() => import('./pages/admin/AdminOverview'))
 const Approvals = lazy(() => import('./pages/admin/Approvals'))
+const AdminTransactions = lazy(() => import('./pages/admin/Transactions'))
 const AdminPayouts = lazy(() => import('./pages/admin/AdminPayouts'))
 const Merchants = lazy(() => import('./pages/admin/Merchants'))
 const MerchantDetail = lazy(() => import('./pages/admin/MerchantDetail'))
@@ -158,6 +159,7 @@ export default function App() {
         <Route path="levantamentos" element={<AdminPayouts />} />
         <Route path="comerciantes" element={<Merchants />} />
         <Route path="comerciantes/:id" element={<MerchantDetail />} />
+        <Route path="transacoes" element={<AdminTransactions />} />
         <Route path="rasto" element={<TrailSearch />} />
         <Route path="rasto/:id" element={<TrailThread />} />
         <Route path="metricas" element={<AdminMetrics />} />

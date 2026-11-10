@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -149,4 +150,21 @@ func cut(s string) string {
 		return s
 	}
 	return s[:TrailBodyLimit] + "\n… (cortado)"
+}
+
+// Ago says a duration the way a person would: "40 s", "12 min", "3 h 5 min", "2 dias".
+func Ago(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%d s", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%d min", int(d.Minutes()))
+	case d < 48*time.Hour:
+		h, m := int(d.Hours()), int(d.Minutes())%60
+		if m == 0 {
+			return fmt.Sprintf("%d h", h)
+		}
+		return fmt.Sprintf("%d h %d min", h, m)
+	}
+	return fmt.Sprintf("%d dias", int(d.Hours()/24))
 }

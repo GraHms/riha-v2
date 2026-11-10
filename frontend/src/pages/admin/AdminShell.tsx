@@ -15,6 +15,7 @@ export default function AdminShell() {
     ['/admin/aprovacoes', 'shield', 'Aprovações', data?.pending_approvals],
     ['/admin/levantamentos', 'wallet', 'Levantamentos', data?.payout_stats?.pending_count],
     ['/admin/comerciantes', 'store', 'Comerciantes', undefined],
+    ['/admin/transacoes', 'txns', 'Transações', data?.unconfirmed_payments || undefined],
     ['/admin/rasto', 'search', 'Rasto', undefined],
     ['/admin/metricas', 'grid', 'Métricas', data?.alerts || undefined],
   ]

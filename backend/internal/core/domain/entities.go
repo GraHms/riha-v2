@@ -233,7 +233,11 @@ func (cs *CheckoutSession) IsOpen(now time.Time) bool {
 }
 
 const (
-	PaymentProcessing        = "processing"
+	PaymentProcessing = "processing"
+	// PaymentUnconfirmed: the operator gave no final answer in time. The customer
+	// may still have paid, so it isn't failed: RIHA keeps asking and settles it
+	// either way when the answer comes.
+	PaymentUnconfirmed       = "unconfirmed"
 	PaymentSucceeded         = "succeeded"
 	PaymentFailed            = "failed"
 	PaymentRefunded          = "refunded"
@@ -276,6 +280,18 @@ type Payment struct {
 	SucceededAt    *time.Time
 	FailedAt       *time.Time
 	CreatedAt      time.Time
+	// ContactPhone is the customer's full number, kept only until the payment
+	// is final, to tell them by SMS how an unconfirmed payment ended.
+	ContactPhone string
+	// RecheckAt is when an unconfirmed payment is next asked about, and
+	// Rechecks how often it has been.
+	RecheckAt *time.Time
+	Rechecks  int
+	// PaidLate: the operator confirmed it only after it had left processing.
+	PaidLate bool
+	// DuplicateOf is the payment the same customer already paid for the same
+	// thing, when this one came in late on top of it: a refund to look at.
+	DuplicateOf string
 }
 
 func (p *Payment) Refundable() int64 {

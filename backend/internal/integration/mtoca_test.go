@@ -2,10 +2,8 @@ package integration
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -112,9 +110,9 @@ func TestMtocaRecoveredBySweep(t *testing.T) {
 }
 
 // An error on the customer's phone never reaches the status call, which just stays
-// pending. So the sweep lets them retry after 10 minutes, and then keeps asking in case
-// they paid late.
-func TestMtocaPendingClosesAndIsWatched(t *testing.T) {
+// pending. So after 10 minutes the sweep leaves it unconfirmed, the customer can pay
+// again once warned, and RIHA keeps asking: paid late, it is credited.
+func TestMtocaPendingIsLeftUnconfirmedAndWatched(t *testing.T) {
 	a, ctx := setup(t)
 	f := &mtocaFake{status: "N"}
 	mtocaApp(t, f, a)
@@ -136,30 +134,24 @@ func TestMtocaPendingClosesAndIsWatched(t *testing.T) {
 	}
 	a.Now = func() time.Time { return real().Add(11 * time.Minute) }
 	a.Sweep(ctx)
-	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentFailed || got.FailureCode != domain.FailCustomerTimeout {
-		t.Fatalf("after 10 minutes it must be closed, got %s %s", got.Status, got.FailureCode)
+	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentUnconfirmed {
+		t.Fatalf("after 10 minutes it must be left unconfirmed, got %s %s", got.Status, got.FailureCode)
 	}
-	if _, err := a.Pay(ctx, cs.ID, app.PayInput{Method: "emola", Phone: "861234567"}); err != nil {
-		t.Fatalf("the customer must be able to retry: %v", err)
+	if _, err := a.Pay(ctx, cs.ID, app.PayInput{Method: "emola", Phone: "861234567"}); err == nil {
+		t.Fatal("paying again must warn first")
 	}
-	closed, err := a.Payments.RecentlyTimedOut(ctx, real().Add(-time.Hour), 10)
-	if err != nil || len(closed) != 1 || closed[0].ID != p.ID {
-		t.Fatalf("closed %+v %v", closed, err)
+	if _, err := a.Pay(ctx, cs.ID, app.PayInput{Method: "emola", Phone: "861234567", PayAgain: true}); err != nil {
+		t.Fatalf("once warned, the customer must be able to pay again: %v", err)
 	}
-	logs := &lockedLog{}
-	log.SetOutput(logs)
-	defer log.SetOutput(os.Stderr)
 	f.mu.Lock()
 	f.status = "P"
 	f.mu.Unlock()
 	// A fresh client: the sweep's check moments ago holds the old one back for 30 seconds.
 	mtocaApp(t, f, a)
-	a.CheckClosedPayments(ctx)
-	if !strings.Contains(logs.text(), "PAID AFTER IT WAS CLOSED") {
-		t.Fatalf("logs: %s", logs.text())
-	}
-	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentFailed {
-		t.Fatalf("it must not be credited on its own, because the customer may have retried: %s", got.Status)
+	a.Now = func() time.Time { return real().Add(20 * time.Minute) }
+	a.RecheckUnconfirmed(ctx)
+	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentSucceeded || !got.PaidLate {
+		t.Fatalf("paid late must be credited: %s %v", got.Status, got.PaidLate)
 	}
 }
 
@@ -180,8 +172,8 @@ func (l *lockedLog) text() string {
 	return l.b.String()
 }
 
-// When mtoca lost the answer too, nobody knows, so it closes like a pending one.
-func TestMtocaLostAnswerClosesAfter10Minutes(t *testing.T) {
+// When mtoca lost the answer too, nobody knows, so it is left unconfirmed like a pending one.
+func TestMtocaLostAnswerIsLeftUnconfirmed(t *testing.T) {
 	a, ctx := setup(t)
 	mtocaApp(t, &mtocaFake{noAnswer: true, unknown: true}, a)
 	m := approved(t, a, ctx, "Loja Perdida", "perdida@mtoca.test")
@@ -200,10 +192,10 @@ func TestMtocaLostAnswerClosesAfter10Minutes(t *testing.T) {
 	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentProcessing {
 		t.Fatalf("too soon: %s", got.Status)
 	}
-	a.Now = func() time.Time { return real().Add(11 * time.Minute) }
+	a.Now = func() time.Time { return real().Add(31 * time.Minute) }
 	a.Sweep(ctx)
-	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentFailed {
-		t.Fatalf("must close so the customer can retry: %s", got.Status)
+	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentUnconfirmed {
+		t.Fatalf("must leave processing so the customer can retry, without calling it failed: %s", got.Status)
 	}
 }
 

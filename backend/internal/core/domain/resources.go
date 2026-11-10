@@ -78,6 +78,7 @@ func PaymentResource(p *Payment) M {
 		"client_reference_id": null(p.ClientReferenceID), "description": null(p.Description),
 		"failure_code": null(p.FailureCode), "failure_message": null(p.FailureMessage),
 		"metadata": meta(p.Metadata), "created": p.CreatedAt.Unix(), "livemode": p.Livemode,
+		"paid_late": p.PaidLate,
 	}
 }
 

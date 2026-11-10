@@ -49,7 +49,8 @@ func (srv *Server) adminTrailThread(c *gin.Context) {
 		pays = append(pays, gin.H{"id": p.ID, "reference": p.Reference, "method": p.Method, "status": p.Status, "amount": p.Amount, "fee": p.Fee,
 			"failure_code": p.FailureCode, "failure_message": p.FailureMessage, "phone": strings.TrimSpace(p.PhonePrefix + " ••• " + p.PhoneLast4),
 			"operation": p.RailReference, "rail_id": p.RailID, "operator_reference": p.OperatorReference, "attempt_id": p.AttemptID,
-			"created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt), "failed_at": iso(p.FailedAt), "payer_ip": p.PayerIP, "payer_user_agent": p.PayerUserAgent})
+			"created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt), "failed_at": iso(p.FailedAt), "payer_ip": p.PayerIP, "payer_user_agent": p.PayerUserAgent,
+			"paid_late": p.PaidLate, "duplicate_of": p.DuplicateOf, "recheck_at": iso(p.RecheckAt), "rechecks": p.Rechecks, "livemode": p.Livemode})
 	}
 	evs := []gin.H{}
 	for _, ev := range t.Events {

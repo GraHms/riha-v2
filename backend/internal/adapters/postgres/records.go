@@ -215,6 +215,11 @@ type paymentRecord struct {
 	FailedAt          *time.Time
 	CreatedAt         time.Time `gorm:"index"`
 	UpdatedAt         time.Time
+	ContactPhone      string     `gorm:"size:20;not null;default:''"`
+	RecheckAt         *time.Time `gorm:"index"`
+	Rechecks          int        `gorm:"not null;default:0"`
+	PaidLate          bool       `gorm:"not null;default:false"`
+	DuplicateOf       string     `gorm:"size:40;not null;default:''"`
 }
 
 func (paymentRecord) TableName() string { return "payments" }

@@ -488,7 +488,7 @@ const FLOW = [
   { n: '05 · Browser', t: 'Volta à loja', d: 'success_url?session_id=cs_…', mono: true },
 ]
 
-const EVENTS = ['checkout.session.completed', 'checkout.session.expired', 'payment.processing', 'payment.succeeded', 'payment.failed', 'refund.succeeded', 'payout.created', 'payout.paid', 'payout.failed', 'account.updated']
+const EVENTS = ['checkout.session.completed', 'checkout.session.expired', 'payment.processing', 'payment.unconfirmed', 'payment.succeeded', 'payment.failed', 'refund.succeeded', 'payout.created', 'payout.paid', 'payout.failed', 'account.updated']
 const RETRIES = ['0', '5 min', '30 min', '2 h', '5 h', '10 h', '24 h', '72 h']
 
 export default function Docs() {

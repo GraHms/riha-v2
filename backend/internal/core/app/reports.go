@@ -112,7 +112,7 @@ func statusGroup(s string) []string {
 	case "paid":
 		return domain.SettledStatuses
 	case "pending":
-		return []string{domain.PaymentProcessing}
+		return []string{domain.PaymentProcessing, domain.PaymentUnconfirmed}
 	case "failed":
 		return []string{domain.PaymentFailed}
 	}
@@ -417,6 +417,8 @@ func (a *App) PayoutsForExport(ctx context.Context, ids []string) []domain.Payou
 }
 
 type PlatformOverview struct {
+	// UnconfirmedPayments are live payments still waiting on the operator's answer.
+	UnconfirmedPayments                                       int64
 	VolumeToday, VolumeWeekAgo, TxToday, TxOkToday, Volume14d int64
 	Stack                                                     []map[string]any
 	Health                                                    map[string]ports.MethodHealth
@@ -464,25 +466,60 @@ func (a *App) PlatformOverview(ctx context.Context) *PlatformOverview {
 	o.Approvals, _ = a.ApprovalQueue(ctx, ApprovalQuery{Statuses: []string{domain.MerchantInReview}, PerPage: 4})
 	o.PendingApprovals = a.PendingApprovals(ctx)
 	live := true
+	o.UnconfirmedPayments, _ = a.Payments.Count(ctx, ports.PaymentQuery{Live: &live, Statuses: []string{domain.PaymentUnconfirmed}})
 	o.PayoutsDue = a.PayoutRows(ctx, ports.PayoutQuery{Live: &live, Statuses: domain.PendingPayoutStatuses, OrderBy: "due_at", Limit: 4})
 	o.PayoutStats = a.PayoutStats(ctx)
 	return o
 }
 
-func (a *App) PlatformPayments(ctx context.Context, ref string) []PaymentView {
-	live := true
-	if ref != "" {
-		p, err := a.Payments.ByID(ctx, ref)
-		if err != nil {
-			p, err = a.Payments.ByReference(ctx, ref)
-		}
-		if err != nil {
-			return nil
-		}
-		return a.paymentViews(ctx, []domain.Payment{*p})
+// PlatformPaymentsQuery picks a page of every merchant's payments, for the console.
+type PlatformPaymentsQuery struct {
+	Query      string // a RIHA id or reference, operation number, operator reference, last 4 digits, customer
+	View       string // "", paid, unconfirmed, processing, failed, late, duplicates
+	Method     string
+	MerchantID string
+	Test       bool
+	Page       int
+}
+
+type PlatformPaymentsPage struct {
+	Data      []PaymentView
+	Merchants map[string]string // id → name
+	Total     int64
+	PerPage   int
+	// Counts of what needs a look, whatever the filter.
+	Unconfirmed, Duplicates, PaidLate int64
+}
+
+func (a *App) PlatformPayments(ctx context.Context, f PlatformPaymentsQuery) PlatformPaymentsPage {
+	live := !f.Test
+	q := ports.PaymentQuery{Live: &live, Search: f.Query, Method: f.Method, MerchantID: f.MerchantID, Limit: 50}
+	switch f.View {
+	case "paid":
+		q.Statuses = domain.SettledStatuses
+	case "unconfirmed", "processing", "failed":
+		q.Statuses = []string{f.View}
+	case "late":
+		q.PaidLate = true
+	case "duplicates":
+		q.Duplicates = true
 	}
-	ps, _ := a.Payments.Find(ctx, ports.PaymentQuery{Live: &live, Limit: 100})
-	return a.paymentViews(ctx, ps)
+	page := max(f.Page, 1)
+	q.Offset = (page - 1) * q.Limit
+	ps, _ := a.Payments.Find(ctx, q)
+	out := PlatformPaymentsPage{Data: a.paymentViews(ctx, ps), Merchants: map[string]string{}, PerPage: q.Limit}
+	out.Total, _ = a.Payments.Count(ctx, q)
+	for _, p := range ps {
+		if _, ok := out.Merchants[p.MerchantID]; !ok {
+			if m, err := a.Merchants.ByID(ctx, p.MerchantID); err == nil {
+				out.Merchants[p.MerchantID] = m.Name
+			}
+		}
+	}
+	out.Unconfirmed, _ = a.Payments.Count(ctx, ports.PaymentQuery{Live: &live, Statuses: []string{domain.PaymentUnconfirmed}})
+	out.Duplicates, _ = a.Payments.Count(ctx, ports.PaymentQuery{Live: &live, Duplicates: true, Statuses: []string{domain.PaymentSucceeded}})
+	out.PaidLate, _ = a.Payments.Count(ctx, ports.PaymentQuery{Live: &live, PaidLate: true})
+	return out
 }
 
 func (a *App) AuditTrail(ctx context.Context, merchantID string) []domain.AuditEntry {

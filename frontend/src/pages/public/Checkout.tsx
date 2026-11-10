@@ -121,6 +121,8 @@ export default function Checkout() {
     if (d.customer_phone) setPhone(fmtPhone(d.customer_phone))
     if (d.status === 'complete') setView('done')
     else if (d.payment?.status === 'processing') { setView('confirm'); startRef.current = Date.now() }
+    // An unconfirmed payment shows its own notice on the pay screen, with its wallet picked.
+    else if (d.payment?.status === 'unconfirmed' && d.payment_method_types.includes(d.payment.method)) setMethod(d.payment.method)
     // Coming back to a failed attempt: say so, rather than a form with no explanation.
     else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 })
   })
@@ -178,6 +180,7 @@ export default function Checkout() {
       if (!d.payment) return
       if (d.status === 'complete' || d.payment.status === 'succeeded') setView('done')
       else if (d.payment.status === 'failed') { setView('pay'); setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 }) }
+      else if (d.payment.status === 'unconfirmed') { setView('pay'); setErr(null) }
     }
     const start = () => {
       current = new AbortController()
@@ -227,6 +230,14 @@ export default function Checkout() {
     }
   }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A payment left unconfirmed can still be confirmed while the page is open.
+  const unconfirmedId = view === 'pay' && s?.payment?.status === 'unconfirmed' ? s.payment.id : null
+  useEffect(() => {
+    if (!unconfirmedId) return
+    const t = setInterval(() => { if (!document.hidden) refresh().then(d => { if (d?.status === 'complete') setView('done') }) }, 10000)
+    return () => clearInterval(t)
+  }, [unconfirmedId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (view !== 'done' || !s?.success_url) return
     if (redirectIn <= 0) { window.location.href = s.success_url; return }
@@ -241,10 +252,12 @@ export default function Checkout() {
     // Kept when the answer is lost, so trying again can't start a second payment.
     const attemptId = attemptRef.current ?? newAttemptId()
     setAttempt(attemptId)
+    // The notice about the unconfirmed payment is on screen, so paying now is a choice.
+    const payAgain = s.payment?.status === 'unconfirmed'
     try {
       const body = method === 'card'
-        ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email, attempt_id: attemptId }
-        : { method, phone: phone.replace(/\D/g, ''), email, attempt_id: attemptId }
+        ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email, attempt_id: attemptId, pay_again: payAgain }
+        : { method, phone: phone.replace(/\D/g, ''), email, attempt_id: attemptId, pay_again: payAgain }
       const d = await g.checkout.pay(s.id, body)
       setAttempt(null)
       setS(d)
@@ -258,6 +271,9 @@ export default function Checkout() {
         // connection and let the server say whether the payment started.
         lostPay.current = { before: s.payment?.id ?? null }
         startRef.current = Date.now(); setTick(0); setConn('down'); setView('confirm')
+      } else if (failure.code === 'payment_unconfirmed') {
+        // The page didn't know yet: show the notice, and the next tap pays again.
+        setAttempt(null); await refresh()
       } else { setAttempt(null); setErr(failure) }
     } finally { setBusy(false) }
   }
@@ -351,7 +367,8 @@ export default function Checkout() {
                 </div>
               ) : (
                 <>
-                  <div className="co-h">Como quer pagar?</div>
+                  {s.payment?.status === 'unconfirmed' && <Unconfirmed p={s.payment} amount={amount} />}
+                  <div className="co-h" style={s.payment?.status === 'unconfirmed' ? { marginTop: 28 } : undefined}>{s.payment?.status === 'unconfirmed' ? 'Ou pague de novo' : 'Como quer pagar?'}</div>
                   <div className="co-methods">
                     {s.payment_method_types.map(m => (
                       <button key={m} type="button" onClick={() => { setMethod(m); setErr(null) }} className={'co-m' + (method === m ? ' on' : '')} aria-pressed={method === m}>
@@ -396,7 +413,7 @@ export default function Checkout() {
                     {err && failedRef && <RefCode label="Referência" code={failedRef} />}
                     {err && !failedRef && attemptRef.current && <RefCode label="Código do pedido" code={attemptRef.current} />}
                     <button className="btn btn-green btn-lg btn-block" style={{ height: 58, fontSize: 17, boxShadow: '0 14px 30px -14px rgba(10,130,5,.9)' }} onClick={pay} disabled={busy}>
-                      {busy ? <Spinner /> : <><Icon name="lock" size={17} stroke={2.2} />{submitWords(s.submit_type).button} {amount} MT</>}
+                      {busy ? <Spinner /> : <><Icon name="lock" size={17} stroke={2.2} />{s.payment?.status === 'unconfirmed' ? 'Pagar de novo' : submitWords(s.submit_type).button} {amount} MT</>}
                     </button>
                     {s.return_host && <div className="only-desktop" style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--muted)', marginTop: 14 }}>Depois de pagar, volta automaticamente para {s.return_host}.</div>}
                     <div className="only-mobile" style={{ marginTop: 12 }}><Secure /></div>
@@ -624,3 +641,21 @@ const CSS = `
 @media (prefers-reduced-motion:reduce){.wait-ring,.wait-arc,.wait-core,.wait-line.turn{animation:none}}
 @media print{.wait{display:none!important}.co-side,.co-url,.testbar,button{display:none!important}.co{display:block}}
 `
+
+// Unconfirmed tells a customer back on the page that their last payment is
+// still being confirmed, so they don't pay twice by accident.
+function Unconfirmed({ p, amount }: { p: { method: string; phone_prefix: string; phone_last4: string; reference: string }; amount: string }) {
+  const wallet = METHOD_NAME[p.method] ?? 'a carteira'
+  return (
+    <div role="status" style={{ marginTop: 22, padding: '16px 18px', borderRadius: 18, background: '#FFF6D6', border: '1px solid #F1DC8C', color: '#3B3410' }}>
+      <div className="row" style={{ gap: 8, fontWeight: 700, fontSize: 15.5 }}><Icon name="clock" size={18} stroke={2.2} />O pagamento anterior está a ser confirmado</div>
+      <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.55 }}>
+        Pediu para pagar {amount} MT com {wallet}{p.phone_last4 ? ` (${p.phone_prefix} ••• ${p.phone_last4})` : ''} e o operador ainda não nos deu a resposta final.
+      </p>
+      <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.55 }}>
+        <b>Se aprovou no telemóvel, não pague de novo.</b> Confirmamos sozinhos e avisamos por SMS. Se não aprovou ou viu um erro, pode pagar de novo abaixo.
+      </p>
+      <div style={{ marginTop: 10, fontSize: 12.5, opacity: 0.8 }}>Referência <span className="mono">{p.reference}</span></div>
+    </div>
+  )
+}

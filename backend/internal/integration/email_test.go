@@ -423,7 +423,7 @@ func TestRealMoneyRules(t *testing.T) {
 		}
 	})
 
-	t.Run("no answer at all is given up on only after 30 minutes", func(t *testing.T) {
+	t.Run("no answer at all is left unconfirmed only after 30 minutes", func(t *testing.T) {
 		rail.known, rail.err = false, errors.New("network down")
 		p := start(true)
 		at(29 * time.Minute)
@@ -433,8 +433,8 @@ func TestRealMoneyRules(t *testing.T) {
 		}
 		at(31 * time.Minute)
 		a.Sweep(ctx)
-		if status(p) != domain.PaymentFailed {
-			t.Fatalf("%s", status(p))
+		if status(p) != domain.PaymentUnconfirmed {
+			t.Fatalf("no answer is not a refusal: it must be left unconfirmed, got %s", status(p))
 		}
 		rail.err = nil
 	})

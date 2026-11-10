@@ -68,6 +68,7 @@ export function methodLine(p: { method: string; phone_prefix?: string; phone_las
 export const STATUS: Record<string, { t: string; bg: string; fg: string }> = {
   succeeded: { t: 'Pago', bg: '#E2F3DE', fg: '#0A6B05' },
   processing: { t: 'Pendente', bg: '#FFF3C4', fg: '#7A5A00' },
+  unconfirmed: { t: 'A confirmar', bg: '#FFE9C7', fg: '#8A4B00' },
   failed: { t: 'Falhado', bg: '#FFE3E1', fg: '#C2080D' },
   refunded: { t: 'Reembolsado', bg: '#EDECE6', fg: '#3E4742' },
   partially_refunded: { t: 'Reemb. parcial', bg: '#EDECE6', fg: '#3E4742' },

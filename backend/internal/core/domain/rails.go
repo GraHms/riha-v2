@@ -45,6 +45,7 @@ const (
 	FailRejected            = "payment_rejected"
 	FailCanceled            = "payment_canceled"
 	FailNotCompleted        = "payment_not_completed"
+	FailNotConfirmed        = "payment_not_confirmed"
 )
 
 var FailureMessages = map[string]string{
@@ -60,6 +61,7 @@ var FailureMessages = map[string]string{
 	FailRejected:            "O pagamento foi recusado. Confirme o saldo e tente de novo.",
 	FailCanceled:            "O pagamento foi cancelado.",
 	FailNotCompleted:        "O pagamento não foi concluído. Confirme o saldo e tente de novo.",
+	FailNotConfirmed:        "O operador nunca confirmou este pagamento, por isso não foi cobrado.",
 }
 
 type ChargeRequest struct {

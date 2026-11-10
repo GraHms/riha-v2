@@ -35,6 +35,7 @@ func (srv *Server) adminRoutes(a *gin.RouterGroup) {
 	a.GET("/settings", srv.adminSettings)
 	a.PUT("/settings", srv.adminPutSettings)
 	a.GET("/payments", srv.adminPayments)
+	a.POST("/payments/:id/check", srv.adminPaymentCheck)
 	a.GET("/trail/search", srv.adminTrailSearch)
 	a.GET("/trail/thread/:id", srv.adminTrailThread)
 	a.GET("/trail/events", srv.adminTrailEvents)
@@ -80,7 +81,7 @@ func (srv *Server) adminOverview(c *gin.Context) {
 		"alerts":       len(srv.A.ActiveAlerts(ctx(c))),
 		"volume_today": o.VolumeToday, "volume_week_ago": o.VolumeWeekAgo, "tx_today": o.TxToday, "tx_ok_today": o.TxOkToday,
 		"stack": o.Stack, "volume_14d": o.Volume14d, "health": health,
-		"approvals": applicationsJSON(o.Approvals, false), "pending_approvals": o.PendingApprovals,
+		"approvals": applicationsJSON(o.Approvals, false), "pending_approvals": o.PendingApprovals, "unconfirmed_payments": o.UnconfirmedPayments,
 		"payouts_due": payoutRowsJSON(o.PayoutsDue), "payout_stats": statsJSON(o.PayoutStats),
 	})
 }
@@ -294,14 +295,36 @@ func (srv *Server) adminPutSettings(c *gin.Context) {
 }
 
 func (srv *Server) adminPayments(c *gin.Context) {
-	vs := srv.A.PlatformPayments(ctx(c), c.Query("q"))
+	page, _ := strconv.Atoi(c.Query("page"))
+	r := srv.A.PlatformPayments(ctx(c), app.PlatformPaymentsQuery{Query: strings.TrimSpace(c.Query("q")), View: c.Query("view"), Method: c.Query("method"),
+		MerchantID: c.Query("merchant"), Test: c.Query("mode") == "test", Page: page})
 	out := []any{}
-	for i := range vs {
-		o := paymentRow(&vs[i])
-		o["merchant_id"] = vs[i].MerchantID
+	for i := range r.Data {
+		o := paymentRow(&r.Data[i])
+		o["merchant_id"], o["merchant_name"] = r.Data[i].MerchantID, r.Merchants[r.Data[i].MerchantID]
+		o["rail_reference"], o["duplicate_of"] = r.Data[i].RailReference, r.Data[i].DuplicateOf
 		out = append(out, o)
 	}
-	c.JSON(200, gin.H{"data": out})
+	c.JSON(200, gin.H{"data": out, "total": r.Total, "page": max(page, 1), "per_page": r.PerPage,
+		"counts": gin.H{"unconfirmed": r.Unconfirmed, "duplicates": r.Duplicates, "paid_late": r.PaidLate}})
+}
+
+// adminPaymentCheck asks the operator about a payment now; with apply, it
+// also acts on an answer RIHA doesn't have yet.
+func (srv *Server) adminPaymentCheck(c *gin.Context) {
+	var in struct {
+		Apply bool `json:"apply"`
+	}
+	_ = c.ShouldBindJSON(&in)
+	r, err := srv.A.CheckWithOperator(ctx(c), c.Param("id"), user(c).ID, in.Apply)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	p := r.Payment
+	c.JSON(200, gin.H{"answer": r.Answer, "failure_code": r.FailureCode, "failure_message": domain.FailureMessages[r.FailureCode], "operator_reference": r.OperatorReference,
+		"error": r.Error, "fix": r.Fix, "applied": r.Applied,
+		"payment": gin.H{"id": p.ID, "status": p.Status, "failure_code": p.FailureCode, "paid_late": p.PaidLate, "duplicate_of": p.DuplicateOf}})
 }
 
 func sendPDF(c *gin.Context, name string, data []byte, download bool) {

@@ -74,6 +74,8 @@ export interface CheckoutPort {
 export interface AdminPort {
   overview(): Promise<Json>
   trailSearch(q: string): Promise<Json>
+  payments(f: { q?: string; view?: string; method?: string; merchant?: string; mode?: string; page?: number }): Promise<Json>
+  checkPayment(id: string, apply: boolean): Promise<Json>
   trailThread(id: string): Promise<Json>
   trailEvents(filter: Record<string, string | number | undefined>): Promise<Json>
   metrics(days: number, live: boolean, merchant?: string): Promise<Json>

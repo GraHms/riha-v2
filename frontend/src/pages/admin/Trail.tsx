@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Icon, MethodIcon, Pill, Skeleton } from '../../components/ui'
+import { Icon, MethodIcon, Pill, Skeleton, Spinner } from '../../components/ui'
 import { useQuery } from '../../core/useQuery'
+import { useGateway } from '../../core/gateway'
+import { errMsg } from '../../core/model'
 import { copy, fmt, METHOD_NAME, STATUS } from '../../lib/format'
 import { useSession } from '../../lib/session'
 
@@ -30,6 +32,10 @@ export function device(ua: string) {
 }
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+const took = (from: string, to: string) => {
+  const sec = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000)
+  return sec < 120 ? `${sec} s` : sec < 7200 ? `${Math.round(sec / 60)} min` : `${Math.round(sec / 3600)} h`
+}
 const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-PT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 function SourceChip({ s }: { s: string }) {
@@ -176,9 +182,22 @@ export function TrailThread() {
               <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 8, lineHeight: 1.6 }}>
                 <div><span className="mono">{p.reference}</span> · {p.phone}</div>
                 <div>Operação <span className="mono">{p.operation || '—'}</span></div>
-                {end && <div>{p.status === 'succeeded' ? 'Pago' : 'Fechado'} em {Math.round((new Date(end).getTime() - new Date(p.created_at).getTime()) / 1000)} s{p.failure_code ? ` · ${p.failure_code}` : ''}</div>}
+                {end && <div>{p.status === 'succeeded' ? 'Pago' : 'Fechado'} em {took(p.created_at, end)}{p.failure_code ? ` · ${p.failure_code}` : ''}</div>}
+                {p.status === 'unconfirmed' && p.recheck_at && <div>Próxima pergunta ao operador às {time(p.recheck_at)}{p.rechecks ? ` · já perguntou ${p.rechecks}×` : ''}</div>}
                 {sub && <div>{[sub.network, device(sub.user_agent)].filter(Boolean).join(' · ')}</div>}
               </div>
+              {(p.paid_late || p.duplicate_of) && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+                  {p.paid_late && <Pill t="Pago depois" bg="#E6ECFB" fg="#2A4AA8" />}
+                  {p.duplicate_of && <Pill t="Possível duplicado" bg="#FFE3E1" fg="#C2080D" />}
+                </div>
+              )}
+              {p.duplicate_of && (
+                <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginTop: 6, lineHeight: 1.5 }}>
+                  O mesmo cliente já tinha pago em <Link to={'/admin/rasto/' + p.duplicate_of} className="mono" style={{ overflowWrap: 'anywhere' }}>{p.duplicate_of}</Link>. Veja com o comerciante se é para reembolsar.
+                </div>
+              )}
+              {p.method !== 'card' && p.operation && <OperatorCheck p={p} onApplied={reload} />}
             </div>
           )
         })}
@@ -212,6 +231,61 @@ export function TrailThread() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// What the operator answers when asked, against what RIHA has.
+const ANSWER: Record<string, { t: string; c: string }> = {
+  paid: { t: 'Pago', c: '#0A6B05' },
+  failed: { t: 'Recusado', c: '#C2080D' },
+  pending: { t: 'Ainda sem resposta final', c: '#7A5A00' },
+  none: { t: 'Sem registo deste pagamento', c: '#3E4742' },
+  unreachable: { t: 'Não respondeu', c: '#C2080D' },
+  unsupported: { t: 'Este método não pode ser consultado', c: '#3E4742' },
+}
+
+// OperatorCheck asks bim, through mtoca, about one payment now, and offers to
+// apply an answer RIHA doesn't have yet.
+function OperatorCheck({ p, onApplied }: { p: any; onApplied: () => void }) {
+  const g = useGateway()
+  const { toast } = useSession()
+  const [res, setRes] = useState<any>(null)
+  const [busy, setBusy] = useState<'' | 'check' | 'apply'>('')
+  const [sure, setSure] = useState(false)
+  const run = async (apply: boolean) => {
+    setBusy(apply ? 'apply' : 'check')
+    try {
+      const r = await g.admin.checkPayment(p.id, apply)
+      setRes(r); setSure(false)
+      if (r.applied) { toast(r.fix === 'credit' ? 'Pagamento creditado ao comerciante' : 'Pagamento marcado como falhado'); onApplied() }
+    } catch (e) { toast(errMsg(e), true) } finally { setBusy('') }
+  }
+  const a = res && ANSWER[res.answer]
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--line-2)' }}>
+      {!res && <button className="btn btn-outline btn-sm" onClick={() => run(false)} disabled={!!busy}>{busy ? <Spinner dark /> : <><Icon name="refresh" size={14} />Verificar no operador</>}</button>}
+      {res && (
+        <div style={{ fontSize: 13, lineHeight: 1.55 }}>
+          <div className="between" style={{ gap: 8 }}>
+            <span>bim diz: <b style={{ color: a?.c }}>{a?.t || res.answer}</b></span>
+            <button className="link-btn" style={{ fontSize: 12.5 }} onClick={() => run(false)} disabled={!!busy}>{busy === 'check' ? 'A perguntar…' : 'Perguntar de novo'}</button>
+          </div>
+          {res.operator_reference && <div>Referência do operador <span className="mono">{res.operator_reference}</span></div>}
+          {res.failure_message && <div>{res.failure_message}</div>}
+          {res.error && <div style={{ color: 'var(--muted)', overflowWrap: 'anywhere' }}>{res.error}</div>}
+          {!res.fix && !res.applied && <div style={{ color: 'var(--muted)' }}>{res.answer === 'paid' && p.status === 'succeeded' ? 'Bate certo com a RIHA.' : res.answer === 'paid' ? 'O pagamento foi recusado antes pelo operador, por isso não é reaberto aqui.' : 'Nada a mudar na RIHA.'}</div>}
+          {res.fix && !res.applied && (
+            <div style={{ marginTop: 8, padding: 10, borderRadius: 12, background: res.fix === 'credit' ? '#E2F3DE' : '#FFE3E1' }}>
+              <div style={{ fontWeight: 600 }}>{res.fix === 'credit' ? `A RIHA tem-no como ${STATUS[p.status]?.t.toLowerCase() || p.status}, mas o cliente pagou.` : 'O operador recusou-o, e a RIHA ainda o tem em aberto.'}</div>
+              <div style={{ marginTop: 2 }}>{res.fix === 'credit' ? 'Creditar põe os ' + fmt(p.amount) + ' MT no saldo do comerciante e envia-lhe payment.succeeded. Se o cliente já pagou de novo, fica marcado como possível duplicado.' : 'Marcar como falhado envia payment.failed ao comerciante.'}</div>
+              {!sure
+                ? <button className={'btn btn-sm ' + (res.fix === 'credit' ? 'btn-green' : 'btn-danger')} style={{ marginTop: 8 }} onClick={() => setSure(true)}>{res.fix === 'credit' ? 'Creditar ' + fmt(p.amount) + ' MT' : 'Marcar como falhado'}</button>
+                : <div className="row" style={{ gap: 8, marginTop: 8 }}><button className={'btn btn-sm ' + (res.fix === 'credit' ? 'btn-green' : 'btn-danger')} onClick={() => run(true)} disabled={!!busy}>{busy === 'apply' ? <Spinner /> : 'Confirmar'}</button><button className="btn btn-outline btn-sm" onClick={() => setSure(false)}>Cancelar</button></div>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

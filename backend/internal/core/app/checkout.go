@@ -243,8 +243,11 @@ type PayInput struct {
 	// AttemptID is made by the page before it asks. Asking again with the same one
 	// returns the same payment, so a repeated request can never charge twice.
 	AttemptID string `json:"attempt_id"`
-	PayerIP   string `json:"-"`
-	PayerUA   string `json:"-"`
+	// PayAgain: the customer saw that an earlier payment is still being
+	// confirmed and chose to pay anyway.
+	PayAgain bool   `json:"pay_again"`
+	PayerIP  string `json:"-"`
+	PayerUA  string `json:"-"`
 }
 
 func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.Payment, error) {
@@ -289,7 +292,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	p.RailReference = a.railReference(in.Method, cs.Livemode)
 	if in.Method != domain.MethodCard {
 		if ph := domain.NormalizeMZPhone(in.Phone); len(ph) == 9 {
-			p.PhonePrefix, p.PhoneLast4 = ph[:2], ph[5:]
+			p.PhonePrefix, p.PhoneLast4, p.ContactPhone = ph[:2], ph[5:], ph
 		}
 	}
 	var repeated *domain.Payment
@@ -307,6 +310,9 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		}
 		if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentProcessing); n > 0 {
 			return domain.Conflict("payment_in_progress", "Já existe um pagamento em curso. Confirme no telemóvel ou aguarde.")
+		}
+		if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentUnconfirmed); n > 0 && !in.PayAgain {
+			return domain.Conflict("payment_unconfirmed", UnconfirmedNotice)
 		}
 		if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentFailed); n >= MaxAttemptsPerSession {
 			return domain.Forbidden("too_many_attempts", "Demasiadas tentativas falhadas neste pagamento. Peça um novo link à loja.")
@@ -397,15 +403,21 @@ func (a *App) keepRailID(paymentID, id string) {
 	}
 }
 
+// CompletePayment ends a payment on the operator's answer. It takes one still
+// processing, or one left unconfirmed when the answer was late: that one is paid
+// late, or fails, and its customer is told by SMS, since they were asked to wait.
 func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Outcome) error {
-	return a.Tx.Do(ctx, func(ctx context.Context) error {
+	var notify *domain.Payment
+	var merchant *domain.Merchant
+	err := a.Tx.Do(ctx, func(ctx context.Context) error {
 		p, err := a.Payments.Lock(ctx, paymentID)
 		if err != nil {
 			return err
 		}
-		if p.Status != domain.PaymentProcessing {
+		if p.Status != domain.PaymentProcessing && p.Status != domain.PaymentUnconfirmed {
 			return nil
 		}
+		late := p.Status == domain.PaymentUnconfirmed
 		m, err := a.Merchants.Lock(ctx, p.MerchantID)
 		if err != nil {
 			return err
@@ -415,24 +427,70 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			return err
 		}
 		now := a.Now()
+		took := now.Sub(p.CreatedAt)
 		ev := domain.TrailEvent{MerchantID: p.MerchantID, Livemode: p.Livemode, SessionID: cs.ID, PaymentID: p.ID, Kind: domain.TrailPaymentStatus, Source: "riha",
-			Data: map[string]any{"from": p.Status, "operator_reference": o.OperatorReference, "seconds": int(now.Sub(p.CreatedAt).Seconds())}}
-		if o.Success {
-			ev.Title = fmt.Sprintf("Pagamento concluído, %d s depois do pedido", int(now.Sub(p.CreatedAt).Seconds()))
+			Data: map[string]any{"from": p.Status, "operator_reference": o.OperatorReference, "seconds": int(took.Seconds())}}
+		switch {
+		case o.Success && late:
+			ev.Title = "Pago depois de ficar a confirmar: o operador confirmou " + domain.Ago(took) + " depois do pedido"
 			ev.Data["to"] = domain.PaymentSucceeded
-		} else {
-			ev.Title, ev.Level = fmt.Sprintf("Pagamento falhou, %d s depois do pedido: %s", int(now.Sub(p.CreatedAt).Seconds()), domain.FirstNonEmpty(domain.FailureMessages[o.FailureCode], o.FailureCode)), domain.TrailWarn
+		case o.Success:
+			ev.Title = fmt.Sprintf("Pagamento concluído, %d s depois do pedido", int(took.Seconds()))
+			ev.Data["to"] = domain.PaymentSucceeded
+		default:
+			ev.Title, ev.Level = fmt.Sprintf("Pagamento falhou, %s depois do pedido: %s", domain.Ago(took), domain.FirstNonEmpty(domain.FailureMessages[o.FailureCode], o.FailureCode)), domain.TrailWarn
 			ev.Data["to"], ev.Data["failure_code"] = domain.PaymentFailed, o.FailureCode
 		}
 		a.trace(ctx, ev)
-		if o.Success {
-			p.Status, p.OperatorReference, p.SucceededAt = domain.PaymentSucceeded, o.OperatorReference, &now
+		// Someone who never answered isn't texted a day later that nothing happened.
+		if late && p.ContactPhone != "" && (o.Success || o.FailureCode != domain.FailNotConfirmed) {
+			c := *p
+			notify, merchant = &c, m
+		}
+		p.ContactPhone, p.RecheckAt = "", nil
+		if !o.Success {
+			p.Status, p.FailureCode, p.FailedAt = domain.PaymentFailed, o.FailureCode, &now
+			p.FailureMessage = domain.FailureMessages[o.FailureCode]
 			if err := a.Payments.Save(ctx, p); err != nil {
 				return err
 			}
-			if err := a.ledger(ctx, p.MerchantID, p.Livemode, domain.LedgerPayment, p.Net, p.ID, "Pagamento "+p.Reference); err != nil {
-				return err
+			if notify != nil {
+				notify.Status, notify.FailureCode = p.Status, p.FailureCode
 			}
+			if cs.SourceType == domain.SourceSubscription {
+				if err := a.chargesFailed(ctx, cs, p); err != nil {
+					return err
+				}
+			}
+			return a.emit(ctx, p.MerchantID, p.Livemode, "payment.failed", p.ID, domain.PaymentResource(p), cs.CallbackURL)
+		}
+		p.Status, p.OperatorReference, p.SucceededAt, p.PaidLate = domain.PaymentSucceeded, o.OperatorReference, &now, late
+		p.FailureCode, p.FailureMessage = "", ""
+		// A late answer can land on a session the customer has paid since, or
+		// on something they paid again in a new session.
+		sessionPaid := cs.Status == domain.SessionComplete && cs.PaymentID != nil && *cs.PaymentID != p.ID
+		if sessionPaid {
+			p.DuplicateOf = *cs.PaymentID
+		} else if late {
+			if twin, err := a.Payments.LaterTwin(ctx, p); err == nil && twin != nil {
+				p.DuplicateOf = twin.ID
+			}
+		}
+		if err := a.Payments.Save(ctx, p); err != nil {
+			return err
+		}
+		if notify != nil {
+			notify.Status, notify.DuplicateOf = p.Status, p.DuplicateOf
+		}
+		if p.DuplicateOf != "" {
+			a.trace(ctx, domain.TrailEvent{MerchantID: p.MerchantID, Livemode: p.Livemode, SessionID: cs.ID, PaymentID: p.ID, Kind: domain.TrailPaymentStatus, Source: "riha", Level: domain.TrailError,
+				Title: "Possível pagamento em duplicado: o mesmo cliente já tinha pago " + domain.FormatShort(p.Amount) + " MT em " + p.DuplicateOf + ". Veja com o comerciante se é para reembolsar.",
+				Data:  map[string]any{"duplicate_of": p.DuplicateOf}})
+		}
+		if err := a.ledger(ctx, p.MerchantID, p.Livemode, domain.LedgerPayment, p.Net, p.ID, "Pagamento "+p.Reference); err != nil {
+			return err
+		}
+		if !sessionPaid {
 			cs.Status, cs.PaymentID, cs.CompletedAt = domain.SessionComplete, &p.ID, &now
 			if err := a.Sessions.Save(ctx, cs); err != nil {
 				return err
@@ -442,26 +500,21 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 					return err
 				}
 			}
-			if err := a.emit(ctx, p.MerchantID, p.Livemode, "payment.succeeded", p.ID, domain.PaymentResource(p), cs.CallbackURL); err != nil {
-				return err
-			}
+		}
+		if err := a.emit(ctx, p.MerchantID, p.Livemode, "payment.succeeded", p.ID, domain.PaymentResource(p), cs.CallbackURL); err != nil {
+			return err
+		}
+		if !sessionPaid {
 			if err := a.emit(ctx, p.MerchantID, p.Livemode, "checkout.session.completed", cs.ID, domain.SessionResource(cs, a.PayURL), cs.CallbackURL); err != nil {
 				return err
 			}
-			return a.mailPaymentSucceeded(ctx, p, m)
 		}
-		p.Status, p.FailureCode, p.FailedAt = domain.PaymentFailed, o.FailureCode, &now
-		p.FailureMessage = domain.FailureMessages[o.FailureCode]
-		if err := a.Payments.Save(ctx, p); err != nil {
-			return err
-		}
-		if cs.SourceType == domain.SourceSubscription {
-			if err := a.chargesFailed(ctx, cs, p); err != nil {
-				return err
-			}
-		}
-		return a.emit(ctx, p.MerchantID, p.Livemode, "payment.failed", p.ID, domain.PaymentResource(p), cs.CallbackURL)
+		return a.mailPaymentSucceeded(ctx, p, m)
 	})
+	if err == nil && notify != nil {
+		a.textCustomer(ctx, notify, merchant)
+	}
+	return err
 }
 
 func (a *App) ExpireSession(ctx context.Context, merchantID string, live bool, id string) (*domain.CheckoutSession, error) {

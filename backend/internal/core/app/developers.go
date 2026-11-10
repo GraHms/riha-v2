@@ -278,21 +278,20 @@ func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 	case err == nil && age >= railNoRecordAfter:
 		a.logPayment(ctx, p.ID, domain.TrailWarn, "payment %s (%s): the operator has no answer for it, closed as timed out", p.ID, p.RailReference)
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
-	case err != nil && age >= railGiveUpAfter:
-		a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): no answer from the operator after %s, closed unconfirmed, check it by hand: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
-		_ = a.CompletePayment(ctx, p.ID, timedOut)
 	case errors.Is(err, ports.ErrStillPending) && age >= railPendingGiveUpAfter:
-		a.logPayment(ctx, p.ID, domain.TrailWarn, "payment %s (%s): no final answer after %s, closed as timed out, CHECK BY HAND if the customer says they paid: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
-		_ = a.CompletePayment(ctx, p.ID, timedOut)
+		_ = a.markUnconfirmed(ctx, p.ID, "sem resposta final do operador ao fim de "+domain.Ago(age))
+	case err != nil && age >= railGiveUpAfter:
+		a.logPayment(ctx, p.ID, domain.TrailWarn, "payment %s (%s): no answer from the operator after %s: %v", p.ID, p.RailReference, age.Round(time.Minute), err)
+		_ = a.markUnconfirmed(ctx, p.ID, "o operador não respondeu ao fim de "+domain.Ago(age))
 	case errors.Is(err, ports.ErrStillPending):
 	case err != nil:
 		a.logPayment(ctx, p.ID, domain.TrailWarn, "payment %s (%s): query failed: %v", p.ID, p.RailReference, err)
 	}
 }
 
-// CheckClosedPayments looks for customers who paid after their payment was closed as
-// timed out. Crediting it could pay a merchant twice if the customer already retried,
-// so this only says so.
+// CheckClosedPayments looks for customers who paid after their payment was
+// closed as timed out, from before payments were left unconfirmed instead. It
+// only says so: the console's operator check credits it.
 func (a *App) CheckClosedPayments(ctx context.Context) {
 	rail, ok := a.Rail.(ports.RailQuery)
 	if !ok {
@@ -306,7 +305,7 @@ func (a *App) CheckClosedPayments(ctx context.Context) {
 	for i := range closed {
 		p := &closed[i]
 		if o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method}); err == nil && known && o.Success {
-			a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND and credit or refund it", p.ID, p.RailReference, p.Amount, o.OperatorReference)
+			a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND: the operator check on its trail credits it", p.ID, p.RailReference, p.Amount, o.OperatorReference)
 		}
 	}
 }
@@ -336,6 +335,7 @@ func (a *App) RunWorkers(ctx context.Context) {
 	})
 	tick(10*time.Second, func() { a.Sweep(ctx) })
 	tick(5*time.Minute, func() { a.CheckClosedPayments(ctx) })
+	tick(time.Minute, func() { a.RecheckUnconfirmed(ctx) })
 	tick(15*time.Second, func() { a.BillingTick(ctx) })
 	tick(2*time.Second, func() { a.SendQueued(ctx) })
 	tick(time.Minute, func() { a.Watchdog(ctx) })

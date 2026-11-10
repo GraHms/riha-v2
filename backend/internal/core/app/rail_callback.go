@@ -43,9 +43,9 @@ func (a *App) RailCallback(ctx context.Context, operation, railID string, raw []
 		a.logPayment(ctx, p.ID, domain.TrailWarn, "rail callback: payment %s (%s): %v", p.ID, operation, err)
 	case !known:
 		a.logPayment(ctx, p.ID, domain.TrailWarn, "rail callback: the operator has no answer for payment %s (%s)", p.ID, operation)
-	case p.Status != domain.PaymentProcessing:
+	case p.Status != domain.PaymentProcessing && p.Status != domain.PaymentUnconfirmed:
 		if o.Success && p.Status != domain.PaymentSucceeded {
-			a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND and credit or refund it", p.ID, operation, p.Amount, o.OperatorReference)
+			a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND: the operator check on its trail credits it", p.ID, operation, p.Amount, o.OperatorReference)
 			return
 		}
 		a.logPayment(ctx, p.ID, domain.TrailInfo, "rail callback: payment %s (%s) has already ended as %s", p.ID, operation, p.Status)
