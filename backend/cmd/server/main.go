@@ -198,7 +198,7 @@ func paymentRail(cfg config.Config, trace func(domain.TrailEvent)) (paymentSetup
 	}
 	if cfg.MpesaAPIKey != "" {
 		direct, err := rails.NewMpesa(rails.MpesaConfig{BaseURL: cfg.MpesaBaseURL, C2BPort: cfg.MpesaC2BPort, QueryPort: cfg.MpesaQueryPort, APIKey: cfg.MpesaAPIKey,
-			PublicKey: cfg.MpesaPublicKey, ServiceProviderCode: cfg.MpesaProviderCode})
+			PublicKey: cfg.MpesaPublicKey, ServiceProviderCode: cfg.MpesaProviderCode, Trace: trace})
 		if err != nil {
 			return paymentSetup{}, err
 		}

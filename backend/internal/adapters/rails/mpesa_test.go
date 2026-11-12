@@ -249,3 +249,57 @@ func TestMpesaTimeoutIsSettledByAskingMpesa(t *testing.T) {
 		}
 	})
 }
+
+// Every charge leaves its trail: what was sent, M-Pesa's answer with its code
+// and how long it took, and the status question after a timeout. The
+// customer's number never shows whole.
+func TestMpesaTraceShowsWhatMpesaSaid(t *testing.T) {
+	mpesaTimeoutCheckDelay = 0
+	for name, c := range map[string]struct {
+		c2b   func(w http.ResponseWriter)
+		kinds []string
+		code  string
+	}{
+		"timed out": {func(w http.ResponseWriter) { reply(w, 408, "INS-9") }, []string{domain.TrailRailRequest, domain.TrailRailResponse, domain.TrailRailStatus}, "INS-9"},
+		"paid":      {func(w http.ResponseWriter) { reply(w, 201, "INS-0") }, []string{domain.TrailRailRequest, domain.TrailRailResponse}, "INS-0"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &mpesaFake{c2b: c.c2b, query: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(400)
+				json.NewEncoder(w).Encode(map[string]string{"output_ResponseCode": "INS-997", "output_ResponseTransactionStatus": "N/A"})
+			}}
+			m, _ := newMpesa(t, f)
+			var mu sync.Mutex
+			var evs []domain.TrailEvent
+			m.cfg.Trace = func(ev domain.TrailEvent) { mu.Lock(); evs = append(evs, ev); mu.Unlock() }
+			done := make(chan domain.Outcome, 1)
+			if _, err := m.Initiate(context.Background(), domain.ChargeRequest{PaymentID: "pay_1", Method: domain.MethodMpesa, Amount: 1000, Phone: "841234567", Reference: "RIHAABCDEFGHJKLMNPQR", Live: true},
+				func(o domain.Outcome) { done <- o }); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+				t.Fatal("no outcome")
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			kinds := []string{}
+			for _, ev := range evs {
+				kinds = append(kinds, ev.Kind)
+				if ev.PaymentID != "pay_1" {
+					t.Fatalf("event without its payment: %+v", ev)
+				}
+				if strings.Contains(ev.Request+ev.Response+ev.Title, "841234567") {
+					t.Fatalf("the customer's number shows whole: %+v", ev)
+				}
+			}
+			if strings.Join(kinds, ",") != strings.Join(c.kinds, ",") {
+				t.Fatalf("events %v, want %v", kinds, c.kinds)
+			}
+			if evs[1].Data["code"] != c.code || evs[1].Status == 0 || !strings.Contains(evs[1].Title, c.code) {
+				t.Fatalf("answer %+v", evs[1])
+			}
+		})
+	}
+}

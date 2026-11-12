@@ -38,6 +38,9 @@ type MpesaConfig struct {
 	APIKey              string
 	PublicKey           string
 	ServiceProviderCode string
+	// Trace receives what was sent to M-Pesa and what it answered, for the
+	// payment's trail in Rasto.
+	Trace func(domain.TrailEvent)
 }
 
 // Mpesa is the Vodacom M-Pesa rail. A request blocks until the customer answers
@@ -104,7 +107,26 @@ type mpesaResponse struct {
 	TransactionStatus string `json:"output_ResponseTransactionStatus"`
 }
 
-func (m *Mpesa) Initiate(_ context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error) {
+// mpesaCharge is one payment sent to M-Pesa, with what its trail needs.
+type mpesaCharge struct {
+	ref, paymentID, requestID string
+}
+
+func (m *Mpesa) trace(ev domain.TrailEvent) {
+	if m.cfg.Trace != nil {
+		m.cfg.Trace(ev)
+	}
+}
+
+// answered traces M-Pesa's answer to a charge: its code and description, and
+// how long it took, which is how long the customer had.
+func (m *Mpesa) answered(c mpesaCharge, status int, took time.Duration, raw []byte, out mpesaResponse, title string, level string) {
+	m.trace(domain.TrailEvent{PaymentID: c.paymentID, RequestID: c.requestID, Kind: domain.TrailRailResponse, Source: "operator", Method: http.MethodPost,
+		Path: "M-Pesa c2bPayment/singleStage", Status: status, DurationMs: took.Milliseconds(), Response: domain.RedactBody(raw), Level: level, Title: title,
+		Data: map[string]any{"reference": c.ref, "code": out.ResponseCode, "description": out.ResponseDesc, "transaction": out.TransactionID, "seconds": int(took.Seconds())}})
+}
+
+func (m *Mpesa) Initiate(ctx context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error) {
 	if req.Method != domain.MethodMpesa {
 		return domain.ChargeResult{}, &domain.InputError{Field: "method", Msg: "Por agora só aceitamos M-Pesa."}
 	}
@@ -125,11 +147,16 @@ func (m *Mpesa) Initiate(_ context.Context, req domain.ChargeRequest, onComplete
 	if err != nil {
 		return domain.ChargeResult{}, err
 	}
-	domain.Safely("mpesa charge", func() { m.send(req.Reference, body, onComplete) })
+	c := mpesaCharge{ref: req.Reference, paymentID: req.PaymentID, requestID: domain.RequestFrom(ctx).ID}
+	m.trace(domain.TrailEvent{PaymentID: c.paymentID, RequestID: c.requestID, Kind: domain.TrailRailRequest, Source: "riha", Method: http.MethodPost,
+		Path: "M-Pesa c2bPayment/singleStage", Request: domain.RedactBody(body), Data: map[string]any{"reference": c.ref},
+		Title: "Pedido enviado ao M-Pesa: o cliente deve receber no telemóvel o pedido para digitar o PIN."})
+	domain.Safely("mpesa charge", func() { m.send(c, body, onComplete) })
 	return domain.ChargeResult{Async: true, Last4: phone[5:]}, nil
 }
 
-func (m *Mpesa) send(ref string, body []byte, onComplete func(domain.Outcome)) {
+func (m *Mpesa) send(c mpesaCharge, body []byte, onComplete func(domain.Outcome)) {
+	ref := c.ref
 	ctx, cancel := context.WithTimeout(context.Background(), mpesaRequestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.c2bURL, bytes.NewReader(body))
@@ -139,42 +166,64 @@ func (m *Mpesa) send(ref string, body []byte, onComplete func(domain.Outcome)) {
 	if err != nil {
 		// Never left, so it can't have charged anyone.
 		log.Printf("mpesa %s: not sent: %v", ref, err)
+		m.trace(domain.TrailEvent{PaymentID: c.paymentID, RequestID: c.requestID, Kind: domain.TrailRailResponse, Source: "riha", Level: domain.TrailError,
+			Title: "O pedido não chegou a sair para o M-Pesa: " + err.Error(), Data: map[string]any{"reference": ref}})
 		onComplete(domain.Outcome{FailureCode: domain.FailOperatorUnavailable})
 		return
 	}
+	start := time.Now()
 	res, err := m.http.Do(req)
+	took := time.Since(start)
 	if err != nil {
 		log.Printf("mpesa %s: no answer: %v", ref, err)
+		m.trace(domain.TrailEvent{PaymentID: c.paymentID, RequestID: c.requestID, Kind: domain.TrailRailResponse, Source: "operator", Level: domain.TrailWarn,
+			Method: http.MethodPost, Path: "M-Pesa c2bPayment/singleStage", DurationMs: took.Milliseconds(),
+			Title: fmt.Sprintf("O M-Pesa não respondeu ao fim de %d s (%v). O cliente pode ter pago: a verificação periódica pergunta ao M-Pesa.", int(took.Seconds()), err),
+			Data:  map[string]any{"reference": ref, "seconds": int(took.Seconds())}})
 		return
 	}
 	defer res.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(res.Body, 1<<16))
 	if err != nil {
 		log.Printf("mpesa %s: answer cut short: %v", ref, err)
+		m.answered(c, res.StatusCode, took, raw, mpesaResponse{}, "A resposta do M-Pesa chegou cortada: "+err.Error(), domain.TrailWarn)
 		return
 	}
 	var out mpesaResponse
 	if err := json.Unmarshal(raw, &out); err != nil || out.ResponseCode == "" {
 		log.Printf("mpesa %s: answer not understood (http %d)", ref, res.StatusCode)
+		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("Resposta do M-Pesa que não percebemos (HTTP %d)", res.StatusCode), domain.TrailWarn)
 		return
 	}
-	if o, known := mpesaOutcome(ref, res.StatusCode, out); known {
+	o, known := mpesaOutcome(ref, res.StatusCode, out)
+	secs := int(took.Seconds())
+	switch {
+	case known && o.Success:
+		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("O M-Pesa confirmou o pagamento em %d s (%s, transação %s)", secs, out.ResponseCode, out.TransactionID), domain.TrailInfo)
+	case known:
+		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("O M-Pesa recusou ao fim de %d s: %s %s", secs, out.ResponseCode, out.ResponseDesc), domain.TrailWarn)
+	case out.ResponseCode == "INS-9":
+		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("O M-Pesa respondeu INS-9 (tempo esgotado) ao fim de %d s: o PIN não foi digitado a tempo, ou o pedido não chegou ao telemóvel. Perguntamos ao M-Pesa se ficou pago.", secs), domain.TrailWarn)
+	default:
+		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("Resposta do M-Pesa sem desfecho ao fim de %d s: %s %s. A verificação periódica pergunta ao M-Pesa.", secs, out.ResponseCode, out.ResponseDesc), domain.TrailWarn)
+	}
+	if known {
 		onComplete(o)
 		return
 	}
 	if out.ResponseCode == "INS-9" {
-		m.afterTimeout(ref, onComplete)
+		m.afterTimeout(c, onComplete)
 	}
 }
 
 // afterTimeout handles M-Pesa saying the customer didn't answer in time, which is
 // common. It asks whether that holds, so they don't wait for the sweep to try again.
-func (m *Mpesa) afterTimeout(ref string, onComplete func(domain.Outcome)) {
+func (m *Mpesa) afterTimeout(c mpesaCharge, onComplete func(domain.Outcome)) {
 	time.Sleep(mpesaTimeoutCheckDelay)
-	o, known, err := m.Query(context.Background(), domain.StatusQuery{Reference: ref})
+	o, known, err := m.Query(domain.WithRequest(context.Background(), domain.RequestInfo{ID: c.requestID}), domain.StatusQuery{Reference: c.ref, PaymentID: c.paymentID})
 	switch {
 	case err != nil:
-		log.Printf("mpesa %s: query after timeout failed, the sweep will ask again: %v", ref, err)
+		log.Printf("mpesa %s: query after timeout failed, the sweep will ask again: %v", c.ref, err)
 	case known:
 		onComplete(o)
 	default:
@@ -217,39 +266,60 @@ var mpesaFailures = map[string]string{
 
 // Query asks M-Pesa about a reference. It returns false when M-Pesa has no answer.
 func (m *Mpesa) Query(ctx context.Context, sq domain.StatusQuery) (domain.Outcome, bool, error) {
-	ref := sq.Reference
+	start := time.Now()
+	o, known, status, out, err := m.query(ctx, sq.Reference)
+	ev := domain.TrailEvent{PaymentID: sq.PaymentID, RequestID: domain.RequestFrom(ctx).ID, Kind: domain.TrailRailStatus, Source: "operator", Method: http.MethodGet,
+		Path: "M-Pesa queryTransactionStatus", Status: status, DurationMs: time.Since(start).Milliseconds(),
+		Data: map[string]any{"reference": sq.Reference, "code": out.ResponseCode, "status": out.TransactionStatus, "transaction": out.TransactionID}}
+	switch {
+	case err != nil:
+		ev.Level, ev.Title = domain.TrailWarn, "Não conseguimos perguntar ao M-Pesa pelo estado: "+err.Error()
+	case known && o.Success:
+		ev.Title = "O M-Pesa diz que está pago (" + out.TransactionStatus + ")"
+	case known:
+		ev.Title = "O M-Pesa diz que não foi pago (" + out.TransactionStatus + ")"
+	default:
+		ev.Title = fmt.Sprintf("O M-Pesa não tem registo de pagamento (%s %s)", out.ResponseCode, domain.FirstNonEmpty(out.TransactionStatus, out.ResponseDesc))
+	}
+	if sq.PaymentID != "" {
+		m.trace(ev)
+	}
+	return o, known, err
+}
+
+func (m *Mpesa) query(ctx context.Context, ref string) (domain.Outcome, bool, int, mpesaResponse, error) {
+	var out mpesaResponse
 	ctx, cancel := context.WithTimeout(ctx, mpesaQueryTimeout)
 	defer cancel()
 	q := url.Values{"input_ThirdPartyReference": {ref}, "input_QueryReference": {ref}, "input_ServiceProviderCode": {m.cfg.ServiceProviderCode}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.queryURL+"?"+q.Encode(), nil)
 	if err != nil {
-		return domain.Outcome{}, false, err
+		return domain.Outcome{}, false, 0, out, err
 	}
 	if err := m.headers(req); err != nil {
-		return domain.Outcome{}, false, err
+		return domain.Outcome{}, false, 0, out, err
 	}
 	res, err := m.http.Do(req)
 	if err != nil {
-		return domain.Outcome{}, false, err
+		return domain.Outcome{}, false, 0, out, err
 	}
 	defer res.Body.Close()
-	var out mpesaResponse
 	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<16)).Decode(&out); err != nil {
-		return domain.Outcome{}, false, fmt.Errorf("query answer not understood (http %d)", res.StatusCode)
+		return domain.Outcome{}, false, res.StatusCode, out, fmt.Errorf("query answer not understood (http %d)", res.StatusCode)
 	}
 	if out.ResponseCode == "" {
 		// A refused request, such as a bad key, says nothing about the payment.
-		return domain.Outcome{}, false, fmt.Errorf("query refused (http %d)", res.StatusCode)
+		return domain.Outcome{}, false, res.StatusCode, out, fmt.Errorf("query refused (http %d)", res.StatusCode)
 	}
 	switch strings.ToLower(out.TransactionStatus) {
 	case "completed":
-		return domain.Outcome{Success: true, OperatorReference: domain.FirstNonEmpty(out.TransactionID, ref)}, true, nil
+		return domain.Outcome{Success: true, OperatorReference: domain.FirstNonEmpty(out.TransactionID, ref)}, true, res.StatusCode, out, nil
 	case "cancelled", "canceled":
-		return domain.Outcome{FailureCode: domain.FailCustomerCancelled}, true, nil
+		return domain.Outcome{FailureCode: domain.FailCustomerCancelled}, true, res.StatusCode, out, nil
 	case "expired":
-		return domain.Outcome{FailureCode: domain.FailCustomerTimeout}, true, nil
+		return domain.Outcome{FailureCode: domain.FailCustomerTimeout}, true, res.StatusCode, out, nil
 	}
-	return domain.Outcome{}, false, nil
+	return domain.Outcome{}, false, res.StatusCode, out, nil
 }
 
 // Modes keeps live and test money apart: test mode never reaches a real operator.
