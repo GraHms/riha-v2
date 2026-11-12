@@ -26,7 +26,7 @@ func (a *App) AbroadCallback(ctx context.Context, r AbroadResult) {
 	ev := domain.TrailEvent{Kind: domain.TrailRailCallback, Source: "operator", Method: "POST", Path: "/callbacks/u2opia", Response: domain.RedactBody(r.Raw),
 		Data: map[string]any{"transaction": r.TransactionID, "status": r.Status, "amount": r.Amount, "channel": r.Channel}}
 	p, err := a.Payments.ByRailID(ctx, r.TransactionID)
-	if err != nil || !domain.Contains(a.AbroadMethods, p.Method) {
+	if err != nil || p.Integration != domain.IntegrationU2opia {
 		ev.Level, ev.Title = domain.TrailWarn, fmt.Sprintf("Aviso da U2opia sobre a transação %q, que não é de nenhum pagamento", r.TransactionID)
 		a.trace(ctx, ev)
 		return

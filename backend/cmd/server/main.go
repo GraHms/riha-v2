@@ -76,8 +76,13 @@ func main() {
 	a.LoginCodes = cfg.Env != "development" && os.Getenv("RIHA_LOGIN_CODES") != "off"
 	a.ComingSoon, a.TestComingSoon, a.AbroadCountries = payments.ComingSoon, payments.TestComingSoon, payments.Abroad
 	if len(payments.Abroad) > 0 {
+		// A card is paid wholly on U2opia's page; a wallet from abroad asks
+		// for the country and number first.
 		for _, m := range cfg.U2opiaMethods {
-			if m == domain.MethodCard || m == domain.MethodAbroad {
+			switch m {
+			case domain.MethodCard:
+				a.HostedMethods = append(a.HostedMethods, m)
+			case domain.MethodAbroad:
 				a.AbroadMethods = append(a.AbroadMethods, m)
 			}
 		}
@@ -274,7 +279,11 @@ func u2opiaRail(cfg config.Config, test rails.Router, trace func(domain.TrailEve
 	if len(countries) == 0 {
 		return nil, errors.New("RIHA_U2OPIA_ENABLED needs RIHA_U2OPIA_RATES, the countries to offer and their rates")
 	}
-	client, err := u2opia.New(u2opia.Config{BaseURL: cfg.U2opiaTestURL, PartnerCode: cfg.U2opiaPartnerCode, Countries: countries, Trace: trace})
+	if domain.Contains(cfg.U2opiaMethods, domain.MethodCard) && countries[cfg.U2opiaCardCountry].Code == "" {
+		return nil, fmt.Errorf("RIHA_U2OPIA_CARD_COUNTRY %q needs a rate in RIHA_U2OPIA_RATES", cfg.U2opiaCardCountry)
+	}
+	client, err := u2opia.New(u2opia.Config{BaseURL: cfg.U2opiaTestURL, PartnerCode: cfg.U2opiaPartnerCode, Countries: countries, Trace: trace,
+		CardCountry: cfg.U2opiaCardCountry, CardMSISDN: cfg.U2opiaCardMSISDN})
 	if err != nil {
 		return nil, err
 	}

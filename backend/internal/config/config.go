@@ -59,6 +59,11 @@ type Config struct {
 	U2opiaPartnerCode string
 	U2opiaRates       map[string]string
 	U2opiaMethods     []string
+	// U2opiaCardCountry is where U2opia charges cards (its page takes them
+	// for a few countries only); U2opiaCardMSISDN the number sent with a card
+	// when the customer gave none.
+	U2opiaCardCountry string
+	U2opiaCardMSISDN  string
 	// MozeSMS sends live SMS when its key and secret are set; without them, SMS stay
 	// in the outbox.
 	MozeSMSURL           string
@@ -147,7 +152,9 @@ func Load() Config {
 		U2opiaTestURL:        env("RIHA_U2OPIA_TEST_URL", "https://api-staging.pay.u2opiaglobal.com/api-manager"),
 		U2opiaPartnerCode:    env("RIHA_U2OPIA_PARTNER_CODE", ""),
 		U2opiaRates:          pairs(env("RIHA_U2OPIA_RATES", "")),
-		U2opiaMethods:        list(env("RIHA_U2OPIA_METHODS", "card,abroad")),
+		U2opiaMethods:        list(env("RIHA_U2OPIA_METHODS", "card")),
+		U2opiaCardCountry:    strings.ToUpper(env("RIHA_U2OPIA_CARD_COUNTRY", "AE")),
+		U2opiaCardMSISDN:     env("RIHA_U2OPIA_CARD_MSISDN", ""),
 		MozeSMSURL:           env("RIHA_MOZESMS_URL", "https://api.mozesms.com"),
 		MozeSMSKey:           env("RIHA_MOZESMS_API_KEY", ""),
 		MozeSMSSecret:        env("RIHA_MOZESMS_API_SECRET", ""),

@@ -175,7 +175,7 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	}
 	out := gin.H{
 		"id": cs.ID, "status": status, "amount": cs.Amount, "currency": cs.Currency, "description": cs.Description,
-		"line_items": items, "payment_method_types": srv.A.ActiveMethodsFor(cs.PaymentMethodTypes, cs.Livemode), "coming_soon": srv.A.ComingSoonFor(cs.Livemode), "livemode": cs.Livemode,
+		"line_items": items, "payment_method_types": srv.A.ActiveMethodsFor(cs.PaymentMethodTypes, cs.Livemode), "coming_soon": srv.A.ComingSoonShown(cs.Livemode), "livemode": cs.Livemode,
 		"success_url": success, "cancel_url": cs.CancelURL, "return_host": hostOf(domain.FirstNonEmpty(cs.SuccessURL, cs.CancelURL)),
 		"client_reference_id": cs.ClientReferenceID, "customer_phone": strings.TrimPrefix(cs.CustomerPhone, "+258"),
 		"customer_name": cs.CustomerName, "email_on_file": cs.CustomerEmail != "", "expires_at": isoT(cs.ExpiresAt), "merchant": publicMerchant(m), "payment": nil,
@@ -187,6 +187,9 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	}
 	if abroad := srv.A.RedirectMethodsFor(cs.Livemode); len(abroad) > 0 {
 		out["abroad_methods"], out["abroad_countries"] = abroad, srv.A.AbroadCountries
+	}
+	if hosted := srv.A.HostedMethodsFor(cs.Livemode); len(hosted) > 0 {
+		out["hosted_methods"] = hosted
 	}
 	out["success_message"] = cs.SuccessMessage
 	out["submit_type"] = domain.FirstNonEmpty(cs.SubmitType, domain.SubmitPay)

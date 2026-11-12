@@ -35,9 +35,15 @@ type Config struct {
 	BaseURL     string // up to and including /api-manager
 	PartnerCode string
 	Countries   map[string]Country
-	HTTP        *http.Client
-	Trace       func(domain.TrailEvent)
-	Now         func() time.Time
+	// CardCountry is where U2opia charges a card: its page takes cards for
+	// some countries only, and the customer doesn't choose.
+	CardCountry string
+	// CardMSISDN is the number sent with a card payment when the customer
+	// gave none: U2opia's API requires one.
+	CardMSISDN string
+	HTTP       *http.Client
+	Trace      func(domain.TrailEvent)
+	Now        func() time.Time
 }
 
 type Client struct {
@@ -201,11 +207,20 @@ type initiateAnswer struct {
 }
 
 func (c *Client) Initiate(ctx context.Context, req domain.ChargeRequest, _ func(domain.Outcome)) (domain.ChargeResult, error) {
-	co, ok := c.cfg.Countries[strings.ToUpper(req.Country)]
+	country := req.Country
+	if req.Method == domain.MethodCard {
+		country = c.cfg.CardCountry
+	}
+	co, ok := c.cfg.Countries[strings.ToUpper(country)]
 	if !ok {
 		return domain.ChargeResult{}, &domain.InputError{Field: "country", Msg: "Ainda não aceitamos pagamentos deste país."}
 	}
 	msisdn := NationalNumber(req.Phone, co)
+	if req.Method == domain.MethodCard && (len(msisdn) < 6 || len(msisdn) > 12) {
+		// U2opia asks for a number even for a card; with none given, the
+		// one set for card payments.
+		msisdn = c.cfg.CardMSISDN
+	}
 	if len(msisdn) < 6 || len(msisdn) > 12 {
 		return domain.ChargeResult{}, &domain.InputError{Field: "phone", Msg: "Número inválido para " + co.Name + "."}
 	}

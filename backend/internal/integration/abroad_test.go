@@ -35,7 +35,10 @@ func abroadApp(t *testing.T) (*app.App, context.Context, *domain.Merchant) {
 	a, ctx := setup(t)
 	za := u2opia.Known["ZA"]
 	za.PerMZN = 0.28
-	client, err := u2opia.New(u2opia.Config{BaseURL: u2opiaStandIn(t), PartnerCode: "RIH-TEST", Countries: map[string]u2opia.Country{"ZA": za}})
+	ae := u2opia.Known["AE"]
+	ae.PerMZN = 0.0575
+	client, err := u2opia.New(u2opia.Config{BaseURL: u2opiaStandIn(t), PartnerCode: "RIH-TEST", Countries: map[string]u2opia.Country{"ZA": za, "AE": ae},
+		CardCountry: "AE", CardMSISDN: "501234567"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +48,7 @@ func abroadApp(t *testing.T) (*app.App, context.Context, *domain.Merchant) {
 			Default: map[string]string{"card": domain.IntegrationU2opia, "abroad": domain.IntegrationU2opia}, Fallback: domain.IntegrationSimulator},
 		Live: rails.Single(domain.IntegrationSimulator, sim),
 	}
-	a.AbroadMethods = []string{"card", "abroad"}
+	a.AbroadMethods, a.HostedMethods = []string{"abroad"}, []string{"card"}
 	a.AbroadCountries = []domain.AbroadCountry{{Code: "ZA", Name: za.Name, Dial: za.Dial, Currency: za.Currency}}
 	a.ComingSoon, a.TestComingSoon = []string{"abroad"}, []string{}
 	a.PayURL = "https://pay.example"
@@ -104,9 +107,10 @@ func TestAbroadRefusalsAndLiveMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := a.Pay(ctx, cs.ID, app.PayInput{Method: "card", Country: "ZA", Phone: "821234567"})
-	if err != nil || p.RedirectURL == "" {
-		t.Fatalf("a card in test mode goes through U2opia: %+v %v", p, err)
+	// A card asks for nothing: U2opia charges it in its card country.
+	p, err := a.Pay(ctx, cs.ID, app.PayInput{Method: "card"})
+	if err != nil || p.RedirectURL == "" || p.RailID != "TXAE" || p.Integration != domain.IntegrationU2opia {
+		t.Fatalf("a card in test mode goes through U2opia, in the UAE: %+v %v", p, err)
 	}
 	a.AbroadCallback(ctx, app.AbroadResult{TransactionID: p.RailID, Status: 3})
 	if got, _ := a.Payments.ByID(ctx, p.ID); got.Status != domain.PaymentFailed || got.FailureCode != domain.FailRejected {

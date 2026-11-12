@@ -255,7 +255,7 @@ func TestMpesaCanGoEitherWay(t *testing.T) {
 func TestU2opiaIsTestModeOnly(t *testing.T) {
 	cfg := base(t)
 	cfg.U2opiaEnabled, cfg.U2opiaPartnerCode, cfg.U2opiaTestURL = true, "RIH-TEST", "https://u2opia.invalid/api-manager"
-	cfg.U2opiaMethods = []string{"card", "abroad"}
+	cfg.U2opiaMethods, cfg.U2opiaCardCountry = []string{"card", "abroad"}, "NG"
 	cfg.U2opiaRates = map[string]string{"za": "0.28", "ng": "24.3"}
 	p, err := paymentRail(cfg, nil)
 	if err != nil {
@@ -275,6 +275,12 @@ func TestU2opiaIsTestModeOnly(t *testing.T) {
 	if len(p.Abroad) != 2 || p.Abroad[0].Code != "NG" || p.Abroad[1].Code != "ZA" {
 		t.Fatalf("countries %+v", p.Abroad)
 	}
+	// Cards go to a country with a rate, or RIHA doesn't start.
+	cfg.U2opiaCardCountry = "AE"
+	if _, err := paymentRail(cfg, nil); err == nil {
+		t.Fatal("a card country without a rate must stop the start")
+	}
+	cfg.U2opiaCardCountry = "NG"
 	for _, rates := range []map[string]string{{}, {"mz": "1"}, {"za": "-1"}, {"za": "x"}} {
 		cfg.U2opiaRates = rates
 		if _, err := paymentRail(cfg, nil); err == nil {

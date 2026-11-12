@@ -61,7 +61,7 @@ type Deps struct {
 
 type App struct {
 	Deps
-	hosts webhookHosts
+	hosts                webhookHosts
 	PublicURL            string
 	PayURL               string // the address in checkout and payment links
 	AllowPrivateNetworks bool
@@ -81,6 +81,9 @@ type App struct {
 	// and AbroadMethods the test-mode methods that pay on U2opia's page.
 	AbroadCountries []domain.AbroadCountry
 	AbroadMethods   []string
+	// HostedMethods are test-mode methods paid wholly on U2opia's page, with
+	// nothing to choose here: a card, in the country U2opia takes it for.
+	HostedMethods []string
 	// NoLiveRefunds: a live refund must send the money back, and no rail can yet.
 	NoLiveRefunds bool
 	Now           func() time.Time

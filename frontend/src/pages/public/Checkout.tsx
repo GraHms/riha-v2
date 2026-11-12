@@ -12,7 +12,7 @@ import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 type Session = {
   id: string; status: string; amount: number; description: string; livemode: boolean
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
-  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; abroad_methods?: string[]; abroad_countries?: { code: string; name: string; dial: string; currency: string }[]; link?: { details: string; image_url: string }; success_message?: string; submit_type?: string
+  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; abroad_methods?: string[]; hosted_methods?: string[]; abroad_countries?: { code: string; name: string; dial: string; currency: string }[]; link?: { details: string; image_url: string }; success_message?: string; submit_type?: string
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
   payment: null | { id: string; reference: string; status: string; method: string; country?: string; redirect_url?: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null; stage?: string }
 }
@@ -258,7 +258,10 @@ export default function Checkout() {
     try {
       const abroad = (s.abroad_methods || []).includes(method)
       const where = abroad ? ((s.abroad_countries || []).find(c => c.code === country) || (s.abroad_countries || [])[0])?.code : undefined
-      const body = abroad
+      const hosted = (s.hosted_methods || []).includes(method)
+      const body = hosted
+        ? { method, email, attempt_id: attemptId, pay_again: payAgain }
+        : abroad
         ? { method, country: where, phone: phone.replace(/\D/g, ''), email, attempt_id: attemptId, pay_again: payAgain }
         : method === 'card'
           ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email, attempt_id: attemptId, pay_again: payAgain }
@@ -298,6 +301,8 @@ export default function Checkout() {
   const amount = fmt(s.amount)
   // Paid on the operator's page: the customer picks their country first.
   const abroadMethod = (s.abroad_methods || []).includes(method)
+  // Paid wholly on the operator's page: nothing to fill in here.
+  const hostedMethod = (s.hosted_methods || []).includes(method)
   const countries = s.abroad_countries || []
   const pickedCountry = countries.find(c => c.code === country) || countries[0]
   const wallet = method !== 'card' && !abroadMethod
@@ -395,7 +400,12 @@ export default function Checkout() {
                       </div>
                     ))}
                   </div>
-                  {abroadMethod && pickedCountry ? (
+                  {hostedMethod ? (
+                    <div style={{ marginTop: 20, padding: '14px 16px', borderRadius: 14, background: '#fff', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <Icon name="lock" size={18} stroke={2.2} />
+                      <div style={{ fontSize: 14, lineHeight: 1.5 }}>Vai para a página segura da U2opia para pagar com Visa ou Mastercard. Os dados do cartão são escritos lá, nunca aqui. No fim volta a esta página.</div>
+                    </div>
+                  ) : abroadMethod && pickedCountry ? (
                     <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <label>
                         <span className="label" style={{ marginBottom: 7 }}>País {method === 'card' ? 'do cartão' : 'da carteira'}</span>

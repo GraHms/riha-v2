@@ -299,6 +299,12 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	}
 	p.RailReference = a.railReference(p.Integration, in.Method, cs.Livemode)
 	abroad := domain.Contains(a.RedirectMethodsFor(cs.Livemode), in.Method)
+	if domain.Contains(a.HostedMethodsFor(cs.Livemode), in.Method) {
+		// Paid on U2opia's page: the number it asks for is the one the
+		// merchant gave, if any; the card itself is never typed here.
+		in.Phone = domain.FirstNonEmpty(in.Phone, cs.CustomerPhone)
+		in.CardNumber, in.CardExpiry, in.CardCVC = "", "", ""
+	}
 	switch {
 	case abroad:
 		in.Country = strings.ToUpper(strings.TrimSpace(in.Country))
@@ -606,6 +612,15 @@ func (a *App) cleanMethods(in []string, live bool) ([]string, error) {
 
 func (a *App) ActiveMethods(methods []string) []string { return a.ActiveMethodsFor(methods, true) }
 
+// HostedMethodsFor lists the methods a mode takes wholly on the operator's
+// page, the customer choosing nothing here.
+func (a *App) HostedMethodsFor(live bool) []string {
+	if live {
+		return nil
+	}
+	return a.HostedMethods
+}
+
 // RedirectMethodsFor lists the methods a mode takes on the operator's own
 // page: the customer picks their country, then pays there.
 func (a *App) RedirectMethodsFor(live bool) []string {
@@ -613,6 +628,18 @@ func (a *App) RedirectMethodsFor(live bool) []string {
 		return nil
 	}
 	return a.AbroadMethods
+}
+
+// ComingSoonShown is what a checkout shows as coming soon: never a method
+// only offered when asked for, like a wallet from abroad.
+func (a *App) ComingSoonShown(live bool) []string {
+	out := []string{}
+	for _, m := range a.ComingSoonFor(live) {
+		if !domain.Contains(domain.OptInMethods, m) {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // ComingSoonFor lists the methods a mode can't take money with yet.
