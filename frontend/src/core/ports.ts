@@ -97,6 +97,15 @@ export interface AdminPort {
   settings(): Promise<Json>
   saveSettings(defaultFeeBps: number): Promise<Json>
   saveTransferFee(fee: number, freeFrom: number): Promise<Json>
+  integrations(): Promise<Json>
+  editIntegration(code: string, patch: Json): Promise<Json>
+  routing(merchantId: string): Promise<Json>
+  setRoute(merchantId: string, method: string, integration: string): Promise<Json>
+  setDeal(merchantId: string, code: string, shareBps: number | null): Promise<Json>
+  settlement(from?: string, to?: string): Promise<Json>
+  settlementExportUrl(from?: string, to?: string): string
+  recordSettlement(input: { integration: string; amount: number; reference: string; note: string; received_on: string }): Promise<Json>
+  deleteSettlement(id: string): Promise<Json>
 }
 
 export interface SubscriptionsPort {

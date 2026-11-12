@@ -35,7 +35,7 @@ func (a *App) RailCallback(ctx context.Context, operation, railID string, raw []
 		return
 	}
 	id := domain.FirstNonEmpty(p.RailID, railID)
-	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: id, Method: p.Method, Urgent: true})
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: id, Method: p.Method, Integration: p.Integration, Urgent: true})
 	switch {
 	case errors.Is(err, ports.ErrStillPending):
 		a.logPayment(ctx, p.ID, domain.TrailInfo, "rail callback: payment %s (%s) is still pending at the operator", p.ID, operation)

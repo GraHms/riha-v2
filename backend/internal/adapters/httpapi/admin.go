@@ -40,6 +40,7 @@ func (srv *Server) adminRoutes(a *gin.RouterGroup) {
 	a.GET("/trail/thread/:id", srv.adminTrailThread)
 	a.GET("/trail/events", srv.adminTrailEvents)
 	a.GET("/metrics", srv.adminMetrics)
+	srv.settlementRoutes(a)
 }
 
 func payoutQuery(merchantID string, live bool, limit int) ports.PayoutQuery {
@@ -303,6 +304,7 @@ func (srv *Server) adminPayments(c *gin.Context) {
 		o := paymentRow(&r.Data[i])
 		o["merchant_id"], o["merchant_name"] = r.Data[i].MerchantID, r.Merchants[r.Data[i].MerchantID]
 		o["rail_reference"], o["duplicate_of"] = r.Data[i].RailReference, r.Data[i].DuplicateOf
+		o["integration"] = r.Data[i].Integration
 		out = append(out, o)
 	}
 	c.JSON(200, gin.H{"data": out, "total": r.Total, "page": max(page, 1), "per_page": r.PerPage,

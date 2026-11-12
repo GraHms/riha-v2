@@ -64,7 +64,7 @@ func (a *App) RecheckUnconfirmed(ctx context.Context) {
 			a.endUnconfirmed(ctx, p, "não há forma de perguntar ao operador")
 			continue
 		}
-		o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method})
+		o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration})
 		switch {
 		case err == nil && known:
 			_ = a.CompletePayment(ctx, p.ID, o)
@@ -148,7 +148,7 @@ func (a *App) CheckWithOperator(ctx context.Context, paymentID, actor string, ap
 		out.Answer = "unsupported"
 		return out, nil
 	}
-	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Urgent: true})
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration, Urgent: true})
 	switch {
 	case errors.Is(err, ports.ErrNoStatusCheck):
 		out.Answer = "unsupported"

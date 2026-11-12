@@ -7,6 +7,7 @@ import { bpsLabel, fmt, fullDate, MERCHANT_STATUS, methodLine, parseMT, PAYOUT_S
 import { useSession } from '../../lib/session'
 import { Avatar, Icon, Modal, Pill, Spinner } from '../../components/ui'
 import { RiskPill, V1Tag } from './common'
+import { MerchantRouting } from './Routing'
 
 export default function MerchantDetail() {
   const { id } = useParams()
@@ -80,6 +81,7 @@ export default function MerchantDetail() {
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 10 }}>Exemplo: num pagamento de 1 250,00 MT a taxa é {fmt(Math.round(125000 * (toBps(fee) || 0) / 10000))} MT.</div>
           </div>
+          <MerchantRouting merchantId={id!} />
           <div className="card" style={{ padding: 22 }}>
             <div className="between" style={{ gap: 12, alignItems: 'flex-start' }}>
               <div>

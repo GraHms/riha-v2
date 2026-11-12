@@ -289,7 +289,10 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		Description: cs.Description, ClientReferenceID: cs.ClientReferenceID, Metadata: cs.Metadata, Origin: cs.Origin,
 		PayerIP: in.PayerIP, PayerUserAgent: domain.Trim(in.PayerUA, 300), CreatedAt: a.Now(),
 	}
-	p.RailReference = a.railReference(in.Method, cs.Livemode)
+	p.Integration = a.routeFor(ctx, m.ID, in.Method, cs.Livemode)
+	price := a.priceFor(ctx, m.ID, p.Integration, in.Method, p.Amount, p.Fee)
+	p.PlatformFee, p.PartnerFee, p.Priced = price.PlatformFee, price.PartnerFee, true
+	p.RailReference = a.railReference(p.Integration, in.Method, cs.Livemode)
 	if in.Method != domain.MethodCard {
 		if ph := domain.NormalizeMZPhone(in.Phone); len(ph) == 9 {
 			p.PhonePrefix, p.PhoneLast4, p.ContactPhone = ph[:2], ph[5:], ph
@@ -337,7 +340,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
 		PaymentID: p.ID, Description: p.Description, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
 		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor,
-		Live: p.Livemode, Reference: p.RailReference, OnRailID: func(id string) { a.keepRailID(p.ID, id) },
+		Live: p.Livemode, Reference: p.RailReference, OnRailID: func(id string) { a.keepRailID(p.ID, id) }, Integration: p.Integration,
 	}, func(o domain.Outcome) {
 		if err := a.CompletePayment(context.Background(), p.ID, o); err != nil {
 			log.Printf("complete payment %s: %v", p.ID, err)
@@ -380,7 +383,10 @@ func (a *App) paymentForAttempt(ctx context.Context, sessionID, attempt string) 
 	return p, err
 }
 
-func (a *App) railReference(method string, live bool) string {
+func (a *App) railReference(integration, method string, live bool) string {
+	if r := a.routing(); r != nil {
+		return r.ReferenceVia(integration, method, live)
+	}
 	if r, ok := a.Rail.(ports.RailReferencer); ok {
 		return r.NewReference(method, live)
 	}

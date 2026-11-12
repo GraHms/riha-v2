@@ -49,6 +49,9 @@ func (s *Store) Migrate() error {
 	if err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS subscription_settings_catalog_slug ON subscription_settings (catalog_slug) WHERE catalog_slug <> ''`).Error; err != nil {
 		return err
 	}
+	if err := s.db.Exec(tagPaymentsByIntegration).Error; err != nil {
+		return err
+	}
 	return s.db.Exec(`CREATE SEQUENCE IF NOT EXISTS payout_number_seq START 1`).Error
 }
 

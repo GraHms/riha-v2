@@ -53,6 +53,7 @@ type Deps struct {
 	SubSettings  ports.SubscriptionSettingsRepo
 	Messenger    ports.Messenger
 	Sheets       ports.Sheet
+	Integrations ports.Integrations
 	// Trail is optional: without it nothing is traced.
 	Trail    ports.Trail
 	Insights ports.Insights

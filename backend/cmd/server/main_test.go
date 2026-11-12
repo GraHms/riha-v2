@@ -203,3 +203,49 @@ func TestProductionRefusesMixedUpSettings(t *testing.T) {
 		}
 	}
 }
+
+// With mtoca and the M-Pesa API both set up, live M-Pesa goes direct by default
+// and mtoca can still take it for a merchant sent through it; the flag swaps
+// which is the default.
+func TestMpesaCanGoEitherWay(t *testing.T) {
+	prd, prdHits := counted(t)
+	dev, _ := counted(t)
+	cfg := base(t)
+	cfg.Env, cfg.MtocaEnabled, cfg.MtocaLiveURL, cfg.MtocaTestURL = "development", true, prd.URL, dev.URL
+	p, err := paymentRail(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := p.Rail.(ports.RailRouting)
+	if got := r.Routes(true)["mpesa"]; !reflect.DeepEqual(got, []string{domain.IntegrationMpesaDirect, domain.IntegrationMtoca}) {
+		t.Fatalf("live M-Pesa routes %v", got)
+	}
+	if got := r.Routes(true)["emola"]; !reflect.DeepEqual(got, []string{domain.IntegrationMtoca}) {
+		t.Fatalf("live e-Mola routes %v", got)
+	}
+	if r.RouteFor("", "mpesa", true) != domain.IntegrationMpesaDirect || r.RouteFor(domain.IntegrationMtoca, "mpesa", true) != domain.IntegrationMtoca ||
+		r.RouteFor(domain.IntegrationMpesaDirect, "emola", true) != domain.IntegrationMtoca || r.RouteFor("", "mpesa", false) != domain.IntegrationSimulator {
+		t.Fatal("routes")
+	}
+	if n := r.ReferenceVia(domain.IntegrationMtoca, "mpesa", true); len(n) != 12 {
+		t.Fatalf("M-Pesa through mtoca takes mtoca's reference: %q", n)
+	}
+	if n := r.ReferenceVia("", "mpesa", true); !strings.HasPrefix(n, "RIHA") {
+		t.Fatalf("M-Pesa direct takes its own reference: %q", n)
+	}
+	req := domain.ChargeRequest{PaymentID: "pay_1", Method: "mpesa", Amount: 5000, Phone: "841234567", Live: true, Reference: "123456789012", Integration: domain.IntegrationMtoca}
+	if _, err := p.Rail.Initiate(context.Background(), req, func(domain.Outcome) {}); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, func() bool { return prdHits.Load() == 1 }, "M-Pesa sent through mtoca must reach mtoca")
+
+	cfg.MpesaViaMtoca = true
+	p, err = paymentRail(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = p.Rail.(ports.RailRouting)
+	if r.RouteFor("", "mpesa", true) != domain.IntegrationMtoca || r.RouteFor(domain.IntegrationMpesaDirect, "mpesa", true) != domain.IntegrationMpesaDirect {
+		t.Fatal("with the flag, mtoca is the default and direct still an option")
+	}
+}

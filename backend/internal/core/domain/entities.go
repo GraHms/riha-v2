@@ -292,6 +292,14 @@ type Payment struct {
 	// DuplicateOf is the payment the same customer already paid for the same
 	// thing, when this one came in late on top of it: a refund to look at.
 	DuplicateOf string
+	// Integration is the code of the integration that took the payment, which
+	// holds its money until it settles with RIHA. PlatformFee and PartnerFee are
+	// how RIHA's fee divided on that integration's deal when the payment began;
+	// Priced says they were worked out, since both can be zero.
+	Integration string
+	PlatformFee int64
+	PartnerFee  int64
+	Priced      bool
 }
 
 func (p *Payment) Refundable() int64 {

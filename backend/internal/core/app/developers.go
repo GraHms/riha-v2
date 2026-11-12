@@ -269,7 +269,7 @@ func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 		return
 	}
 	age := a.Now().Sub(p.CreatedAt)
-	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method})
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration})
 	switch {
 	case errors.Is(err, ports.ErrNoStatusCheck):
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
@@ -304,7 +304,7 @@ func (a *App) CheckClosedPayments(ctx context.Context) {
 	}
 	for i := range closed {
 		p := &closed[i]
-		if o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method}); err == nil && known && o.Success {
+		if o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration}); err == nil && known && o.Success {
 			a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND: the operator check on its trail credits it", p.ID, p.RailReference, p.Amount, o.OperatorReference)
 		}
 	}

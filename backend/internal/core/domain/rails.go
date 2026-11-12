@@ -80,6 +80,9 @@ type ChargeRequest struct {
 	// OnRailID receives the id a rail gives the payment, if it has to be kept to ask
 	// about the payment later.
 	OnRailID func(string)
+	// Integration is the code of the integration to send the payment through;
+	// empty takes the method's default.
+	Integration string
 }
 
 type Outcome struct {
@@ -101,6 +104,8 @@ type StatusQuery struct {
 	Reference string
 	RailID    string
 	Method    string
+	// Integration is the code of the integration that took the payment.
+	Integration string
 	// Urgent is for a callback: the operator just said something changed.
 	Urgent bool
 }

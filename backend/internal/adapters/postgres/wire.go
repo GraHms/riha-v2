@@ -33,6 +33,7 @@ type Repositories struct {
 	Charges      ports.Charges
 	Messages     ports.Messages
 	SubSettings  ports.SubscriptionSettingsRepo
+	Integrations ports.Integrations
 }
 
 func (s *Store) Repositories() Repositories {
@@ -43,5 +44,6 @@ func (s *Store) Repositories() Repositories {
 		Events: Events{s}, Deliveries: Deliveries{s}, RequestLogs: RequestLogs{s}, Idempotency: Idempotency{s},
 		Audit: Audit{s}, Settings: Settings{s}, Reports: Reports{s}, Emails: Emails{s}, Resets: PasswordResets{s},
 		Plans: Plans{s}, Members: Members{s}, Subs: Subscriptions{s}, Charges: Charges{s}, Messages: Messages{s}, SubSettings: SubscriptionSettings{s},
+		Integrations: Integrations{s},
 	}
 }

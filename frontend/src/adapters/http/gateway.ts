@@ -145,6 +145,15 @@ export function httpGateway(t = new Transport()): Gateway {
       settings: () => get('/admin/settings'),
       saveSettings: default_fee_bps => send('PUT', '/admin/settings', { default_fee_bps }),
       saveTransferFee: (transfer_fee, free_transfer_from) => send('PUT', '/admin/settings', { transfer_fee, free_transfer_from }),
+      integrations: () => get('/admin/integrations'),
+      editIntegration: (code, patch) => send('PATCH', '/admin/integrations/' + encodeURIComponent(code), patch),
+      routing: id => get(`/admin/merchants/${encodeURIComponent(id)}/routing`),
+      setRoute: (id, method, integration) => send('PUT', `/admin/merchants/${encodeURIComponent(id)}/routes/${encodeURIComponent(method)}`, { integration }),
+      setDeal: (id, code, share_bps) => send('PUT', `/admin/merchants/${encodeURIComponent(id)}/deals/${encodeURIComponent(code)}`, { share_bps }),
+      settlement: (from, to) => get('/admin/settlement?' + qs({ from, to })),
+      settlementExportUrl: (from, to) => t.url('/admin/settlement/export.csv?' + qs({ from, to })),
+      recordSettlement: input => post('/admin/settlements', input),
+      deleteSettlement: id => send('DELETE', '/admin/settlements/' + encodeURIComponent(id)),
     },
   }
 }

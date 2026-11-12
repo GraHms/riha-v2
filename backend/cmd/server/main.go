@@ -87,6 +87,9 @@ func main() {
 	if err := a.EnsureAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword); err != nil {
 		log.Fatalf("admin: %v", err)
 	}
+	if err := a.SetupIntegrations(ctx); err != nil {
+		log.Fatalf("integrations: %v", err)
+	}
 	if cfg.Seed {
 		if cfg.Env == "production" {
 			log.Fatal("RIHA_SEED cannot be used with RIHA_ENV=production")
@@ -120,7 +123,7 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 		Keys: r.Keys, Links: r.Links, Sessions: r.Sessions, Payments: r.Payments, Refunds: r.Refunds, Ledger: r.Ledger,
 		Payouts: r.Payouts, Endpoints: r.Endpoints, Domains: r.Domains, Events: r.Events, Deliveries: r.Deliveries,
 		RequestLogs: r.RequestLogs, Idempotency: r.Idempotency, Audit: r.Audit, Settings: r.Settings, Reports: r.Reports,
-		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings,
+		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings, Integrations: r.Integrations,
 		Messenger: &messaging.Outbox{Dir: filepath.Join(cfg.OutboxDir, "messages")},
 		Sheets:    sheets.Reader{},
 		Rail:      rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond),
@@ -141,22 +144,24 @@ type paymentSetup struct {
 	RealMoney  bool
 }
 
-// paymentRail picks a rail per mode and method. Live M-Pesa goes direct unless
-// RIHA_MPESA_VIA_MTOCA is on. With RIHA_MTOCA_ENABLED, the wallets on mtoca use its
-// production API for live payments and, unless RIHA_MTOCA_TEST_ON is false, its dev
-// API for test payments. Anything else in test mode is simulated. Production can't start on the simulator alone: it would
-// pass fake money off as real.
+// paymentRail sets up each mode's integrations. With RIHA_MTOCA_ENABLED, the
+// wallets on mtoca use its production API for live payments and, unless
+// RIHA_MTOCA_TEST_ON is false, its dev API for test payments. With the M-Pesa API's
+// keys, live M-Pesa can also go direct, through 900511, and does by default
+// unless RIHA_MPESA_VIA_MTOCA is on; the backoffice can send a merchant through
+// either. Anything else in test mode is simulated. Production can't start on the
+// simulator alone: it would pass fake money off as real.
 func paymentRail(cfg config.Config, trace func(domain.TrailEvent)) (paymentSetup, error) {
 	sim := rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond)
-	test := rails.Router{ByMethod: map[string]ports.Rail{}, Fallback: sim}
-	live := rails.Router{ByMethod: map[string]ports.Rail{}}
+	test := rails.Router{Via: map[string]rails.Via{domain.IntegrationSimulator: {Rail: sim}}, Default: map[string]string{}, Fallback: domain.IntegrationSimulator}
+	live := rails.Router{Via: map[string]rails.Via{}, Default: map[string]string{}}
 	if cfg.MtocaEnabled {
 		if err := checkMtocaURLs(cfg); err != nil {
 			return paymentSetup{}, err
 		}
 		channels := map[string]string{}
 		for method, channel := range cfg.MtocaChannels {
-			if domain.IsWallet(method) && (method != domain.MethodMpesa || cfg.MpesaViaMtoca) {
+			if domain.IsWallet(method) {
 				channels[method] = channel
 			}
 		}
@@ -168,35 +173,51 @@ func paymentRail(cfg config.Config, trace func(domain.TrailEvent)) (paymentSetup
 		if err != nil {
 			return paymentSetup{}, err
 		}
-		for method, channel := range channels {
-			live.ByMethod[method] = liveClient
-			if cfg.MtocaTestOn {
-				test.ByMethod[method] = testClient
+		methods := []string{}
+		for _, method := range domain.AllMethods {
+			if channels[method] == "" {
+				continue
 			}
-			log.Printf("payments: %s goes through mtoca channel %s", method, channel)
+			methods = append(methods, method)
+			if method != domain.MethodMpesa || cfg.MpesaViaMtoca {
+				live.Default[method] = domain.IntegrationMtoca
+				if cfg.MtocaTestOn {
+					test.Default[method] = domain.IntegrationMtoca
+				}
+			}
+			log.Printf("payments: mtoca takes %s on channel %s", method, channels[method])
+		}
+		live.Via[domain.IntegrationMtoca] = rails.Via{Rail: liveClient, Methods: methods}
+		if cfg.MtocaTestOn {
+			test.Via[domain.IntegrationMtoca] = rails.Via{Rail: testClient, Methods: methods}
 		}
 	}
-	if cfg.MpesaViaMtoca && live.ByMethod[domain.MethodMpesa] == nil {
+	if cfg.MpesaViaMtoca && live.Default[domain.MethodMpesa] == "" {
 		return paymentSetup{}, errors.New("RIHA_MPESA_VIA_MTOCA needs RIHA_MTOCA_ENABLED, and mpesa in RIHA_MTOCA_CHANNELS")
 	}
-	if live.ByMethod[domain.MethodMpesa] == nil {
-		if cfg.MpesaAPIKey != "" {
-			direct, err := rails.NewMpesa(rails.MpesaConfig{BaseURL: cfg.MpesaBaseURL, C2BPort: cfg.MpesaC2BPort, QueryPort: cfg.MpesaQueryPort, APIKey: cfg.MpesaAPIKey,
-				PublicKey: cfg.MpesaPublicKey, ServiceProviderCode: cfg.MpesaProviderCode})
-			if err != nil {
-				return paymentSetup{}, err
-			}
-			live.ByMethod[domain.MethodMpesa] = direct
-		} else if cfg.Env == "production" {
-			return paymentSetup{}, errors.New("production needs RIHA_MPESA_API_KEY, RIHA_MPESA_PUBLIC_KEY and RIHA_MPESA_SERVICE_PROVIDER_CODE, or RIHA_MPESA_VIA_MTOCA")
+	if cfg.MpesaAPIKey != "" {
+		direct, err := rails.NewMpesa(rails.MpesaConfig{BaseURL: cfg.MpesaBaseURL, C2BPort: cfg.MpesaC2BPort, QueryPort: cfg.MpesaQueryPort, APIKey: cfg.MpesaAPIKey,
+			PublicKey: cfg.MpesaPublicKey, ServiceProviderCode: cfg.MpesaProviderCode})
+		if err != nil {
+			return paymentSetup{}, err
 		}
+		live.Via[domain.IntegrationMpesaDirect] = rails.Via{Rail: direct, Methods: []string{domain.MethodMpesa}}
+		if live.Default[domain.MethodMpesa] == "" {
+			live.Default[domain.MethodMpesa] = domain.IntegrationMpesaDirect
+		}
+	} else if live.Default[domain.MethodMpesa] == "" && cfg.Env == "production" {
+		return paymentSetup{}, errors.New("production needs RIHA_MPESA_API_KEY, RIHA_MPESA_PUBLIC_KEY and RIHA_MPESA_SERVICE_PROVIDER_CODE, or RIHA_MPESA_VIA_MTOCA")
 	}
-	if len(live.ByMethod) == 0 {
-		return paymentSetup{Rail: sim}, nil
+	for method, code := range live.Default {
+		log.Printf("payments: live %s goes through %s by default", method, code)
+	}
+	if len(live.Via) == 0 {
+		only := rails.Single(domain.IntegrationSimulator, sim)
+		return paymentSetup{Rail: rails.Modes{Test: only, Live: only}}, nil
 	}
 	var soon []string
 	for _, method := range domain.AllMethods {
-		if live.ByMethod[method] == nil {
+		if live.RouteFor("", method, true) == "" {
 			soon = append(soon, method)
 		}
 	}

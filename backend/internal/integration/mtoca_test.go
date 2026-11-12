@@ -13,7 +13,6 @@ import (
 	"riha/internal/adapters/rails/mtoca"
 	"riha/internal/core/app"
 	"riha/internal/core/domain"
-	"riha/internal/core/ports"
 )
 
 type mtocaFake struct {
@@ -60,7 +59,7 @@ func mtocaApp(t *testing.T, f *mtocaFake, a *app.App) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.Rail = rails.Router{ByMethod: map[string]ports.Rail{"mpesa": mt, "emola": mt}}
+	a.Rail = rails.Router{Via: map[string]rails.Via{"mtoca": {Rail: mt, Methods: []string{"mpesa", "emola"}}}, Fallback: "mtoca"}
 }
 
 // A restart loses the polling. The id is in the database, so the sweep can still credit it.

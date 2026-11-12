@@ -284,3 +284,24 @@ func (m Modes) NewReference(method string, live bool) string {
 	}
 	return domain.RailReference()
 }
+
+func (m Modes) RouteFor(want, method string, live bool) string {
+	if r, ok := m.pick(live).(ports.RailRouting); ok {
+		return r.RouteFor(want, method, live)
+	}
+	return ""
+}
+
+func (m Modes) Routes(live bool) map[string][]string {
+	if r, ok := m.pick(live).(ports.RailRouting); ok {
+		return r.Routes(live)
+	}
+	return map[string][]string{}
+}
+
+func (m Modes) ReferenceVia(integration, method string, live bool) string {
+	if r, ok := m.pick(live).(ports.RailRouting); ok {
+		return r.ReferenceVia(integration, method, live)
+	}
+	return m.NewReference(method, live)
+}

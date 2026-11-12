@@ -292,6 +292,17 @@ type RailReferencer interface {
 	NewReference(method string, live bool) string
 }
 
+// RailRouting is implemented by a rail made of integrations. RouteFor names the
+// one a payment by method goes through when it asks for want (the default when
+// want doesn't take the method, "" when none does); Routes lists, by method,
+// those that take it, the default first; ReferenceVia is a new reference by the
+// rules of the integration a payment goes through.
+type RailRouting interface {
+	RouteFor(want, method string, live bool) string
+	Routes(live bool) map[string][]string
+	ReferenceVia(integration, method string, live bool) string
+}
+
 type WebhookSender interface {
 	Send(ctx context.Context, url string, headers map[string]string, body []byte) (status int, err error)
 }
@@ -496,4 +507,51 @@ type TrailQuery struct {
 	Search     string
 	Since      *time.Time
 	Limit      int
+}
+
+// CollectedRow sums one merchant's live payments through one integration.
+type CollectedRow struct {
+	Integration string
+	MerchantID  string
+	Count       int64
+	Amount      int64
+	Fee         int64
+	PlatformFee int64
+	PartnerFee  int64
+	Refunded    int64
+}
+
+// MerchantMoney is what RIHA owes merchants in live mode: their Balances, and
+// the withdrawals InTransit, already off their balances; and what has been
+// PaidOut to them.
+type MerchantMoney struct {
+	Balances, InTransit, PaidOut int64
+}
+
+// Integrations keeps the integrations and their deals, which merchants go
+// through which, and what partners have paid RIHA.
+type Integrations interface {
+	List(ctx context.Context) ([]domain.Integration, error)
+	Get(ctx context.Context, code string) (*domain.Integration, error)
+	Save(ctx context.Context, i *domain.Integration) error
+	// AddMissing adds those whose code isn't there yet, leaving the others as edited.
+	AddMissing(ctx context.Context, is []domain.Integration) error
+	// Routes and Deals are one merchant's, or with "" everyone's.
+	Routes(ctx context.Context, merchantID string) ([]domain.MerchantRoute, error)
+	SetRoute(ctx context.Context, r *domain.MerchantRoute) error
+	DeleteRoute(ctx context.Context, merchantID, method string) error
+	Deals(ctx context.Context, merchantID string) ([]domain.MerchantDeal, error)
+	SetDeal(ctx context.Context, d *domain.MerchantDeal) error
+	DeleteDeal(ctx context.Context, merchantID, integration string) error
+	AddSettlement(ctx context.Context, s *domain.PartnerSettlement) error
+	Settlement(ctx context.Context, id string) (*domain.PartnerSettlement, error)
+	Settlements(ctx context.Context, integration string, limit int) ([]domain.PartnerSettlement, error)
+	DeleteSettlement(ctx context.Context, id string) error
+	SettledTotals(ctx context.Context) (map[string]int64, error)
+	// Collected sums live paid payments by integration and merchant, paid in [from, to).
+	Collected(ctx context.Context, from, to *time.Time) ([]CollectedRow, error)
+	MerchantMoney(ctx context.Context) (MerchantMoney, error)
+	// Unpriced are payments with an integration whose fee hasn't been divided yet.
+	Unpriced(ctx context.Context, limit int) ([]domain.Payment, error)
+	SetPrice(ctx context.Context, paymentID string, p domain.Price) error
 }

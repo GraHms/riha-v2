@@ -40,6 +40,7 @@ const Docs = lazy(() => import('./pages/public/Docs'))
 const TrailSearch = lazy(() => import('./pages/admin/Trail').then(m => ({ default: m.TrailSearch })))
 const TrailThread = lazy(() => import('./pages/admin/Trail').then(m => ({ default: m.TrailThread })))
 const AdminMetrics = lazy(() => import('./pages/admin/Metrics'))
+const AdminSettlement = lazy(() => import('./pages/admin/Settlement'))
 
 // On a catalog's own subdomain the server names the catalog in the page, and
 // only the catalog, its plans and the invoices they lead to live there.
@@ -163,6 +164,7 @@ export default function App() {
         <Route path="rasto" element={<TrailSearch />} />
         <Route path="rasto/:id" element={<TrailThread />} />
         <Route path="metricas" element={<AdminMetrics />} />
+        <Route path="liquidacao" element={<AdminSettlement />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

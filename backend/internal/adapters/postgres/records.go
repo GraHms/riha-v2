@@ -220,6 +220,10 @@ type paymentRecord struct {
 	Rechecks          int        `gorm:"not null;default:0"`
 	PaidLate          bool       `gorm:"not null;default:false"`
 	DuplicateOf       string     `gorm:"size:40;not null;default:''"`
+	Integration       string     `gorm:"size:30;not null;default:'';index"`
+	PlatformFee       int64      `gorm:"not null;default:0"`
+	PartnerFee        int64      `gorm:"not null;default:0"`
+	Priced            bool       `gorm:"not null;default:false"`
 }
 
 func (paymentRecord) TableName() string { return "payments" }
@@ -426,5 +430,5 @@ func allRecords() []any {
 		&linkRecord{}, &sessionCheckoutRecord{}, &paymentRecord{}, &refundRecord{}, &ledgerRecord{}, &payoutRecord{},
 		&endpointRecord{}, &domainRecord{}, &eventRecord{}, &deliveryRecord{}, &requestLogRecord{}, &idempotencyRecord{},
 		&auditRecord{}, &settingRecord{}, &emailRecord{}, &passwordResetRecord{}, &trailRecord{},
-	}, subscriptionRecords()...)
+	}, append(subscriptionRecords(), integrationRecords()...)...)
 }
