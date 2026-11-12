@@ -19,8 +19,13 @@ type User struct {
 	Role         string
 	AdminTitle   string
 	MerchantID   *string
-	LastLoginAt  *time.Time
-	CreatedAt    time.Time
+	// Permissions are a staff or partner user's; PartnerCode is the partner a
+	// partner's user belongs to. DisabledAt closes the account.
+	Permissions []string
+	PartnerCode string
+	DisabledAt  *time.Time
+	LastLoginAt *time.Time
+	CreatedAt   time.Time
 }
 
 type AuthSession struct {

@@ -29,6 +29,13 @@ func (r Users) SetPassword(ctx context.Context, id, hash string) error {
 func (r Users) TouchLogin(ctx context.Context, id string, at time.Time) error {
 	return r.conn(ctx).Model(&userRecord{}).Where("id = ?", id).Update("last_login_at", at).Error
 }
+func (r Users) Team(ctx context.Context, role, partnerCode string) ([]domain.User, error) {
+	return find[userRecord, domain.User](r.conn(ctx).Where("role = ? AND partner_code = ?", role, partnerCode).Order("disabled_at NULLS FIRST, name"))
+}
+func (r Users) SetAccess(ctx context.Context, u *domain.User) error {
+	return r.conn(ctx).Model(&userRecord{}).Where("id = ?", u.ID).
+		Updates(map[string]any{"permissions": StringList(u.Permissions), "admin_title": u.AdminTitle, "disabled_at": u.DisabledAt, "name": u.Name}).Error
+}
 
 type AuthSessions struct{ *Store }
 

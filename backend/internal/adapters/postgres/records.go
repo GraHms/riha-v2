@@ -3,14 +3,17 @@ package postgres
 import "time"
 
 type userRecord struct {
-	ID           string  `gorm:"primaryKey;size:40"`
-	Email        string  `gorm:"uniqueIndex;size:200;not null"`
-	PasswordHash string  `gorm:"not null"`
-	Name         string  `gorm:"size:200"`
-	Phone        string  `gorm:"size:40"`
-	Role         string  `gorm:"size:20;not null;default:merchant"`
-	AdminTitle   string  `gorm:"size:80"`
-	MerchantID   *string `gorm:"size:40;index"`
+	ID           string     `gorm:"primaryKey;size:40"`
+	Email        string     `gorm:"uniqueIndex;size:200;not null"`
+	PasswordHash string     `gorm:"not null"`
+	Name         string     `gorm:"size:200"`
+	Phone        string     `gorm:"size:40"`
+	Role         string     `gorm:"size:20;not null;default:merchant"`
+	AdminTitle   string     `gorm:"size:80"`
+	MerchantID   *string    `gorm:"size:40;index"`
+	Permissions  StringList `gorm:"type:text"`
+	PartnerCode  string     `gorm:"size:30;not null;default:'';index"`
+	DisabledAt   *time.Time
 	LastLoginAt  *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

@@ -49,6 +49,10 @@ func (s *Store) Migrate() error {
 	if err := s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS subscription_settings_catalog_slug ON subscription_settings (catalog_slug) WHERE catalog_slug <> ''`).Error; err != nil {
 		return err
 	}
+	// Admins from before permissions keep everything.
+	if err := s.db.Exec(`UPDATE users SET permissions = '["*"]' WHERE role = 'admin' AND (permissions IS NULL OR permissions = '')`).Error; err != nil {
+		return err
+	}
 	if err := s.db.Exec(tagPaymentsByIntegration).Error; err != nil {
 		return err
 	}

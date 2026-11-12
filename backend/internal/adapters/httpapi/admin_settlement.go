@@ -12,24 +12,12 @@ import (
 	"riha/internal/core/domain"
 )
 
-func (srv *Server) settlementRoutes(a *gin.RouterGroup) {
-	a.GET("/integrations", srv.adminIntegrations)
-	a.PATCH("/integrations/:code", srv.adminEditIntegration)
-	a.GET("/merchants/:id/routing", srv.adminMerchantRouting)
-	a.PUT("/merchants/:id/routes/:method", srv.adminSetRoute)
-	a.PUT("/merchants/:id/deals/:code", srv.adminSetDeal)
-	a.GET("/settlement", srv.adminSettlement)
-	a.GET("/settlement/export.csv", srv.adminSettlementExport)
-	a.POST("/settlements", srv.adminRecordSettlement)
-	a.DELETE("/settlements/:id", srv.adminDeleteSettlement)
-}
-
 func integrationJSON(in *domain.Integration) gin.H {
 	platform := gin.H{}
 	for m, bps := range in.PlatformBps {
 		platform[m] = bps
 	}
-	return gin.H{"code": in.Code, "name": in.Name, "partner": in.Partner, "account": in.Account, "platform_bps": platform,
+	return gin.H{"code": in.Code, "name": in.Name, "partner_code": in.PartnerCode, "account": in.Account, "platform_bps": platform,
 		"share_bps": in.ShareBps, "note": in.Note, "updated_at": in.UpdatedAt}
 }
 
@@ -39,9 +27,11 @@ func (srv *Server) adminIntegrations(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	names := srv.A.SourceNames(ctx(c))
 	out := []gin.H{}
 	for i := range vs {
 		o := integrationJSON(&vs[i].Integration)
+		o["partner_name"] = names[vs[i].Code]
 		o["live_methods"], o["default_for"], o["merchants_routed"], o["merchant_deals"] = vs[i].LiveMethods, vs[i].DefaultFor, vs[i].Routed, vs[i].Deals
 		out = append(out, o)
 	}
@@ -51,7 +41,7 @@ func (srv *Server) adminIntegrations(c *gin.Context) {
 func (srv *Server) adminEditIntegration(c *gin.Context) {
 	var in struct {
 		Name        *string        `json:"name"`
-		Partner     *string        `json:"partner"`
+		PartnerCode *string        `json:"partner_code"`
 		Account     *string        `json:"account"`
 		Note        *string        `json:"note"`
 		PlatformBps map[string]int `json:"platform_bps"`
@@ -61,7 +51,7 @@ func (srv *Server) adminEditIntegration(c *gin.Context) {
 		bad(c, "Pedido inválido.")
 		return
 	}
-	out, err := srv.A.EditIntegration(ctx(c), c.Param("code"), app.IntegrationEdit{Name: in.Name, Partner: in.Partner, Account: in.Account, Note: in.Note,
+	out, err := srv.A.EditIntegration(ctx(c), c.Param("code"), app.IntegrationEdit{Name: in.Name, PartnerCode: in.PartnerCode, Account: in.Account, Note: in.Note,
 		PlatformBps: in.PlatformBps, ShareBps: in.ShareBps}, actor(c))
 	if err != nil {
 		fail(c, err)
@@ -158,7 +148,8 @@ func (srv *Server) adminSettlement(c *gin.Context) {
 		if p.LastPaid != nil {
 			last = settlementJSON(p.LastPaid)
 		}
-		partners = append(partners, gin.H{"integration": integrationJSON(&p.Integration), "all_time": collectedJSON(p.AllTime), "received": p.Received,
+		partners = append(partners, gin.H{"integration": integrationJSON(&p.Integration), "partner_name": p.PartnerName, "all_time": collectedJSON(p.AllTime), "received": p.Received,
+			"paid_out": p.PaidOut, "reserved": p.Reserved,
 			"held": p.Held, "last_settlement": last, "period": collectedJSON(p.Period), "merchants": ms})
 	}
 	recent := []gin.H{}
@@ -200,7 +191,7 @@ func (srv *Server) adminSettlementExport(c *gin.Context) {
 	_ = w.Write([]string{"integracao", "parceiro", "comerciante", "pagamentos", "valor_mt", "taxa_riha_mt", "taxa_operador_mt", "parte_parceiro_mt", "margem_riha_mt", "reembolsado_mt", "devido_a_riha_mt"})
 	for _, p := range r.Partners {
 		for _, m := range p.Merchants {
-			_ = w.Write([]string{p.Integration.Code, p.Integration.Partner, strings.TrimSpace(m.Name), fmt.Sprint(m.Count), mt(m.Amount), mt(m.Fee), mt(m.PlatformFee),
+			_ = w.Write([]string{p.Integration.Code, p.PartnerName, strings.TrimSpace(m.Name), fmt.Sprint(m.Count), mt(m.Amount), mt(m.Fee), mt(m.PlatformFee),
 				mt(m.PartnerFee), mt(m.Margin()), mt(m.Refunded), mt(m.DueToRIHA())})
 		}
 	}

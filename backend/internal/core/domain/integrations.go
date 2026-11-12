@@ -29,7 +29,7 @@ func ValidIntegrationCode(code string) bool { return integrationCode.MatchString
 type Integration struct {
 	Code        string
 	Name        string
-	Partner     string
+	PartnerCode string
 	Account     string
 	PlatformBps map[string]int
 	ShareBps    int
@@ -43,9 +43,9 @@ type Integration struct {
 // shortcode 900511.
 func DefaultIntegrations() []Integration {
 	return []Integration{
-		{Code: IntegrationMtoca, Name: "mtoca", Partner: "Equipa mtoca", Account: "Conta da mtoca no bim", PlatformBps: map[string]int{}, ShareBps: 3000},
-		{Code: IntegrationMpesaDirect, Name: "M-Pesa direto", Partner: "92 Interactions", Account: "M-Pesa · shortcode 900511", PlatformBps: map[string]int{MethodMpesa: 300}, ShareBps: 0},
-		{Code: IntegrationSimulator, Name: "Simulador", Partner: "RIHA", Account: "Modo de teste: não há dinheiro", PlatformBps: map[string]int{}, ShareBps: 0},
+		{Code: IntegrationMtoca, Name: "mtoca", PartnerCode: PartnerMtoca, Account: "Conta da mtoca no bim", PlatformBps: map[string]int{}, ShareBps: 3000},
+		{Code: IntegrationMpesaDirect, Name: "M-Pesa direto", PartnerCode: PartnerInteractions92, Account: "M-Pesa · shortcode 900511", PlatformBps: map[string]int{MethodMpesa: 300}, ShareBps: 0},
+		{Code: IntegrationSimulator, Name: "Simulador", PartnerCode: PartnerRIHA, Account: "Modo de teste: não há dinheiro", PlatformBps: map[string]int{}, ShareBps: 0},
 	}
 }
 

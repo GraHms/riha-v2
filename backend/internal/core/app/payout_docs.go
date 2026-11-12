@@ -65,25 +65,11 @@ func (a *App) CompletePayouts(ctx context.Context, ids []string, up Upload, acto
 	if len(ids) == 0 {
 		return nil, domain.Invalid("parameter_missing", "ids", "Escolha pelo menos um levantamento.")
 	}
-	if up.Size == 0 || up.Size > 8<<20 {
-		return nil, domain.Invalid("receipt_invalid", "receipt", "O comprovativo tem de ter entre 1 byte e 8 MB.")
-	}
-	ext := strings.ToLower(filepath.Ext(up.FileName))
-	ct, ok := receiptTypes[ext]
-	if !ok || !sniff(ct, up.Head) {
-		return nil, domain.Invalid("receipt_invalid", "receipt", "Use um comprovativo em PDF, JPG ou PNG.")
-	}
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(up.Body); err != nil {
-		return nil, err
-	}
-	sum := sha256.Sum256(buf.Bytes())
-	hash := hex.EncodeToString(sum[:])
-	name := domain.Trim(filepath.Base(up.FileName), 200)
-	path, err := a.Files.Save(ctx, "payout-receipts", domain.NewID("rcpt")+ext, ct, bytes.NewReader(buf.Bytes()))
+	r, err := a.saveReceipt(ctx, up)
 	if err != nil {
 		return nil, err
 	}
+	path, name, ct, hash := r.Path, r.Name, r.Type, r.Hash
 	out := []domain.Payout{}
 	for _, id := range ids {
 		err := a.Tx.Do(ctx, func(ctx context.Context) error {
@@ -94,8 +80,12 @@ func (a *App) CompletePayouts(ctx context.Context, ids []string, up Upload, acto
 			if p.Status != domain.PayoutSent {
 				return domain.Invalid("payout_state", "status", fmt.Sprintf("%s tem de estar enviado ao banco antes de concluir.", p.Ref()))
 			}
-			p.ReceiptPath, p.ReceiptName, p.ReceiptType, p.ReceiptSize, p.ReceiptHash = path, name, ct, int64(buf.Len()), hash
-			return a.Payouts.Save(ctx, p)
+			p.ReceiptPath, p.ReceiptName, p.ReceiptType, p.ReceiptSize, p.ReceiptHash = path, name, ct, r.Size, hash
+			if err := a.Payouts.Save(ctx, p); err != nil {
+				return err
+			}
+			// RIHA paying it settles every part still open, a partner's included.
+			return a.payFundingOf(ctx, p.ID, r, "", actor)
 		})
 		if err != nil {
 			return out, err
@@ -174,4 +164,31 @@ func (a *App) EmailPayoutStatement(ctx context.Context, id string, actor Actor) 
 	})
 	a.Record(ctx, m.ID, actor, "payout.statement_emailed", p.ID, m.Email)
 	return m.Email, nil
+}
+
+// savedReceipt is a transfer receipt as stored.
+type savedReceipt struct {
+	Path, Name, Type, Hash string
+	Size                   int64
+}
+
+func (a *App) saveReceipt(ctx context.Context, up Upload) (savedReceipt, error) {
+	if up.Size == 0 || up.Size > 8<<20 {
+		return savedReceipt{}, domain.Invalid("receipt_invalid", "receipt", "O comprovativo tem de ter entre 1 byte e 8 MB.")
+	}
+	ext := strings.ToLower(filepath.Ext(up.FileName))
+	ct, ok := receiptTypes[ext]
+	if !ok || !sniff(ct, up.Head) {
+		return savedReceipt{}, domain.Invalid("receipt_invalid", "receipt", "Use um comprovativo em PDF, JPG ou PNG.")
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(up.Body); err != nil {
+		return savedReceipt{}, err
+	}
+	sum := sha256.Sum256(buf.Bytes())
+	path, err := a.Files.Save(ctx, "payout-receipts", domain.NewID("rcpt")+ext, ct, bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return savedReceipt{}, err
+	}
+	return savedReceipt{Path: path, Name: domain.Trim(filepath.Base(up.FileName), 200), Type: ct, Hash: hex.EncodeToString(sum[:]), Size: int64(buf.Len())}, nil
 }

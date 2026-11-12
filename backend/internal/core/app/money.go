@@ -56,6 +56,9 @@ func (a *App) RequestPayout(ctx context.Context, merchantID string, live bool, a
 				return err
 			}
 		}
+		if err := a.fund(ctx, p); err != nil {
+			return err
+		}
 		out = p
 		if err := a.emit(ctx, merchantID, live, "payout.created", p.ID, domain.PayoutResource(p), ""); err != nil {
 			return err
@@ -83,6 +86,9 @@ func (a *App) TransitionPayout(ctx context.Context, id, action, reason, actor st
 		}
 		if t.Reversal {
 			if err := a.ledger(ctx, p.MerchantID, p.Livemode, domain.LedgerPayoutReversal, p.Amount, p.ID, "Devolução "+p.Ref()); err != nil {
+				return err
+			}
+			if err := a.cancelFunding(ctx, p.ID); err != nil {
 				return err
 			}
 		}

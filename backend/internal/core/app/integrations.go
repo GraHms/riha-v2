@@ -22,7 +22,36 @@ func (a *App) SetupIntegrations(ctx context.Context) error {
 	for i := range defaults {
 		defaults[i].UpdatedAt = a.Now()
 	}
+	partners := domain.DefaultPartners()
+	for i := range partners {
+		partners[i].CreatedAt = a.Now()
+	}
+	if err := a.Integrations.AddMissingPartners(ctx, partners); err != nil {
+		return err
+	}
 	if err := a.Integrations.AddMissing(ctx, defaults); err != nil {
+		return err
+	}
+	// Integrations from before partners were accounts get theirs.
+	list, err := a.Integrations.List(ctx)
+	if err != nil {
+		return err
+	}
+	for i := range list {
+		if list[i].PartnerCode != "" {
+			continue
+		}
+		list[i].PartnerCode = domain.PartnerRIHA
+		for _, d := range defaults {
+			if d.Code == list[i].Code {
+				list[i].PartnerCode = d.PartnerCode
+			}
+		}
+		if err := a.Integrations.Save(ctx, &list[i]); err != nil {
+			return err
+		}
+	}
+	if err := a.fundOpenPayouts(ctx); err != nil {
 		return err
 	}
 	priced := 0
@@ -146,9 +175,9 @@ func (a *App) IntegrationViews(ctx context.Context) ([]IntegrationView, error) {
 // IntegrationEdit changes an integration's description and deal; nil leaves a
 // field as it is.
 type IntegrationEdit struct {
-	Name, Partner, Account, Note *string
-	PlatformBps                  map[string]int
-	ShareBps                     *int
+	Name, PartnerCode, Account, Note *string
+	PlatformBps                      map[string]int
+	ShareBps                         *int
 }
 
 func bpsOK(bps int, max int) bool { return bps >= 0 && bps <= max }
@@ -175,10 +204,17 @@ func (a *App) EditIntegration(ctx context.Context, code string, e IntegrationEdi
 		v     *string
 		field string
 		max   int
-	}{{&in.Name, e.Name, "name", 80}, {&in.Partner, e.Partner, "partner", 120}, {&in.Account, e.Account, "account", 200}, {&in.Note, e.Note, "note", 500}} {
+	}{{&in.Name, e.Name, "name", 80}, {&in.Account, e.Account, "account", 200}, {&in.Note, e.Note, "note", 500}} {
 		if err := set(f.dst, f.v, f.field, f.max); err != nil {
 			return nil, err
 		}
+	}
+	if e.PartnerCode != nil && *e.PartnerCode != in.PartnerCode {
+		if _, err := a.Integrations.Partner(ctx, *e.PartnerCode); err != nil {
+			return nil, domain.Invalid("partner_invalid", "partner_code", "Escolha um parceiro da lista.")
+		}
+		a.Record(ctx, "", actor, "integration.partner", code, in.PartnerCode+" → "+*e.PartnerCode)
+		in.PartnerCode = *e.PartnerCode
 	}
 	if e.PlatformBps != nil {
 		platform := map[string]int{}
@@ -205,7 +241,7 @@ func (a *App) EditIntegration(ctx context.Context, code string, e IntegrationEdi
 	if after := describeDeal(in); after != before {
 		a.Record(ctx, "", actor, "integration.deal", code, before+" → "+after)
 	} else {
-		a.Record(ctx, "", actor, "integration.changed", code, in.Name+" · "+in.Partner+" · "+in.Account)
+		a.Record(ctx, "", actor, "integration.changed", code, in.Name+" · "+in.PartnerCode+" · "+in.Account)
 	}
 	return in, nil
 }
@@ -426,9 +462,12 @@ type MerchantCollected struct {
 // payments by merchant.
 type PartnerPosition struct {
 	Integration domain.Integration
+	PartnerName string
 	AllTime     Collected
 	Received    int64 // paid to RIHA so far
-	Held        int64 // still with the partner
+	PaidOut     int64 // paid to merchants, for their withdrawals
+	Reserved    int64 // withdrawals it is to pay, still held
+	Held        int64 // still with the partner, the reserved included
 	LastPaid    *domain.PartnerSettlement
 	Period      Collected
 	Merchants   []MerchantCollected
@@ -442,7 +481,7 @@ type SettlementReport struct {
 	Merchants   ports.MerchantMoney
 	OwedToShops int64 // merchants' balances and withdrawals under way
 	HeldOutside int64 // with partners
-	AtRIHA      int64 // received from partners, less withdrawals paid
+	AtRIHA      int64 // received from partners, less withdrawals RIHA paid itself
 	RIHAOwn     int64 // what of it all is RIHA's: held and received, less what is owed
 	Period      Collected
 	Unassigned  Collected // paid payments no integration claims
@@ -468,6 +507,11 @@ func (a *App) Settlement(ctx context.Context, from, to *time.Time) (*SettlementR
 	if err != nil {
 		return nil, err
 	}
+	funding, err := a.Integrations.FundingTotals(ctx)
+	if err != nil {
+		return nil, err
+	}
+	partnerNames := a.partnerNames(ctx)
 	money, err := a.Integrations.MerchantMoney(ctx)
 	if err != nil {
 		return nil, err
@@ -492,7 +536,8 @@ func (a *App) Settlement(ctx context.Context, from, to *time.Time) (*SettlementR
 		if in.Code == domain.IntegrationSimulator {
 			continue
 		}
-		p := PartnerPosition{Integration: in, Merchants: []MerchantCollected{}, Received: received[in.Code]}
+		p := PartnerPosition{Integration: in, PartnerName: partnerNames[in.PartnerCode], Merchants: []MerchantCollected{}, Received: received[in.Code],
+			PaidOut: funding[in.Code][domain.FundingPaid], Reserved: funding[in.Code][domain.FundingOpen]}
 		for _, r := range all {
 			if r.Integration == in.Code {
 				p.AllTime.add(r)
@@ -507,7 +552,7 @@ func (a *App) Settlement(ctx context.Context, from, to *time.Time) (*SettlementR
 			}
 		}
 		sort.SliceStable(p.Merchants, func(i, j int) bool { return p.Merchants[i].Amount > p.Merchants[j].Amount })
-		p.Held = p.AllTime.DueToRIHA() - p.Received
+		p.Held = p.AllTime.DueToRIHA() - p.Received - p.PaidOut
 		if last, _ := a.Integrations.Settlements(ctx, in.Code, 1); len(last) > 0 {
 			p.LastPaid = &last[0]
 		}
@@ -530,4 +575,13 @@ func (a *App) Settlement(ctx context.Context, from, to *time.Time) (*SettlementR
 	rep.OwedToShops = money.Balances + money.InTransit
 	rep.RIHAOwn = rep.HeldOutside + rep.AtRIHA - rep.OwedToShops
 	return rep, nil
+}
+
+func (a *App) partnerNames(ctx context.Context) map[string]string {
+	out := map[string]string{}
+	ps, _ := a.Integrations.Partners(ctx)
+	for _, p := range ps {
+		out[p.Code] = p.Name
+	}
+	return out
 }

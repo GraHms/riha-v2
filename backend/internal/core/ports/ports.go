@@ -20,6 +20,10 @@ type Users interface {
 	EmailTaken(ctx context.Context, email string) (bool, error)
 	SetPassword(ctx context.Context, id, hash string) error
 	TouchLogin(ctx context.Context, id string, at time.Time) error
+	// Team lists staff (role admin, no partner) or one partner's users.
+	Team(ctx context.Context, role, partnerCode string) ([]domain.User, error)
+	// SetAccess saves a user's name, title, permissions and whether it's closed.
+	SetAccess(ctx context.Context, u *domain.User) error
 }
 
 type AuthSessions interface {
@@ -522,8 +526,8 @@ type CollectedRow struct {
 }
 
 // MerchantMoney is what RIHA owes merchants in live mode: their Balances, and
-// the withdrawals InTransit, already off their balances; and what has been
-// PaidOut to them.
+// the withdrawals InTransit, already off their balances; and what RIHA's own
+// account has PaidOut to them (partners' parts of withdrawals aside).
 type MerchantMoney struct {
 	Balances, InTransit, PaidOut int64
 }
@@ -554,4 +558,31 @@ type Integrations interface {
 	// Unpriced are payments with an integration whose fee hasn't been divided yet.
 	Unpriced(ctx context.Context, limit int) ([]domain.Payment, error)
 	SetPrice(ctx context.Context, paymentID string, p domain.Price) error
+
+	Partners(ctx context.Context) ([]domain.Partner, error)
+	Partner(ctx context.Context, code string) (*domain.Partner, error)
+	CreatePartner(ctx context.Context, p *domain.Partner) error
+	SavePartner(ctx context.Context, p *domain.Partner) error
+	AddMissingPartners(ctx context.Context, ps []domain.Partner) error
+
+	CreateFunding(ctx context.Context, f *domain.PayoutFunding) error
+	SaveFunding(ctx context.Context, f *domain.PayoutFunding) error
+	LockFunding(ctx context.Context, id string) (*domain.PayoutFunding, error)
+	FundingOf(ctx context.Context, payoutIDs []string) ([]domain.PayoutFunding, error)
+	FundingFrom(ctx context.Context, sources, statuses []string, limit int) ([]domain.PayoutFunding, error)
+	// HeldFor is what each integration still holds of a merchant's live money.
+	HeldFor(ctx context.Context, merchantID string) (map[string]int64, error)
+	// FundingTotals sums withdrawal parts by source, then status.
+	FundingTotals(ctx context.Context) (map[string]map[string]int64, error)
+	UnfundedPayouts(ctx context.Context, statuses []string) ([]domain.Payout, error)
+	// CollectedDaily sums live paid payments through these integrations by day (Maputo), paid in [from, to).
+	CollectedDaily(ctx context.Context, integrations []string, from, to time.Time) ([]DayRow, error)
+}
+
+// DayRow sums a day's live paid payments through some integrations.
+type DayRow struct {
+	Day        string // YYYY-MM-DD
+	Count      int64
+	Amount     int64
+	PartnerFee int64
 }

@@ -106,7 +106,7 @@ func (a *App) CreateAdmin(ctx context.Context, email, password, name, title stri
 	if err != nil {
 		return err
 	}
-	return a.Users.Create(ctx, &domain.User{ID: domain.NewID("usr"), Email: email, PasswordHash: hash, Name: name, Role: domain.RoleAdmin, AdminTitle: title, CreatedAt: a.Now()})
+	return a.Users.Create(ctx, &domain.User{ID: domain.NewID("usr"), Email: email, PasswordHash: hash, Name: name, Role: domain.RoleAdmin, AdminTitle: title, Permissions: []string{domain.PermAll}, CreatedAt: a.Now()})
 }
 
 func (a *App) Login(ctx context.Context, email, password, ip, ua string) (string, *domain.User, error) {
@@ -115,7 +115,7 @@ func (a *App) Login(ctx context.Context, email, password, ip, ua string) (string
 		a.Hasher.Matches("", password)
 		return "", nil, domain.ErrBadCredentials
 	}
-	if !a.Hasher.Matches(u.PasswordHash, password) {
+	if !a.Hasher.Matches(u.PasswordHash, password) || u.DisabledAt != nil {
 		return "", nil, domain.ErrBadCredentials
 	}
 	tok, err := a.NewSession(ctx, u, ip, ua)
@@ -137,7 +137,11 @@ func (a *App) UserForSession(ctx context.Context, tok string) (*domain.User, err
 	if err != nil {
 		return nil, err
 	}
-	return a.Users.ByID(ctx, id)
+	u, err := a.Users.ByID(ctx, id)
+	if err == nil && u.DisabledAt != nil {
+		return nil, domain.ErrNotFound
+	}
+	return u, err
 }
 
 func (a *App) Logout(ctx context.Context, tok string) {
@@ -171,7 +175,7 @@ func (a *App) ChangePassword(ctx context.Context, u *domain.User, current, next,
 // the form can't be used to find out who has one.
 func (a *App) RequestPasswordReset(ctx context.Context, email string) error {
 	u, err := a.Users.ByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
-	if err != nil {
+	if err != nil || u.DisabledAt != nil {
 		return nil
 	}
 	now := a.Now()

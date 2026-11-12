@@ -34,7 +34,7 @@ func (m *IntMap) Scan(v any) error {
 type integrationRecord struct {
 	Code        string `gorm:"primaryKey;size:30"`
 	Name        string `gorm:"size:80"`
-	Partner     string `gorm:"size:120"`
+	PartnerCode string `gorm:"size:30;not null;default:'';index"`
 	Account     string `gorm:"size:200"`
 	PlatformBps IntMap `gorm:"type:text"`
 	ShareBps    int
@@ -78,7 +78,7 @@ type partnerSettlementRecord struct {
 func (partnerSettlementRecord) TableName() string { return "partner_settlements" }
 
 func integrationRecords() []any {
-	return []any{&integrationRecord{}, &merchantRouteRecord{}, &merchantDealRecord{}, &partnerSettlementRecord{}}
+	return []any{&integrationRecord{}, &merchantRouteRecord{}, &merchantDealRecord{}, &partnerSettlementRecord{}, &partnerRecord{}, &payoutFundingRecord{}}
 }
 
 // tagPaymentsByIntegration names the integration of the payments from before
@@ -207,7 +207,8 @@ func (r Integrations) MerchantMoney(ctx context.Context) (ports.MerchantMoney, e
 	if err := r.conn(ctx).Model(&payoutRecord{}).Where("livemode AND status IN ?", domain.OpenPayoutStatuses).Select("COALESCE(SUM(amount),0)").Scan(&m.InTransit).Error; err != nil {
 		return m, err
 	}
-	err := r.conn(ctx).Model(&payoutRecord{}).Where("livemode AND status = ?", domain.PayoutPaid).Select("COALESCE(SUM(amount),0)").Scan(&m.PaidOut).Error
+	err := r.conn(ctx).Raw(`SELECT COALESCE((SELECT SUM(amount) FROM payouts WHERE livemode AND status = ? AND NOT EXISTS (SELECT 1 FROM payout_funding f WHERE f.payout_id = payouts.id)),0)
+		+ COALESCE((SELECT SUM(amount) FROM payout_funding WHERE source = ? AND status = ?),0)`, domain.PayoutPaid, domain.FundRIHA, domain.FundingPaid).Scan(&m.PaidOut).Error
 	return m, err
 }
 
@@ -218,4 +219,141 @@ func (r Integrations) Unpriced(ctx context.Context, limit int) ([]domain.Payment
 func (r Integrations) SetPrice(ctx context.Context, paymentID string, p domain.Price) error {
 	return r.conn(ctx).Model(&paymentRecord{}).Where("id = ?", paymentID).
 		Updates(map[string]any{"platform_fee": p.PlatformFee, "partner_fee": p.PartnerFee, "priced": true}).Error
+}
+
+type partnerRecord struct {
+	Code      string `gorm:"primaryKey;size:30"`
+	Name      string `gorm:"size:120;not null"`
+	Email     string `gorm:"size:200"`
+	CreatedAt time.Time
+}
+
+func (partnerRecord) TableName() string { return "partners" }
+
+type payoutFundingRecord struct {
+	ID          string `gorm:"primaryKey;size:40"`
+	PayoutID    string `gorm:"size:40;index;not null"`
+	MerchantID  string `gorm:"size:40;index;not null"`
+	Source      string `gorm:"size:30;index;not null"`
+	Amount      int64
+	Send        int64
+	Status      string `gorm:"size:20;index"`
+	Reference   string `gorm:"size:120"`
+	ReceiptPath string `gorm:"size:500"`
+	ReceiptName string `gorm:"size:200"`
+	ReceiptType string `gorm:"size:60"`
+	ReceiptSize int64
+	ReceiptHash string `gorm:"size:64"`
+	PaidAt      *time.Time
+	PaidBy      string `gorm:"size:40"`
+	CreatedAt   time.Time
+}
+
+func (payoutFundingRecord) TableName() string { return "payout_funding" }
+
+func (r Integrations) Partners(ctx context.Context) ([]domain.Partner, error) {
+	return find[partnerRecord, domain.Partner](r.conn(ctx).Order("name"))
+}
+
+func (r Integrations) Partner(ctx context.Context, code string) (*domain.Partner, error) {
+	return first[partnerRecord, domain.Partner](r.conn(ctx).Where("code = ?", code))
+}
+
+func (r Integrations) CreatePartner(ctx context.Context, p *domain.Partner) error {
+	return create[partnerRecord](r.conn(ctx), p)
+}
+
+func (r Integrations) SavePartner(ctx context.Context, p *domain.Partner) error {
+	return r.conn(ctx).Omit("created_at").Save(toRecord[partnerRecord](p)).Error
+}
+
+func (r Integrations) AddMissingPartners(ctx context.Context, ps []domain.Partner) error {
+	for i := range ps {
+		if err := r.conn(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(toRecord[partnerRecord](&ps[i])).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r Integrations) CreateFunding(ctx context.Context, f *domain.PayoutFunding) error {
+	return create[payoutFundingRecord](r.conn(ctx), f)
+}
+
+func (r Integrations) SaveFunding(ctx context.Context, f *domain.PayoutFunding) error {
+	return save[payoutFundingRecord](r.conn(ctx), f)
+}
+
+func (r Integrations) LockFunding(ctx context.Context, id string) (*domain.PayoutFunding, error) {
+	return first[payoutFundingRecord, domain.PayoutFunding](r.conn(ctx).Clauses(forUpdate).Where("id = ?", id))
+}
+
+func (r Integrations) FundingOf(ctx context.Context, payoutIDs []string) ([]domain.PayoutFunding, error) {
+	if len(payoutIDs) == 0 {
+		return nil, nil
+	}
+	return find[payoutFundingRecord, domain.PayoutFunding](r.conn(ctx).Where("payout_id IN ?", payoutIDs).Order("created_at, amount DESC"))
+}
+
+func (r Integrations) FundingFrom(ctx context.Context, sources, statuses []string, limit int) ([]domain.PayoutFunding, error) {
+	db := r.conn(ctx).Where("source IN ?", sources).Order("created_at DESC")
+	if len(statuses) > 0 {
+		db = db.Where("status IN ?", statuses)
+	}
+	if limit > 0 {
+		db = db.Limit(limit)
+	}
+	return find[payoutFundingRecord, domain.PayoutFunding](db)
+}
+
+// HeldFor is what each integration still holds of one merchant's live money:
+// what its paid payments left the merchant, less refunds and the withdrawals it
+// was given to pay.
+func (r Integrations) HeldFor(ctx context.Context, merchantID string) (map[string]int64, error) {
+	var rows []struct {
+		Source string
+		Total  int64
+	}
+	err := r.conn(ctx).Raw(`SELECT source, SUM(total) AS total FROM (
+		SELECT integration AS source, COALESCE(SUM(net - amount_refunded),0) AS total FROM payments
+			WHERE merchant_id = ? AND livemode AND status IN ? AND integration <> '' GROUP BY integration
+		UNION ALL
+		SELECT source, -COALESCE(SUM(amount),0) FROM payout_funding WHERE merchant_id = ? AND status <> ? GROUP BY source
+	) t GROUP BY source`, merchantID, domain.SettledStatuses, merchantID, domain.FundingCancelled).Scan(&rows).Error
+	out := map[string]int64{}
+	for _, x := range rows {
+		out[x.Source] = x.Total
+	}
+	return out, err
+}
+
+// FundingTotals sums withdrawal parts by source and status.
+func (r Integrations) FundingTotals(ctx context.Context) (map[string]map[string]int64, error) {
+	var rows []struct {
+		Source, Status string
+		Total          int64
+	}
+	err := r.conn(ctx).Model(&payoutFundingRecord{}).Select("source, status, COALESCE(SUM(amount),0) AS total").Group("source, status").Scan(&rows).Error
+	out := map[string]map[string]int64{}
+	for _, x := range rows {
+		if out[x.Source] == nil {
+			out[x.Source] = map[string]int64{}
+		}
+		out[x.Source][x.Status] = x.Total
+	}
+	return out, err
+}
+
+// UnfundedPayouts are live withdrawals, in these statuses, not yet split by source.
+func (r Integrations) UnfundedPayouts(ctx context.Context, statuses []string) ([]domain.Payout, error) {
+	return find[payoutRecord, domain.Payout](r.conn(ctx).Where("livemode AND status IN ? AND NOT EXISTS (SELECT 1 FROM payout_funding f WHERE f.payout_id = payouts.id)", statuses).Order("requested_at"))
+}
+
+func (r Integrations) CollectedDaily(ctx context.Context, integrations []string, from, to time.Time) ([]ports.DayRow, error) {
+	var rows []ports.DayRow
+	err := r.conn(ctx).Model(&paymentRecord{}).
+		Where("livemode AND status IN ? AND integration IN ? AND succeeded_at >= ? AND succeeded_at < ?", domain.SettledStatuses, integrations, from, to).
+		Select(`to_char(succeeded_at AT TIME ZONE 'Africa/Maputo', 'YYYY-MM-DD') AS day, COUNT(*) AS count, COALESCE(SUM(amount),0) AS amount, COALESCE(SUM(partner_fee),0) AS partner_fee`).
+		Group("day").Order("day").Scan(&rows).Error
+	return rows, err
 }

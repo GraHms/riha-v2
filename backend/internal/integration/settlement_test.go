@@ -161,7 +161,7 @@ func TestSettlementSaysWhereTheMoneyIs(t *testing.T) {
 	}
 	direct, mt := pos[domain.IntegrationMpesaDirect], pos[domain.IntegrationMtoca]
 	// 92 Interactions holds 1 000 MT less M-Pesa's 30 MT.
-	if direct.Held != 97000 || direct.AllTime.Margin() != 3000 || direct.Integration.Partner != "92 Interactions" {
+	if direct.Held != 97000 || direct.AllTime.Margin() != 3000 || direct.PartnerName != "92 Interactions" {
 		t.Fatalf("direct %+v", direct)
 	}
 	// mtoca took 2 000 MT, keeps 36 MT, and has paid 1 000 MT.

@@ -69,6 +69,7 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	srv.subscriptionRoutes(m)
 
 	srv.adminRoutes(api.Group("/admin", srv.auth(), adminOnly()))
+	srv.partnerRoutes(api.Group("/partner", srv.auth(), partnerOnly()))
 }
 
 func (srv *Server) setCookie(c *gin.Context, tok string, maxAge int) {
@@ -164,7 +165,16 @@ func (srv *Server) logout(c *gin.Context) {
 
 func (srv *Server) me(c *gin.Context) {
 	u := user(c)
-	out := gin.H{"user": gin.H{"id": u.ID, "email": u.Email, "name": u.Name, "phone": u.Phone, "role": u.Role, "title": u.AdminTitle}}
+	perms := u.Permissions
+	if perms == nil {
+		perms = []string{}
+	}
+	out := gin.H{"user": gin.H{"id": u.ID, "email": u.Email, "name": u.Name, "phone": u.Phone, "role": u.Role, "title": u.AdminTitle, "permissions": perms}}
+	if u.Role == domain.RolePartner {
+		if p, err := srv.A.Integrations.Partner(ctx(c), u.PartnerCode); err == nil {
+			out["partner"] = gin.H{"code": p.Code, "name": p.Name}
+		}
+	}
 	if m, err := srv.A.MerchantForUser(ctx(c), u); err == nil {
 		out["merchant"] = srv.merchantJSON(ctx(c), m)
 	}

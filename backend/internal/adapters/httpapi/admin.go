@@ -17,30 +17,83 @@ import (
 )
 
 func (srv *Server) adminRoutes(a *gin.RouterGroup) {
+	// The overview is every staff member's; each other area needs its permission.
 	a.GET("/overview", srv.adminOverview)
-	a.GET("/approvals", srv.adminApprovals)
-	a.GET("/merchants", srv.adminMerchants)
-	a.GET("/merchants/:id", srv.adminMerchant)
+	a.GET("/settings", srv.adminSettings)
+
+	ap := a.Group("", can(domain.PermApprovals))
+	ap.GET("/approvals", srv.adminApprovals)
+	ap.GET("/documents/:id", srv.adminDocument)
+
+	mr := a.Group("", can(domain.PermMerchants, domain.PermApprovals, domain.PermPricing))
+	mr.GET("/merchants", srv.adminMerchants)
+	mr.GET("/merchants/:id", srv.adminMerchant)
+	mr.GET("/merchants/:id/routing", srv.adminMerchantRouting)
 	a.PATCH("/merchants/:id", srv.adminUpdateMerchant)
 	a.POST("/merchants/:id/decision", srv.adminDecision)
-	a.GET("/documents/:id", srv.adminDocument)
-	a.GET("/payouts", srv.adminPayouts)
-	a.POST("/payouts/action", srv.adminPayoutAction)
-	a.GET("/payouts/export.csv", srv.adminPayoutExport)
-	a.GET("/payouts/instructions.pdf", srv.adminPayoutInstructions)
-	a.POST("/payouts/complete", srv.adminPayoutComplete)
-	a.GET("/payouts/:id/statement.pdf", srv.adminPayoutStatement)
-	a.GET("/payouts/:id/receipt", srv.adminPayoutReceipt)
-	a.POST("/payouts/:id/email", srv.adminPayoutEmail)
-	a.GET("/settings", srv.adminSettings)
-	a.PUT("/settings", srv.adminPutSettings)
-	a.GET("/payments", srv.adminPayments)
-	a.POST("/payments/:id/check", srv.adminPaymentCheck)
-	a.GET("/trail/search", srv.adminTrailSearch)
-	a.GET("/trail/thread/:id", srv.adminTrailThread)
-	a.GET("/trail/events", srv.adminTrailEvents)
-	a.GET("/metrics", srv.adminMetrics)
-	srv.settlementRoutes(a)
+
+	po := a.Group("", can(domain.PermPayouts))
+	po.GET("/payouts", srv.adminPayouts)
+	po.POST("/payouts/action", srv.adminPayoutAction)
+	po.GET("/payouts/export.csv", srv.adminPayoutExport)
+	po.GET("/payouts/instructions.pdf", srv.adminPayoutInstructions)
+	po.POST("/payouts/complete", srv.adminPayoutComplete)
+	po.GET("/payouts/:id/statement.pdf", srv.adminPayoutStatement)
+	po.GET("/payouts/:id/receipt", srv.adminPayoutReceipt)
+	po.POST("/payouts/:id/email", srv.adminPayoutEmail)
+	po.POST("/funding/:id/paid", srv.adminPayFunding)
+	po.GET("/funding/:id/receipt", srv.adminFundingReceipt)
+
+	pr := a.Group("", can(domain.PermPricing))
+	pr.PUT("/settings", srv.adminPutSettings)
+	pr.PATCH("/integrations/:code", srv.adminEditIntegration)
+	pr.PUT("/merchants/:id/routes/:method", srv.adminSetRoute)
+	pr.PUT("/merchants/:id/deals/:code", srv.adminSetDeal)
+
+	tx := a.Group("", can(domain.PermTransactions))
+	tx.GET("/payments", srv.adminPayments)
+	tx.POST("/payments/:id/check", srv.adminPaymentCheck)
+	tx.GET("/trail/search", srv.adminTrailSearch)
+	tx.GET("/trail/thread/:id", srv.adminTrailThread)
+	tx.GET("/trail/events", srv.adminTrailEvents)
+
+	a.GET("/metrics", can(domain.PermMetrics), srv.adminMetrics)
+
+	st := a.Group("", can(domain.PermSettlement))
+	st.GET("/settlement", srv.adminSettlement)
+	st.GET("/settlement/export.csv", srv.adminSettlementExport)
+	st.POST("/settlements", srv.adminRecordSettlement)
+	st.DELETE("/settlements/:id", srv.adminDeleteSettlement)
+	a.GET("/integrations", can(domain.PermSettlement, domain.PermPricing, domain.PermMerchants, domain.PermTeam), srv.adminIntegrations)
+
+	a.GET("/partners", can(domain.PermTeam, domain.PermPricing), srv.adminPartners)
+	tm := a.Group("", can(domain.PermTeam))
+	tm.GET("/team", srv.adminTeam)
+	tm.POST("/team", srv.adminInvite)
+
+	tm.POST("/partners", srv.adminCreatePartner)
+	tm.PATCH("/partners/:code", srv.adminRenamePartner)
+	tm.POST("/partners/:code/users", srv.adminInvitePartnerUser)
+	tm.PATCH("/users/:id", srv.adminSetAccess)
+	tm.POST("/users/:id/invite", srv.adminResendInvite)
+}
+
+// can lets through staff with any of these permissions.
+func can(perms ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		u := user(c)
+		for _, p := range perms {
+			if u.Can(p) {
+				c.Next()
+				return
+			}
+		}
+		c.AbortWithStatusJSON(403, gin.H{"error": gin.H{"code": "forbidden", "message": "Não tem permissão para esta área. Peça a quem gere a equipa."}})
+	}
+}
+
+func refuse(c *gin.Context) {
+	c.AbortWithStatusJSON(403, gin.H{"error": gin.H{"code": "forbidden", "message": "Não tem permissão para esta área. Peça a quem gere a equipa."}})
 }
 
 func payoutQuery(merchantID string, live bool, limit int) ports.PayoutQuery {
@@ -146,6 +199,10 @@ func (srv *Server) adminUpdateMerchant(c *gin.Context) {
 		bad(c, "Nada para alterar.")
 		return
 	}
+	if (in.Beta != nil && !user(c).Can(domain.PermMerchants)) || ((in.ResetFee || in.FeeBps != nil) && !user(c).Can(domain.PermPricing)) {
+		refuse(c)
+		return
+	}
 	if in.Beta != nil {
 		if err := srv.A.SetMerchantBeta(ctx(c), c.Param("id"), *in.Beta, actor(c)); err != nil {
 			fail(c, err)
@@ -171,6 +228,14 @@ func (srv *Server) adminDecision(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		bad(c, "Pedido inválido.")
+		return
+	}
+	need := domain.PermApprovals
+	if in.Decision == "suspend" || in.Decision == "reactivate" {
+		need = domain.PermMerchants
+	}
+	if !user(c).Can(need) {
+		refuse(c)
 		return
 	}
 	m, err := srv.A.Decide(ctx(c), c.Param("id"), in.Decision, strings.TrimSpace(in.Note), user(c).ID)
@@ -208,7 +273,26 @@ func (srv *Server) adminDocument(c *gin.Context) {
 }
 
 func (srv *Server) adminPayouts(c *gin.Context) {
-	c.JSON(200, gin.H{"data": payoutRowsJSON(srv.A.PayoutQueue(ctx(c), c.Query("tab"))), "stats": statsJSON(srv.A.PayoutStats(ctx(c)))})
+	rows := srv.A.PayoutQueue(ctx(c), c.Query("tab"))
+	out := payoutRowsJSON(rows)
+	ids := make([]string, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].ID
+	}
+	// Who pays each withdrawal: staff only, never the merchant.
+	parts := srv.A.PayoutFunding(ctx(c), ids)
+	names := srv.A.SourceNames(ctx(c))
+	for i := range rows {
+		fs := []gin.H{}
+		for j := range parts[rows[i].ID] {
+			f := &parts[rows[i].ID][j]
+			o := fundingJSON(f)
+			o["source_name"] = names[f.Source]
+			fs = append(fs, o)
+		}
+		out[i]["funding"] = fs
+	}
+	c.JSON(200, gin.H{"data": out, "stats": statsJSON(srv.A.PayoutStats(ctx(c)))})
 }
 
 func (srv *Server) adminPayoutAction(c *gin.Context) {
@@ -243,10 +327,27 @@ func (srv *Server) adminPayoutExport(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="riha-transferencias-%s.csv"`, time.Now().Format("20060102-1504")))
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"referencia", "banco", "nib", "titular", "valor_mzn", "descritivo", "prazo"})
+	_ = w.Write([]string{"referencia", "banco", "nib", "titular", "valor_mzn", "descritivo", "prazo", "quem_paga"})
+	ids = make([]string, len(ps))
+	for i := range ps {
+		ids[i] = ps[i].ID
+	}
+	parts := srv.A.PayoutFunding(ctx(c), ids)
+	names := srv.A.SourceNames(ctx(c))
 	for _, p := range ps {
-		// The bank is sent what the merchant receives: the amount less the transfer fee.
-		_ = w.Write([]string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(p.Net()), "RIHA " + p.Ref(), isoT(p.DueAt)})
+		// The bank is sent what the merchant receives: the amount less the
+		// transfer fee, split between whoever holds the merchant's money.
+		fs := parts[p.ID]
+		if len(fs) == 0 {
+			_ = w.Write([]string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(p.Net()), "RIHA " + p.Ref(), isoT(p.DueAt), "RIHA"})
+			continue
+		}
+		for _, f := range fs {
+			if f.Status == domain.FundingCancelled {
+				continue
+			}
+			_ = w.Write([]string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(f.Send), "RIHA " + p.Ref(), isoT(p.DueAt), csvSafe(names[f.Source])})
+		}
 	}
 	w.Flush()
 }
