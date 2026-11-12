@@ -41,6 +41,11 @@ const TrailSearch = lazy(() => import('./pages/admin/Trail').then(m => ({ defaul
 const TrailThread = lazy(() => import('./pages/admin/Trail').then(m => ({ default: m.TrailThread })))
 const AdminMetrics = lazy(() => import('./pages/admin/Metrics'))
 const AdminSettlement = lazy(() => import('./pages/admin/Settlement'))
+const AdminTeam = lazy(() => import('./pages/admin/Team'))
+const PartnerShell = lazy(() => import('./pages/partner/PartnerShell'))
+const PartnerHome = lazy(() => import('./pages/partner/PartnerHome'))
+const PartnerPayouts = lazy(() => import('./pages/partner/PartnerPayouts'))
+const PartnerTeam = lazy(() => import('./pages/partner/PartnerTeam'))
 
 // On a catalog's own subdomain the server names the catalog in the page, and
 // only the catalog, its plans and the invoices they lead to live there.
@@ -60,7 +65,7 @@ function CatalogSite() {
         <Route path="/" element={<CatalogPage catalog={CATALOG} />} />
         <Route path="/i/:token" element={<Invoice />} />
         <Route path="/m/:token" element={<MemberPage />} />
-        {['/entrar', '/registo', '/recuperar', '/docs', '/painel/*', '/admin/*', '/verificacao'].map(p => <Route key={p} path={p} element={<ToMainSite />} />)}
+        {['/entrar', '/registo', '/recuperar', '/docs', '/painel/*', '/admin/*', '/parceiro/*', '/verificacao'].map(p => <Route key={p} path={p} element={<ToMainSite />} />)}
         <Route path="/:slug" element={<PlanPage catalog={CATALOG} />} />
         <Route path="*" element={<ToMainSite />} />
       </Routes>
@@ -78,6 +83,7 @@ function RequireMerchant({ children }: { children: ReactNode }) {
   if (loading) return <Loading />
   if (!me) return <Navigate to={'/entrar?next=' + encodeURIComponent(loc.pathname)} replace />
   if (me.user.role === 'admin') return <Navigate to="/admin" replace />
+  if (me.user.role === 'partner') return <Navigate to="/parceiro" replace />
   return <>{children}</>
 }
 
@@ -85,7 +91,15 @@ function RequireAdmin({ children }: { children: ReactNode }) {
   const { me, loading } = useSession()
   if (loading) return <Loading />
   if (!me) return <Navigate to="/entrar?next=/admin" replace />
-  if (me.user.role !== 'admin') return <Navigate to="/painel" replace />
+  if (me.user.role !== 'admin') return <Navigate to={me.user.role === 'partner' ? '/parceiro' : '/painel'} replace />
+  return <>{children}</>
+}
+
+function RequirePartner({ children }: { children: ReactNode }) {
+  const { me, loading } = useSession()
+  if (loading) return <Loading />
+  if (!me) return <Navigate to="/entrar?next=/parceiro" replace />
+  if (me.user.role !== 'partner') return <Navigate to={me.user.role === 'admin' ? '/admin' : '/painel'} replace />
   return <>{children}</>
 }
 
@@ -95,7 +109,7 @@ const TITLES: [string, string][] = [
   ['/docs', 'API de pagamentos M-Pesa para Moçambique: documentação · RIHA'],
   ['/registo', 'Criar conta para receber pagamentos M-Pesa · RIHA'],
   ['/entrar', 'Entrar · RIHA'], ['/recuperar', 'Recuperar palavra-passe · RIHA'], ['/verificacao', 'Verificação · RIHA'],
-  ['/painel', 'Painel · RIHA'], ['/admin', 'Administração · RIHA'],
+  ['/painel', 'Painel · RIHA'], ['/admin', 'Administração · RIHA'], ['/parceiro', 'Parceiro · RIHA'],
 ]
 
 function PageTitle() {
@@ -165,6 +179,12 @@ export default function App() {
         <Route path="rasto/:id" element={<TrailThread />} />
         <Route path="metricas" element={<AdminMetrics />} />
         <Route path="liquidacao" element={<AdminSettlement />} />
+        <Route path="equipa" element={<AdminTeam />} />
+      </Route>
+      <Route path="/parceiro" element={<RequirePartner><PartnerShell /></RequirePartner>}>
+        <Route index element={<PartnerHome />} />
+        <Route path="levantamentos" element={<PartnerPayouts />} />
+        <Route path="equipa" element={<PartnerTeam />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

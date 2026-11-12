@@ -106,6 +106,27 @@ export interface AdminPort {
   settlementExportUrl(from?: string, to?: string): string
   recordSettlement(input: { integration: string; amount: number; reference: string; note: string; received_on: string }): Promise<Json>
   deleteSettlement(id: string): Promise<Json>
+  team(): Promise<Json>
+  invite(input: Json): Promise<Json>
+  partners(): Promise<Json>
+  createPartner(input: Json): Promise<Json>
+  renamePartner(code: string, input: Json): Promise<Json>
+  invitePartnerUser(code: string, input: Json): Promise<Json>
+  setAccess(userId: string, patch: Json): Promise<Json>
+  resendInvite(userId: string): Promise<Json>
+  payFunding(id: string, reference: string, receipt: File): Promise<Json>
+  fundingReceiptUrl(id: string): string
+}
+
+export interface PartnerPort {
+  home(from?: string, to?: string): Promise<Json>
+  payouts(tab: string): Promise<Json>
+  payFunding(id: string, reference: string, receipt: File): Promise<Json>
+  fundingReceiptUrl(id: string): string
+  team(): Promise<Json>
+  invite(input: Json): Promise<Json>
+  setAccess(userId: string, patch: Json): Promise<Json>
+  resendInvite(userId: string): Promise<Json>
 }
 
 export interface SubscriptionsPort {
@@ -158,6 +179,7 @@ export interface Gateway {
   developers: DevelopersPort
   checkout: CheckoutPort
   admin: AdminPort
+  partner: PartnerPort
   subscriptions: SubscriptionsPort
   publicSubs: PublicSubscriptionsPort
   onUnauthorized(fn: () => void): () => void

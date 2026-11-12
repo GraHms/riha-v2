@@ -1,7 +1,8 @@
-import { Pill } from '../../components/ui'
+import { Badge } from '../../components/ops'
 
 export const RISK: Record<string, [string, string]> = { Baixo: ['#E2F3DE', '#0A6B05'], 'Médio': ['#FFF3C4', '#7A5A00'], Alto: ['#FFE3E1', '#C2080D'] }
-export const RiskPill = ({ risk }: { risk: string }) => <Pill t={'Risco ' + risk.toLowerCase()} bg={RISK[risk][0]} fg={RISK[risk][1]} />
+const RISK_TONE: Record<string, 'ok' | 'warn' | 'bad'> = { Baixo: 'ok', 'Médio': 'warn', Alto: 'bad' }
+export const RiskPill = ({ risk }: { risk: string }) => <Badge tone={RISK_TONE[risk]}>{'Risco ' + risk.toLowerCase()}</Badge>
 
 export function sla(p: { status: string; due_at_iso: string; requested_at_iso: string }) {
   const total = 72 * 3600e3
@@ -16,7 +17,12 @@ export function sla(p: { status: string; due_at_iso: string; requested_at_iso: s
 
 export function SlaBar({ p }: { p: any }) {
   const s = sla(p)
-  return <div><div style={{ fontSize: 12, fontWeight: 600, color: s.fg }}>{s.label}</div><div style={{ height: 5, borderRadius: 3, background: '#EEECE5', marginTop: 5, overflow: 'hidden' }}><div style={{ width: s.pct, height: '100%', background: s.c }} /></div></div>
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 12, fontWeight: 650, color: s.fg }}>{s.label}</div>
+      <div className="o-bar" style={{ marginTop: 5 }}><i style={{ width: s.pct, background: s.c }} /></div>
+    </div>
+  )
 }
 
 export const submittedAgo = (iso: string | null) => {

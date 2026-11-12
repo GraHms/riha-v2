@@ -1,95 +1,104 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { can } from '../../core/model'
 import { useQuery } from '../../core/useQuery'
 import { fmt, shortDate } from '../../lib/format'
-import { Avatar, Icon, MethodIcon, Pill, Skeleton, Stripes } from '../../components/ui'
+import { useSession } from '../../lib/session'
+import { Avatar, MethodIcon, Skeleton } from '../../components/ui'
+import { Amount, Badge, Empty, HOLDER_COLORS, List, MoneyMap, Page, PageHead, Panel, Stat } from '../../components/ops'
 import { RiskPill, SlaBar, submittedAgo } from './common'
 
-const HEALTH: Record<string, [string, string, string]> = { operational: ['Operacional', '#E2F3DE', '#0A6B05'], degraded: ['Lento', '#FFE58A', '#5B4600'], down: ['Indisponível', '#FFE3E1', '#C2080D'] }
+const HEALTH: Record<string, [string, 'ok' | 'warn' | 'bad']> = { operational: ['Operacional', 'ok'], degraded: ['Lento', 'warn'], down: ['Em baixo', 'bad'] }
+const METHODS: [string, string, string][] = [['mpesa', 'M-Pesa', 'var(--mpesa)'], ['emola', 'e-Mola', 'var(--emola-bar)'], ['bim', 'bim', 'var(--bim-bar)'], ['card', 'Cartão', '#2B3631']]
 
 export default function AdminOverview() {
   const nav = useNavigate()
+  const { me } = useSession()
   const { data: d } = useQuery(g => g.admin.overview(), [], 15000)
-  if (!d) return <div className="page"><Skeleton h={40} w={300} /><Skeleton h={120} style={{ marginTop: 22 }} /></div>
+  const money = useQuery(can(me, 'settlement') ? g => g.admin.settlement() : null, [], 60000)
+  if (!d) return <Page><Skeleton h={30} w={240} /><Skeleton h={110} style={{ marginTop: 20 }} /><Skeleton h={260} style={{ marginTop: 14 }} /></Page>
   const growth = d.volume_week_ago > 0 ? Math.round(((d.volume_today - d.volume_week_ago) / d.volume_week_ago) * 100) : null
-  const rate = d.tx_today ? ((d.tx_ok_today / d.tx_today) * 100).toFixed(1).replace('.', ',') : '—'
-  const max = Math.max(1, ...d.stack.map((s: any) => s.mpesa + s.emola + (s.bim || 0) + s.card))
-  const H = 190
-  const oldest = d.approvals[0]?.submitted_at
+  const rate = d.tx_today ? ((d.tx_ok_today / d.tx_today) * 100).toFixed(1).replace('.', ',') : null
+  const total = (s: any) => s.mpesa + s.emola + (s.bim || 0) + s.card
+  const max = Math.max(1, ...d.stack.map(total))
   const st = d.payout_stats
+  const m = money.data
+  const today = new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })
   return (
-    <div className="page">
-      <h1 className="h1">Visão geral da plataforma</h1>
-      <div className="grid-4" style={{ marginTop: 22 }}>
-        <div className="dark-card" style={{ borderRadius: 22, padding: 20 }}>
-          <Stripes top={-30} right={2} w={24} h={200} gap={8} />
-          <div style={{ position: 'relative', fontSize: 13, color: '#A9B5AE' }}>Volume processado hoje</div>
-          <div className="display" style={{ position: 'relative', fontSize: 30, letterSpacing: '-0.04em', marginTop: 6 }}>{fmt(d.volume_today, false)} <span style={{ fontSize: 14, color: '#A9B5AE' }}>MT</span></div>
-          <div style={{ position: 'relative', fontSize: 12.5, color: growth !== null && growth < 0 ? '#FF8A8D' : 'var(--lime)', marginTop: 4 }}>{growth === null ? 'Sem dados da semana passada' : `${growth >= 0 ? '+' : ''}${growth}% vs. semana passada`}</div>
-        </div>
-        <div className="card" style={{ padding: 20 }}><div style={{ fontSize: 13, color: 'var(--muted)' }}>Transações hoje</div><div className="display" style={{ fontSize: 30, letterSpacing: '-0.04em', marginTop: 6 }}>{d.tx_today}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>{rate}% concluídas</div></div>
-        <button onClick={() => nav('/admin/aprovacoes')} style={{ background: 'var(--sun)', border: 0, borderRadius: 22, padding: 20, textAlign: 'left' }}><div style={{ fontSize: 13, color: '#3B3410' }}>Contas por aprovar</div><div className="display" style={{ fontSize: 30, letterSpacing: '-0.04em', marginTop: 6 }}>{d.pending_approvals}</div><div style={{ fontSize: 12.5, color: '#3B3410', marginTop: 4, fontWeight: 600 }}>{oldest ? `Mais antiga ${submittedAgo(oldest)} →` : 'Fila vazia'}</div></button>
-        <button onClick={() => nav('/admin/levantamentos')} className="card" style={{ padding: 20, textAlign: 'left' }}><div style={{ fontSize: 13, color: 'var(--muted)' }}>Levantamentos pendentes</div><div className="display" style={{ fontSize: 30, letterSpacing: '-0.04em', marginTop: 6 }}>{fmt(st.pending_total, false)} <span style={{ fontSize: 14, color: 'var(--muted)' }}>MT</span></div><div style={{ fontSize: 12.5, color: st.urgent ? 'var(--red-dark)' : 'var(--muted)', marginTop: 4, fontWeight: 600 }}>{st.urgent} {st.urgent === 1 ? 'vence' : 'vencem'} em menos de 8 h</div></button>
+    <Page>
+      <PageHead title="Visão geral" sub={today.charAt(0).toUpperCase() + today.slice(1)} />
+      <div className="o-stats">
+        <Stat tone="ink" label="Volume hoje" value={d.volume_today} delta={growth} hint={growth === null ? 'sem dados da semana passada' : 'vs. mesmo dia da semana passada'} />
+        <Stat label="Transações hoje" value={String(d.tx_today)} hint={rate ? <><Badge tone={Number(rate.replace(',', '.')) >= 90 ? 'ok' : 'warn'}>{rate}%</Badge>com sucesso</> : 'nenhuma ainda'} />
+        <Stat label="Levantamentos por pagar" value={st?.pending_total} tone={st?.urgent ? 'bad' : undefined} onClick={can(me, 'payouts') ? () => nav('/admin/levantamentos') : undefined}
+          hint={st?.urgent ? <Badge tone="bad" dot title="Vencem em menos de 8 horas">{st.urgent} {st.urgent === 1 ? 'urgente' : 'urgentes'}</Badge> : `${st?.pending_count ?? 0} pedidos`} />
+        <Stat label="Contas por aprovar" value={String(d.pending_approvals ?? d.approvals.length)} tone={d.pending_approvals ? 'warn' : undefined}
+          onClick={can(me, 'approvals') ? () => nav('/admin/aprovacoes') : undefined} hint={d.approvals[0] ? `a mais antiga ${submittedAgo(d.approvals[0].submitted_at)}` : 'fila vazia'} />
       </div>
-      <div className="adm-row" style={{ marginTop: 14 }}>
-        <style>{`.adm-row{display:grid;grid-template-columns:minmax(0,8fr) minmax(0,4fr);gap:14px}@media(max-width:1100px){.adm-row{grid-template-columns:1fr}}`}</style>
-        <div className="card" style={{ padding: 22 }}>
-          <div className="between" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <div><div className="h2">Volume por método · 14 dias</div><div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{fmt(d.volume_14d, false)} MT processados</div></div>
-            <div className="row" style={{ gap: 14, fontSize: 12.5, color: 'var(--text-2)' }}>{[['var(--mpesa)', 'M-Pesa'], ['var(--emola-bar)', 'e-Mola'], ['var(--bim-bar)', 'bim'], ['var(--ink)', 'Cartão']].map(([c, l]) => <span key={l} className="row" style={{ gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: c }} />{l}</span>)}</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: H, marginTop: 20 }}>
-            {d.stack.map((s: any) => (
-              <div key={s.date} title={`${shortDate(s.date)}: ${fmt(s.mpesa + s.emola + (s.bim || 0) + s.card, false)} MT`} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'flex-end', height: '100%' }}>
-                <div style={{ height: (s.card / max) * H, background: 'var(--ink)', borderRadius: '5px 5px 2px 2px' }} />
-                <div style={{ height: (s.emola / max) * H, background: 'var(--emola-bar)', borderRadius: 2 }} />
-                <div style={{ height: ((s.bim || 0) / max) * H, background: 'var(--bim-bar)', borderRadius: 2 }} />
-                <div style={{ height: Math.max(2, (s.mpesa / max) * H), background: 'var(--mpesa)', borderRadius: '2px 2px 5px 5px' }} />
+
+      {m && (
+        <div style={{ marginTop: 14 }}>
+          <MoneyMap owed={m.position.owed_to_merchants}
+            holders={[
+              ...m.partners.map((p: any, i: number) => ({ key: p.integration.code, label: p.partner_name, amount: p.held, color: HOLDER_COLORS[i % HOLDER_COLORS.length] })),
+              { key: 'riha', label: 'Conta RIHA', amount: m.position.at_riha, color: 'var(--o-riha)' },
+            ]}
+            action={<button className="btn btn-outline btn-sm" onClick={() => nav('/admin/liquidacao')}>Liquidação</button>} />
+        </div>
+      )}
+
+      <div className="o-grid main-side" style={{ marginTop: 14 }}>
+        <Panel title="Volume por método" sub={`14 dias · ${fmt(d.volume_14d, false)} MT`}
+          action={<div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>{METHODS.map(([, l, c]) => <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--o-ink-2)' }}><i className="o-dot" style={{ background: c }} />{l}</span>)}</div>}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 180 }}>
+            {d.stack.map((s: any, i: number) => (
+              <div key={s.date} title={`${shortDate(s.date)} · ${fmt(total(s), false)} MT`} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 2, opacity: i === d.stack.length - 1 ? 1 : 0.9 }}>
+                {[['card', '#2B3631'], ['bim', 'var(--bim-bar)'], ['emola', 'var(--emola-bar)'], ['mpesa', 'var(--mpesa)']].map(([k, c], j) => {
+                  const v = s[k] || 0
+                  if (!v && !(k === 'mpesa' && !total(s))) return null
+                  return <div key={k} style={{ height: total(s) ? `${(v / max) * 100}%` : 3, minHeight: v ? 3 : 0, background: total(s) ? c : 'var(--o-line)', borderRadius: j === 0 ? '4px 4px 1px 1px' : 1 }} />
+                })}
               </div>
             ))}
           </div>
-          <div className="between" style={{ marginTop: 8, fontSize: 12, color: 'var(--muted-2)' }}><span>{shortDate(d.stack[0].date)}</span><span>{shortDate(d.stack[7].date)}</span><span>Hoje</span></div>
-        </div>
-        <div className="card" style={{ padding: 22 }}>
-          <div className="h2">Estado dos operadores</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-            {(['mpesa', 'emola', 'bim', 'card'] as const).map(m => {
-              const h = d.health[m], hs = HEALTH[h.status]
-              return (
-                <div key={m} className="row" style={{ padding: 12, borderRadius: 14, background: h.status === 'operational' ? 'var(--paper)' : 'var(--sun-soft)' }}>
-                  <MethodIcon method={m} size={34} radius={10} />
-                  <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{({ card: 'Cartões', mpesa: 'M-Pesa', emola: 'e-Mola', bim: 'bim' } as Record<string, string>)[m]}</div><div style={{ fontSize: 12, color: 'var(--muted)' }}>{h.success_rate === null ? 'Sem tráfego nas últimas 24 h' : `${(h.success_rate * 100).toFixed(1).replace('.', ',')}% sucesso · ${h.total} tentativas`}</div></div>
-                  <Pill t={hs[0]} bg={hs[1]} fg={hs[2]} />
-                </div>
-              )
-            })}
-          </div>
-          <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 12 }}>Integrações simuladas: os operadores reais ainda não estão ligados.</div>
-        </div>
+          <div className="between" style={{ marginTop: 8, fontSize: 11.5, color: 'var(--o-muted)' }}><span>{shortDate(d.stack[0].date)}</span><span>{shortDate(d.stack[7].date)}</span><span>Hoje</span></div>
+        </Panel>
+        <Panel title="Operadores" sub="Últimos 30 minutos" pad={false}>
+          {METHODS.map(([k, l]) => {
+            const h = d.health[k], [t, tone] = HEALTH[h.status]
+            return (
+              <div key={k} className="row" style={{ padding: '11px 18px', borderTop: '1px solid var(--o-line-2)', gap: 12 }}>
+                <MethodIcon method={k} size={30} radius={9} />
+                <div style={{ flex: 1, minWidth: 0 }}><div className="o-t1">{l}</div><div className="o-t2">{h.total ? `${h.total} tentativas · ${Math.round((h.success_rate || 0) * 100)}% sucesso` : 'Sem tentativas'}</div></div>
+                <Badge tone={tone} dot>{t}</Badge>
+              </div>
+            )
+          })}
+        </Panel>
       </div>
-      <div className="grid-2" style={{ marginTop: 14, gap: 14 }}>
-        <div className="card" style={{ padding: '8px 0' }}>
-          <div className="between" style={{ padding: '14px 22px 10px' }}><div className="h2">Levantamentos a vencer</div><Link to="/admin/levantamentos" style={{ fontSize: 14, fontWeight: 600 }}>Ver fila</Link></div>
-          {d.payouts_due.map((p: any) => (
-            <div key={p.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 120px 130px', gap: 14, alignItems: 'center', padding: '12px 22px', borderTop: '1px solid var(--line-3)' }}>
-              <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{p.merchant_name}</div><div className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{p.reference} · {p.bank_account.bank}</div></div>
-              <div className="tnum" style={{ fontWeight: 600, fontSize: 14, textAlign: 'right' }}>{fmt(p.amount, false)} MT</div>
-              <SlaBar p={p} />
-            </div>
-          ))}
-          {!d.payouts_due.length && <div className="empty">Nada pendente.</div>}
-        </div>
-        <div className="card" style={{ padding: '8px 0' }}>
-          <div className="between" style={{ padding: '14px 22px 10px' }}><div className="h2">Fila de aprovações</div><Link to="/admin/aprovacoes" style={{ fontSize: 14, fontWeight: 600 }}>Rever</Link></div>
-          {d.approvals.map((a: any) => (
-            <button key={a.id} onClick={() => nav('/admin/aprovacoes?id=' + a.id)} className="row" style={{ width: '100%', border: 0, borderTop: '1px solid var(--line-3)', background: 'none', textAlign: 'left', padding: '12px 22px' }}>
-              <Avatar text={a.initials} color={a.avatar_color} size={36} radius={11} />
-              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{a.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{a.business_type === 'company' ? 'Empresa' : 'Em nome individual'} · {a.city}</div></div>
-              <RiskPill risk={a.risk} /><span style={{ fontSize: 12.5, color: 'var(--muted)', width: 70, textAlign: 'right' }}>{submittedAgo(a.submitted_at)}</span>
-            </button>
-          ))}
-          {!d.approvals.length && <div className="empty">Sem contas por aprovar. <Icon name="check" size={14} /></div>}
-        </div>
+
+      <div className="o-grid c2" style={{ marginTop: 14 }}>
+        <Panel title="Levantamentos a vencer" pad={false} action={can(me, 'payouts') && <button className="btn btn-ghost btn-sm" onClick={() => nav('/admin/levantamentos')}>Ver todos</button>}>
+          <List head={false} rows={d.payouts_due} rowKey={(p: any) => p.id} onRow={can(me, 'payouts') ? () => nav('/admin/levantamentos') : undefined}
+            empty={<Empty title="Nada por pagar" text="Todos os levantamentos estão em dia." />}
+            cols={[
+              { head: '', w: 'minmax(0,1fr)', cell: (p: any) => <><div className="o-t1">{p.merchant_name}</div><div className="o-t2"><span className="o-mono">{p.reference}</span> · {p.bank_account.bank}</div></> },
+              { head: '', w: '120px', right: true, cell: (p: any) => <Amount c={p.amount} cents={false} /> },
+              { head: '', w: '130px', cell: (p: any) => <SlaBar p={p} /> },
+            ]}
+            card={(p: any) => ({ title: p.merchant_name, sub: <><span className="o-mono">{p.reference}</span> · {p.bank_account.bank}</>, amount: <Amount c={p.amount} cents={false} />, foot: <div style={{ flex: 1 }}><SlaBar p={p} /></div> })} />
+        </Panel>
+        <Panel title="Fila de aprovações" pad={false} action={can(me, 'approvals') && <button className="btn btn-ghost btn-sm" onClick={() => nav('/admin/aprovacoes')}>Rever</button>}>
+          <List head={false} rows={d.approvals} rowKey={(a: any) => a.id} onRow={can(me, 'approvals') ? (a: any) => nav('/admin/aprovacoes?id=' + a.id) : undefined}
+            empty={<Empty title="Fila vazia" text="Sem contas à espera de aprovação." />}
+            cols={[
+              { head: '', w: '36px', cell: (a: any) => <Avatar text={a.initials} color={a.avatar_color} size={32} radius={9} font={12} /> },
+              { head: '', w: 'minmax(0,1fr)', cell: (a: any) => <><div className="o-t1">{a.name}</div><div className="o-t2">{a.business_type === 'company' ? 'Empresa' : 'Em nome individual'}{a.city ? ' · ' + a.city : ''}</div></> },
+              { head: '', w: 'auto', cell: (a: any) => <RiskPill risk={a.risk} /> },
+              { head: '', w: '64px', right: true, cell: (a: any) => <span className="o-t2">{submittedAgo(a.submitted_at)}</span> },
+            ]}
+            card={(a: any) => ({ lead: <Avatar text={a.initials} color={a.avatar_color} size={34} radius={10} font={12} />, title: a.name, sub: `${a.business_type === 'company' ? 'Empresa' : 'Em nome individual'} · ${submittedAgo(a.submitted_at)}`, meta: <RiskPill risk={a.risk} /> })} />
+        </Panel>
       </div>
-    </div>
+    </Page>
   )
 }

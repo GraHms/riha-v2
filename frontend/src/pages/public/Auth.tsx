@@ -117,6 +117,7 @@ export function Login() {
       setMe(me)
       const next = sp.get('next')
       if (me.user.role === 'admin') nav(next?.startsWith('/admin') ? next : '/admin')
+      else if (me.user.role === 'partner') nav(next?.startsWith('/parceiro') ? next : '/parceiro')
       else if (me.merchant?.status === 'lead' && !me.merchant.nuit) nav('/verificacao')
       else nav(next && next.startsWith('/painel') ? next : '/painel')
     } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }

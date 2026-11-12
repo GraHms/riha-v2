@@ -1,19 +1,57 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Icon, MethodIcon, Pill, Skeleton } from '../../components/ui'
+import { Icon, MethodIcon, Skeleton } from '../../components/ui'
+import { Amount, Badge, Empty, List, Page, PageHead, Tip, type Tone } from '../../components/ops'
 import { useQuery } from '../../core/useQuery'
-import { fmt, METHOD_NAME, STATUS } from '../../lib/format'
+import { METHOD_NAME, STATUS } from '../../lib/format'
 
 // Every merchant's payments in one list, with what needs a look on top.
 
 const VIEWS: [string, string][] = [['', 'Todas'], ['paid', 'Pagas'], ['unconfirmed', 'A confirmar'], ['processing', 'Pendentes'], ['failed', 'Falhadas']]
-const ATTENTION: { key: string; count: string; t: string; d: string; bg: string; fg: string }[] = [
-  { key: 'unconfirmed', count: 'unconfirmed', t: 'A confirmar', d: 'Sem resposta final do operador. A RIHA continua a perguntar.', bg: '#FFE9C7', fg: '#8A4B00' },
-  { key: 'duplicates', count: 'duplicates', t: 'Possíveis duplicados', d: 'Pagos tarde por quem já tinha pago de novo. Ver se é para reembolsar.', bg: '#FFE3E1', fg: '#C2080D' },
-  { key: 'late', count: 'paid_late', t: 'Pagos depois', d: 'Confirmados pelo operador depois de ficarem a confirmar.', bg: '#E6ECFB', fg: '#2A4AA8' },
+const ATTENTION: { key: string; count: string; t: string; hint: string; d: string; tone: Tone }[] = [
+  { key: 'unconfirmed', count: 'unconfirmed', t: 'A confirmar', hint: 'Sem resposta final', d: 'Sem resposta final do operador. A RIHA continua a perguntar.', tone: 'warn' },
+  { key: 'duplicates', count: 'duplicates', t: 'Possíveis duplicados', hint: 'Ver se é para reembolsar', d: 'Pagos tarde por quem já tinha pago de novo. Ver se é para reembolsar.', tone: 'bad' },
+  { key: 'late', count: 'paid_late', t: 'Pagos depois', hint: 'Confirmados tarde', d: 'Confirmados pelo operador depois de ficarem a confirmar.', tone: 'info' },
 ]
+const TONE: Record<string, Tone> = { succeeded: 'ok', failed: 'bad', unconfirmed: 'warn', processing: 'warn', refunded: 'info', partially_refunded: 'info' }
 
 const when = (iso: string) => new Date(iso).toLocaleString('pt-PT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+const customer = (p: any) => (p.phone_last4 ? `${p.phone_prefix} ••• ${p.phone_last4}` : p.card_last4 ? `•••• ${p.card_last4}` : '—')
+
+function StatusBadge({ s }: { s: string }) {
+  return <Badge tone={TONE[s]} dot>{STATUS[s]?.t || s}</Badge>
+}
+
+// Flags are what a payment's status alone doesn't say.
+function Flags({ p }: { p: any }) {
+  return (
+    <>
+      {p.paid_late && <Badge tone="info">Pago depois</Badge>}
+      {p.duplicate_of && <Badge tone="bad">Duplicado?</Badge>}
+      {p.failure_code && p.status === 'failed' && <span className="o-mono tx-code">{p.failure_code}</span>}
+    </>
+  )
+}
+
+const CSS = `
+.tx-att{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.tx-att .o-stat{border-width:1px}
+.tx-att .o-stat.tx-on{border-color:var(--o-ink);box-shadow:inset 0 0 0 1px var(--o-ink),var(--o-shadow)}
+.tx-att .o-stat-l{justify-content:space-between}
+.tx-code{color:var(--o-muted);font-size:11.5px}
+.tx-flags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
+.tx-who{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;color:var(--o-ink-2)}
+.tx-views-m{display:none}
+.tx-pager{display:flex;gap:6px}
+@media(max-width:860px){
+  .tx-att{grid-template-columns:minmax(0,1fr);gap:8px;margin-bottom:14px}
+  .tx-att .o-stat{flex-direction:row;align-items:center;justify-content:space-between;padding:11px 14px}
+  .tx-att .o-stat-h{display:none}
+  .tx-att .o-stat-v{font-size:20px;order:2}
+  .tx-views{display:none!important}
+  .tx-views-m{display:block;flex:1 1 140px;min-width:0}
+  .ops .tx-tb .o-select{flex:1 1 120px;min-width:0}
+}`
 
 export default function AdminTransactions() {
   const nav = useNavigate()
@@ -41,79 +79,74 @@ export default function AdminTransactions() {
   const from = (page - 1) * per
 
   return (
-    <div className="page">
-      <style>{`.tx-att{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}
-        .tx-att button{text-align:left;padding:14px 16px;border-radius:18px;border:1px solid var(--line);background:#fff;display:flex;flex-direction:column;gap:4px}
-        .tx-att button.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-        .tx-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:18px}
-        .tx-search{flex:1;min-width:240px;height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;border:1px solid #E1DFD7;border-radius:999px;background:#fff;color:var(--muted)}
-        .tx-search:focus-within{border-color:var(--ink)}.tx-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:14px;color:var(--ink)}
-        .tx-filters select{height:40px;padding:0 30px 0 14px;border-radius:999px;border:1px dashed #E1DFD7;font-weight:600;font-size:13px;appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%230B120E'/%3E%3C/svg%3E") no-repeat right 12px center}
-        .tx-row{grid-template-columns:118px minmax(0,1.2fr) minmax(0,1fr) 150px 110px minmax(0,1fr);padding:12px 20px;align-items:center}
-        @media(max-width:900px){.tx-att{grid-template-columns:1fr}.tx-row{grid-template-columns:1fr 1fr;gap:4px 12px}.tx-head{display:none!important}}`}</style>
-      <h1 className="h1">Transações</h1>
-      <div style={{ fontSize: 14.5, color: 'var(--muted)', marginTop: 4, maxWidth: 680, lineHeight: 1.5 }}>Os pagamentos de todos os comerciantes. Abra um para ver o rasto completo e perguntar ao operador como está.</div>
+    <Page>
+      <style>{CSS}</style>
+      <PageHead title="Transações" sub={<>Os pagamentos de todos os comerciantes <Tip text="Abra um para ver o rasto completo e perguntar ao operador como está." /></>} />
 
       <div className="tx-att">
         {ATTENTION.map(x => {
           const n = data?.counts?.[x.count]
           const on = view === x.key
           return (
-            <button key={x.key} className={on ? 'on' : ''} onClick={() => go({ view: on ? '' : x.key, page: 1 })} aria-pressed={on}>
-              <span className="row" style={{ gap: 8 }}><span className="display tnum" style={{ fontSize: 26, letterSpacing: '-0.03em' }}>{n ?? '·'}</span><Pill t={x.t} bg={x.bg} fg={x.fg} /></span>
-              <span style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.45 }}>{x.d}</span>
+            <button key={x.key} className={'o-stat' + (on ? ' tx-on' : '')} onClick={() => go({ view: on ? '' : x.key, page: 1 })} aria-pressed={on} title={x.d}>
+              <span className="o-stat-l"><Badge tone={x.tone} dot>{x.t}</Badge>{on && <Icon name="close" size={14} />}</span>
+              <span className="o-stat-v">{n ?? '·'}</span>
+              <span className="o-stat-h">{x.hint}</span>
             </button>
           )
         })}
       </div>
 
-      <div className="tx-filters">
-        <div className="tx-search"><Icon name="search" size={16} /><input type="search" value={term} onChange={e => setTerm(e.target.value)} placeholder="pay_…, RH-…, operação, ref. do operador, 4 dígitos" title="Procura por id ou referência RIHA, número da operação, referência do operador ou os 4 últimos dígitos do telefone" aria-label="Procurar transações" /></div>
-        <div className="seg" style={{ flexWrap: 'wrap' }}>{VIEWS.map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => go({ view: k, page: 1 })}>{l}</button>)}</div>
-        <select value={method} onChange={e => go({ method: e.target.value, page: 1 })} aria-label="Método">
+      <div className="o-toolbar tx-tb">
+        <label className="o-search">
+          <Icon name="search" size={16} />
+          <input type="search" value={term} onChange={e => setTerm(e.target.value)} placeholder="pay_…, RH-…, operação, ref. do operador, 4 dígitos" title="Procura por id ou referência RIHA, número da operação, referência do operador ou os 4 últimos dígitos do telefone" aria-label="Procurar transações" />
+        </label>
+        <div className="seg tx-views">{VIEWS.map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => go({ view: k, page: 1 })}>{l}</button>)}</div>
+        <select className="o-select tx-views-m" value={view} onChange={e => go({ view: e.target.value, page: 1 })} aria-label="Estado">
+          {VIEWS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          <option value="duplicates">Possíveis duplicados</option>
+          <option value="late">Pagos depois</option>
+        </select>
+        <select className="o-select" value={method} onChange={e => go({ method: e.target.value, page: 1 })} aria-label="Método">
           <option value="">Todos os métodos</option>
           {['mpesa', 'emola', 'bim', 'card'].map(m => <option key={m} value={m}>{METHOD_NAME[m] || m}</option>)}
         </select>
-        <select value={mode} onChange={e => go({ mode: e.target.value, page: 1 })} aria-label="Modo">
+        <select className="o-select" value={mode} onChange={e => go({ mode: e.target.value, page: 1 })} aria-label="Modo">
           <option value="">Produção</option>
           <option value="test">Teste</option>
         </select>
       </div>
 
-      <div className="table" style={{ marginTop: 14, overflowX: 'auto' }}>
-        <div className="trow tx-row tx-head" style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-          <span>Quando</span><span>Comerciante</span><span>Referência</span><span>Cliente</span><span style={{ textAlign: 'right' }}>Valor</span><span>Estado</span>
-        </div>
-        {!data && <div style={{ padding: 16 }}><Skeleton h={120} /></div>}
-        {data && rows.length === 0 && <div className="empty">{q ? `Nada encontrado para “${q}”.` : 'Sem transações com este filtro.'}</div>}
-        {rows.map(p => {
-          const st = STATUS[p.status] || { t: p.status, bg: '#EDECE6', fg: '#3E4742' }
-          return (
-            <div key={p.id} className="trow tx-row click" onClick={() => nav('/admin/rasto/' + p.id)}>
-              <span style={{ fontSize: 13, color: 'var(--muted)' }}>{when(p.created_at)}</span>
-              <span style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.merchant_name || p.merchant_id}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.description || '—'}</div></span>
-              <span className="mono" style={{ fontSize: 12.5, minWidth: 0 }}><div>{p.reference}</div><div style={{ color: 'var(--muted)' }}>{p.rail_reference || p.id}</div></span>
-              <span className="row" style={{ gap: 8, fontSize: 13 }}><MethodIcon method={p.method} size={22} radius={7} />{p.phone_last4 ? `${p.phone_prefix} ••• ${p.phone_last4}` : p.card_last4 ? `•••• ${p.card_last4}` : '—'}</span>
-              <span className="tnum" style={{ fontWeight: 600, textAlign: 'right' }}>{fmt(p.amount)} MT</span>
-              <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Pill {...st} />
-                {p.paid_late && <Pill t="Pago depois" bg="#E6ECFB" fg="#2A4AA8" />}
-                {p.duplicate_of && <Pill t="Duplicado?" bg="#FFE3E1" fg="#C2080D" />}
-                {p.failure_code && p.status === 'failed' && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{p.failure_code}</span>}
+      {!data ? <div className="o-panel" style={{ padding: 16 }}><Skeleton h={180} /></div> : (
+        <List rows={rows} rowKey={p => p.id} onRow={p => nav('/admin/rasto/' + p.id)}
+          empty={<Empty icon="search" title={q ? `Nada encontrado para “${q}”` : 'Sem transações'} text={q ? undefined : 'Nada com este filtro.'} />}
+          cols={[
+            { head: 'Quando', w: '96px', cell: p => <span className="o-t2">{when(p.created_at)}</span> },
+            { head: 'Comerciante', w: 'minmax(0,1.3fr)', cell: p => <><div className="o-t1">{p.merchant_name || p.merchant_id}</div><div className="o-t2">{p.description || '—'}</div></> },
+            { head: 'Referência', w: 'minmax(0,1fr)', cell: p => <><div className="o-t1 o-mono">{p.reference}</div><div className="o-t2 o-mono">{p.rail_reference || p.id}</div></> },
+            { head: 'Cliente', w: '136px', cell: p => <span className="tx-who"><MethodIcon method={p.method} size={22} radius={7} /><span className="o-t1" style={{ fontWeight: 500 }}>{customer(p)}</span></span> },
+            { head: 'Valor', w: '112px', right: true, cell: p => <Amount c={p.amount} /> },
+            { head: 'Estado', w: 'minmax(120px,1fr)', cell: p => <span className="tx-flags"><StatusBadge s={p.status} /><Flags p={p} /></span> },
+          ]}
+          card={p => ({
+            lead: <MethodIcon method={p.method} size={32} radius={9} />,
+            title: p.merchant_name || p.merchant_id,
+            sub: <><span className="o-mono">{p.reference}</span> · {customer(p)} · {when(p.created_at)}</>,
+            amount: <Amount c={p.amount} />,
+            meta: <StatusBadge s={p.status} />,
+            foot: (p.paid_late || p.duplicate_of || (p.failure_code && p.status === 'failed')) ? <Flags p={p} /> : undefined,
+          })}
+          footer={total > per ? (
+            <div className="o-more">
+              <span>{`${from + 1}–${from + rows.length} de ${total}`}</span>
+              <span className="tx-pager">
+                {page > 1 && <button className="btn btn-outline btn-sm" onClick={() => go({ page: page - 1 })}><Icon name="arrowLeft" size={14} />Anteriores</button>}
+                {from + rows.length < total && <button className="btn btn-outline btn-sm" onClick={() => go({ page: page + 1 })}>Seguintes<Icon name="arrowRight" size={14} /></button>}
               </span>
             </div>
-          )
-        })}
-        {data && total > per && (
-          <div className="between" style={{ padding: '12px 20px', fontSize: 13, color: 'var(--muted)', borderTop: '1px solid var(--line-3)' }}>
-            <span>{`${from + 1}–${from + rows.length} de ${total}`}</span>
-            <span style={{ display: 'flex', gap: 14 }}>
-              {page > 1 && <button className="link-btn" onClick={() => go({ page: page - 1 })}>Anteriores</button>}
-              {from + rows.length < total && <button className="link-btn" onClick={() => go({ page: page + 1 })}>Seguintes</button>}
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
+          ) : undefined} />
+      )}
+    </Page>
   )
 }

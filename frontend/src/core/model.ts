@@ -12,7 +12,10 @@ export type Merchant = {
   approved_at: string | null; kyc_submitted_at: string | null; review_note: string; expected_volume: string; created_at: string
 }
 
-export type Me = { user: { id: string; email: string; name: string; role: string; title: string }; merchant?: Merchant; default_fee_bps: number }
+export type Me = { user: { id: string; email: string; name: string; role: string; title: string; permissions: string[] }; merchant?: Merchant; partner?: { code: string; name: string }; default_fee_bps: number }
+
+// can says whether a staff or partner user has a permission.
+export const can = (me: Me | null | undefined, perm: string) => !!me && (me.user.permissions?.includes('*') || me.user.permissions?.includes(perm))
 
 export type PaymentLink = {
   id: string; name: string; slug: string; amount: number | null; custom_amount: boolean; reusable: boolean; url: string; active: boolean

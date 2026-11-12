@@ -77,6 +77,16 @@ export function httpGateway(t = new Transport()): Gateway {
       openLink: (m, s, amount, channel) => post<{ id: string }>(`/public/links/${encodeURIComponent(m)}/${encodeURIComponent(s)}/sessions`, { amount, channel }),
       pricing: () => get<{ default_fee_bps: number; coming_soon?: string[] | null }>('/public/pricing'),
     },
+    partner: {
+      home: (from, to) => get('/partner/home?' + qs({ from, to })),
+      payouts: tab => get('/partner/payouts?' + qs({ tab })),
+      payFunding: (id, reference, receipt) => { const fd = new FormData(); fd.append('reference', reference); fd.append('receipt', receipt); return t.request(`/partner/payouts/${encodeURIComponent(id)}/paid`, { form: fd }) },
+      fundingReceiptUrl: id => t.url(`/partner/payouts/${encodeURIComponent(id)}/receipt`),
+      team: () => get('/partner/team'),
+      invite: input => post('/partner/team', input),
+      setAccess: (id, patch) => send('PATCH', '/partner/team/' + encodeURIComponent(id), patch),
+      resendInvite: id => post(`/partner/team/${encodeURIComponent(id)}/invite`),
+    },
     subscriptions: {
       overview: () => get('/subscriptions/overview'),
       settings: () => get('/subscriptions/settings'),
@@ -154,6 +164,16 @@ export function httpGateway(t = new Transport()): Gateway {
       settlementExportUrl: (from, to) => t.url('/admin/settlement/export.csv?' + qs({ from, to })),
       recordSettlement: input => post('/admin/settlements', input),
       deleteSettlement: id => send('DELETE', '/admin/settlements/' + encodeURIComponent(id)),
+      team: () => get('/admin/team'),
+      invite: input => post('/admin/team', input),
+      partners: () => get('/admin/partners'),
+      createPartner: input => post('/admin/partners', input),
+      renamePartner: (code, input) => send('PATCH', '/admin/partners/' + encodeURIComponent(code), input),
+      invitePartnerUser: (code, input) => post(`/admin/partners/${encodeURIComponent(code)}/users`, input),
+      setAccess: (id, patch) => send('PATCH', '/admin/users/' + encodeURIComponent(id), patch),
+      resendInvite: id => post(`/admin/users/${encodeURIComponent(id)}/invite`),
+      payFunding: (id, reference, receipt) => { const fd = new FormData(); fd.append('reference', reference); fd.append('receipt', receipt); return t.request(`/admin/funding/${encodeURIComponent(id)}/paid`, { form: fd }) },
+      fundingReceiptUrl: id => t.url(`/admin/funding/${encodeURIComponent(id)}/receipt`),
     },
   }
 }
