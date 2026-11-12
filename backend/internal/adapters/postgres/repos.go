@@ -289,6 +289,12 @@ func (r Payments) Lock(ctx context.Context, id string) (*domain.Payment, error) 
 func (r Payments) BySessionAttempt(ctx context.Context, sessionID, attemptID string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("session_id = ? AND attempt_id = ?", sessionID, attemptID))
 }
+func (r Payments) ByRailID(ctx context.Context, id string) (*domain.Payment, error) {
+	if id == "" {
+		return nil, domain.ErrNotFound
+	}
+	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("rail_id = ?", id).Order("created_at DESC"))
+}
 func (r Payments) ByRailReference(ctx context.Context, ref string) (*domain.Payment, error) {
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("rail_reference = ?", ref))
 }

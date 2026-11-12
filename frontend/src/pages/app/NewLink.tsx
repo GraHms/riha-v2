@@ -19,11 +19,16 @@ export function useLinkForm(onCreated: (l: LinkObj) => void, from?: LinkObj, edi
   const { me, toast } = useSession()
   const g = useGateway()
   const bps = me?.merchant?.fee_bps ?? 600
-  const soon = useSession().me?.merchant?.coming_soon ?? []
+  const { live } = useSession()
+  // What this mode can't take yet: the test list is shorter while new methods are tried there.
+  const soon: string[] = (live ? me?.merchant?.coming_soon : me?.merchant?.test_coming_soon ?? me?.merchant?.coming_soon) ?? []
+  const abroadOK = !soon.includes('abroad')
   const [amount, setAmount] = useState(from && !from.custom_amount ? mtText(from.amount) : '1250')
   const [name, setName] = useState(from ? (edit ? from.name : from.name + ' (cópia)') : '')
   const [methods, setMethods] = useState<string[]>(from ? from.payment_method_types.filter(m => !soon.includes(m)) : ['mpesa', 'emola', 'bim', 'card'].filter(m => !soon.includes(m)))
   const [reusable, setReusable] = useState(from ? from.reusable : true)
+  // Advanced: paying from abroad, an option a merchant turns on per link.
+  const [advanced, setAdvanced] = useState(!!from?.payment_method_types.includes('abroad'))
   const [custom, setCustom] = useState(from ? from.custom_amount : false)
   const [kind, setKind] = useState<'link' | 'qr'>(from?.type === 'qr' ? 'qr' : 'link')
   // -1 keeps the expiry the link has.
@@ -137,6 +142,25 @@ export function useLinkForm(onCreated: (l: LinkObj) => void, from?: LinkObj, edi
             </button>
           ))}
         </div>
+      </div>
+      <div className="card" style={{ borderRadius: 16 }}>
+        <button type="button" className="row" onClick={() => setAdvanced(!advanced)} aria-expanded={advanced} style={{ width: '100%', padding: '13px 16px', background: 'none', border: 0, textAlign: 'left' }}>
+          <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>Opções avançadas</div><div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Pagamentos do estrangeiro</div></div>
+          <Icon name="updown" size={16} />
+        </button>
+        {advanced && (
+          <>
+            <div style={{ height: 1, background: '#EEECE5', margin: '0 16px' }} />
+            <div className="row" style={{ padding: '13px 16px', gap: 12 }}>
+              <MethodIcon method="abroad" size={30} radius={9} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Aceitar pagamentos do estrangeiro</div>
+                <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.45 }}>{abroadOK ? 'Clientes noutros países pagam com a carteira do país deles, na página segura da U2opia. Recebe em meticais.' : live ? 'Disponível primeiro em modo de teste.' : 'Ainda não disponível.'}</div>
+              </div>
+              <Toggle on={methods.includes('abroad')} onChange={() => abroadOK && toggleM('abroad')} label="Aceitar pagamentos do estrangeiro" />
+            </div>
+          </>
+        )}
       </div>
       {edit && from && !custom && c !== from.amount && c >= 1000 && (
         <div className="form-err" style={{ background: 'var(--sun-soft)', color: '#5B4600' }}>Quem abrir o link a partir de agora paga {fmt(c)} MT em vez de {fmt(from.amount || 0)} MT. {from.payments_count ? 'Os pagamentos já feitos não mudam.' : ''}</div>

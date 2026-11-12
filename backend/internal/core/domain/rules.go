@@ -127,8 +127,8 @@ func CleanMethods(in []string) ([]string, error) {
 		if m == "" {
 			continue
 		}
-		if !contains(AllMethods, m) {
-			return nil, Invalid("payment_method_invalid", "payment_method_types", fmt.Sprintf("Método %q desconhecido. Use mpesa, emola, bim ou card.", m))
+		if !contains(AllMethods, m) && !contains(OptInMethods, m) {
+			return nil, Invalid("payment_method_invalid", "payment_method_types", fmt.Sprintf("Método %q desconhecido. Use mpesa, emola, bim, card ou abroad.", m))
 		}
 		if !contains(out, m) {
 			out = append(out, m)

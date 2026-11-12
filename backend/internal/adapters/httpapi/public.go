@@ -66,7 +66,7 @@ func (srv *Server) publicLink(c *gin.Context) {
 	lo, hi := l.CustomRange(domain.MinAmountFor(m))
 	c.JSON(200, gin.H{"name": l.Name, "amount": l.Amount, "custom_amount": l.CustomAmount, "active": active, "type": l.Kind,
 		"details": l.Details, "image_url": linkImageURL(l, m.Slug), "submit_type": l.SubmitTypeOrPay(), "suggested_amount": l.SuggestedAmount, "min_amount": lo, "max_amount": hi,
-		"payment_method_types": srv.A.ActiveMethods(l.Methods), "coming_soon": srv.A.ComingSoon, "livemode": l.Livemode, "merchant": publicMerchant(m)})
+		"payment_method_types": srv.A.ActiveMethodsFor(l.Methods, l.Livemode), "coming_soon": srv.A.ComingSoonFor(l.Livemode), "livemode": l.Livemode, "merchant": publicMerchant(m)})
 }
 
 var channels = map[string]bool{"whatsapp": true, "sms": true, "qr": true, "outro": true}

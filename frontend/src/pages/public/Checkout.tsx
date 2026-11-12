@@ -12,9 +12,9 @@ import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 type Session = {
   id: string; status: string; amount: number; description: string; livemode: boolean
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
-  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; link?: { details: string; image_url: string }; success_message?: string; submit_type?: string
+  success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; abroad_methods?: string[]; abroad_countries?: { code: string; name: string; dial: string; currency: string }[]; link?: { details: string; image_url: string }; success_message?: string; submit_type?: string
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
-  payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null; stage?: string }
+  payment: null | { id: string; reference: string; status: string; method: string; country?: string; redirect_url?: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null; stage?: string }
 }
 
 // bim holds a wallet payment for up to 5 minutes while it waits for the customer.
@@ -67,6 +67,7 @@ export default function Checkout() {
   const [loadErr, setLoadErr] = useState<ApiError | null>(null)
   const [method, setMethod] = useState('mpesa')
   const [phone, setPhone] = useState('')
+  const [country, setCountry] = useState('')
   const [card, setCard] = useState({ number: '', exp: '', cvc: '', name: '' })
   const [email, setEmail] = useState('')
   const [err, setErr] = useState<ApiError | null>(null)
@@ -255,12 +256,18 @@ export default function Checkout() {
     // The notice about the unconfirmed payment is on screen, so paying now is a choice.
     const payAgain = s.payment?.status === 'unconfirmed'
     try {
-      const body = method === 'card'
-        ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email, attempt_id: attemptId, pay_again: payAgain }
-        : { method, phone: phone.replace(/\D/g, ''), email, attempt_id: attemptId, pay_again: payAgain }
+      const abroad = (s.abroad_methods || []).includes(method)
+      const where = abroad ? ((s.abroad_countries || []).find(c => c.code === country) || (s.abroad_countries || [])[0])?.code : undefined
+      const body = abroad
+        ? { method, country: where, phone: phone.replace(/\D/g, ''), email, attempt_id: attemptId, pay_again: payAgain }
+        : method === 'card'
+          ? { method, card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc, name: card.name, email, attempt_id: attemptId, pay_again: payAgain }
+          : { method, phone: phone.replace(/\D/g, ''), email, attempt_id: attemptId, pay_again: payAgain }
       const d = await g.checkout.pay(s.id, body)
       setAttempt(null)
       setS(d)
+      // Paid on the operator's own page: go there, and come back here after.
+      if (d.payment?.status === 'processing' && d.payment.redirect_url) { setView('confirm'); window.location.assign(d.payment.redirect_url); return }
       if (d.status === 'complete') setView('done')
       else if (d.payment?.status === 'processing') { startRef.current = Date.now(); setTick(0); setView('confirm') }
       else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: d.payment.failure_message, status: 402 })
@@ -289,7 +296,11 @@ export default function Checkout() {
   if (!s) return <Center><Spinner dark /></Center>
 
   const amount = fmt(s.amount)
-  const wallet = method !== 'card'
+  // Paid on the operator's page: the customer picks their country first.
+  const abroadMethod = (s.abroad_methods || []).includes(method)
+  const countries = s.abroad_countries || []
+  const pickedCountry = countries.find(c => c.code === country) || countries[0]
+  const wallet = method !== 'card' && !abroadMethod
   const walletName = METHOD_NAME[method]
   const walletPrefix = method === 'emola' ? '86' : method === 'bim' ? '82' : '84'
   const ref = s.client_reference_id ? (/^\d+$/.test(s.client_reference_id) ? `Encomenda #${s.client_reference_id}` : s.client_reference_id) : s.description
@@ -384,7 +395,21 @@ export default function Checkout() {
                       </div>
                     ))}
                   </div>
-                  {wallet ? (
+                  {abroadMethod && pickedCountry ? (
+                    <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <label>
+                        <span className="label" style={{ marginBottom: 7 }}>País {method === 'card' ? 'do cartão' : 'da carteira'}</span>
+                        <select className="input lg" style={{ height: 56, fontSize: 16, border: '2px solid var(--ink)' }} value={pickedCountry.code} onChange={e => setCountry(e.target.value)}>
+                          {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                        </select>
+                      </label>
+                      <div>
+                        <span className="label" style={{ marginBottom: 7 }}>Número de telemóvel</span>
+                        <div className="phone-input" style={{ border: '2px solid var(--ink)', height: 56 }}><span className="cc">+{pickedCountry.dial}</span><input inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d ]/g, ''))} placeholder="Número sem o indicativo" style={{ fontSize: 17 }} /></div>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.45 }}>Vai para a página segura da U2opia para pagar em {pickedCountry.currency}. No fim volta aqui.</div>
+                    </div>
+                  ) : wallet ? (
                     <div style={{ marginTop: 20 }}>
                       <span className="label" style={{ marginBottom: 7 }}>Número {walletName}</span>
                       <div className="phone-input" style={{ border: '2px solid var(--ink)', height: 56 }}><span className="cc">+258</span><input inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(fmtPhone(e.target.value))} placeholder={`${walletPrefix} 412 4231`} style={{ fontSize: 17 }} /></div>
@@ -423,7 +448,15 @@ export default function Checkout() {
             </>
           )}
 
-          {view === 'confirm' && (
+          {view === 'confirm' && s.payment?.status === 'processing' && s.payment.redirect_url && (
+            <div className="co-abroad" role="status" style={{ marginTop: 22 }}>
+              <div className="display" style={{ fontSize: 26 }}>A confirmar o pagamento</div>
+              <p className="muted" style={{ lineHeight: 1.55, marginTop: 8 }}>Assim que a U2opia confirmar o pagamento de {amount} MT, esta página avança sozinha. Se ainda não pagou, continue na página da U2opia.</p>
+              <a className="btn btn-ink btn-lg btn-block" style={{ marginTop: 14 }} href={s.payment.redirect_url}><Icon name="globe" size={17} />Voltar à página de pagamento</a>
+              <div style={{ marginTop: 12 }}><RefCode label="Referência" code={s.payment.reference} /></div>
+            </div>
+          )}
+          {view === 'confirm' && !(s.payment?.status === 'processing' && s.payment.redirect_url) && (
             <WaitScreen
               s={s} amount={amount} prompt={prompt} walletName={METHOD_NAME[s.payment?.method ?? method] ?? 'carteira'} phone={waitingPhone}
               stage={lostPay.current ? 'sent' : s.payment?.stage || 'sent'} conn={conn} noAnswer={noAnswer} pastLimit={left === 0}

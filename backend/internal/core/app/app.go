@@ -73,8 +73,14 @@ type App struct {
 	AdminNotifyEmail string
 	// BackupStatusFile is where the server's backup writes the time of its last success.
 	BackupStatusFile string
-	// ComingSoon lists the methods that can't take money yet.
-	ComingSoon []string
+	// ComingSoon lists the methods that can't take money yet, and
+	// TestComingSoon the ones test mode can't take; nil means the same as live.
+	ComingSoon     []string
+	TestComingSoon []string
+	// AbroadCountries are where customers can pay from with their own wallet,
+	// and AbroadMethods the test-mode methods that pay on U2opia's page.
+	AbroadCountries []domain.AbroadCountry
+	AbroadMethods   []string
 	// NoLiveRefunds: a live refund must send the money back, and no rail can yet.
 	NoLiveRefunds bool
 	Now           func() time.Time

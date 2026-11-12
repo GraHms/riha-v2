@@ -139,7 +139,7 @@ func (a *App) CreateSession(ctx context.Context, m *domain.Merchant, live bool, 
 		}
 		meta[k] = vs
 	}
-	methods, err := a.cleanMethods(p.PaymentMethodTypes)
+	methods, err := a.cleanMethods(p.PaymentMethodTypes, live)
 	if err != nil {
 		return nil, err
 	}
@@ -245,9 +245,11 @@ type PayInput struct {
 	AttemptID string `json:"attempt_id"`
 	// PayAgain: the customer saw that an earlier payment is still being
 	// confirmed and chose to pay anyway.
-	PayAgain bool   `json:"pay_again"`
-	PayerIP  string `json:"-"`
-	PayerUA  string `json:"-"`
+	PayAgain bool `json:"pay_again"`
+	// Country is where a customer paying from abroad has their wallet.
+	Country string `json:"country"`
+	PayerIP string `json:"-"`
+	PayerUA string `json:"-"`
 }
 
 func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.Payment, error) {
@@ -270,7 +272,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		}
 	}
 	in.Method = strings.ToLower(in.Method)
-	if !domain.Contains(cs.PaymentMethodTypes, in.Method) || domain.Contains(a.ComingSoon, in.Method) {
+	if !domain.Contains(cs.PaymentMethodTypes, in.Method) || domain.Contains(a.ComingSoonFor(cs.Livemode), in.Method) {
 		return nil, domain.Invalid("payment_method_not_allowed", "method", "Este método não está disponível neste pagamento.")
 	}
 	m, err := a.Merchants.ByID(ctx, cs.MerchantID)
@@ -296,7 +298,18 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		log.Printf("pricing payment %s: %v; the backlog prices it later", p.ID, err)
 	}
 	p.RailReference = a.railReference(p.Integration, in.Method, cs.Livemode)
-	if in.Method != domain.MethodCard {
+	abroad := domain.Contains(a.RedirectMethodsFor(cs.Livemode), in.Method)
+	switch {
+	case abroad:
+		in.Country = strings.ToUpper(strings.TrimSpace(in.Country))
+		if len(in.Country) != 2 {
+			return nil, domain.Invalid("country_required", "country", "Escolha o país da sua carteira.")
+		}
+		if d := domain.Digits(in.Phone); len(d) >= 4 {
+			p.PhonePrefix, p.PhoneLast4 = in.Country, d[len(d)-4:]
+		}
+		p.Country = in.Country
+	case in.Method != domain.MethodCard:
 		if ph := domain.NormalizeMZPhone(in.Phone); len(ph) == 9 {
 			p.PhonePrefix, p.PhoneLast4, p.ContactPhone = ph[:2], ph[5:], ph
 		}
@@ -342,7 +355,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		Data: map[string]any{"method": in.Method, "amount": p.Amount, "attempt_id": p.AttemptID, "phone": phone, "reference": p.Reference, "operation": p.RailReference}})
 	res, err := a.Rail.Initiate(ctx, domain.ChargeRequest{
 		PaymentID: p.ID, Description: p.Description, Method: in.Method, Amount: p.Amount, Phone: in.Phone,
-		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor,
+		CardNumber: in.CardNumber, CardExpiry: in.CardExpiry, CardCVC: in.CardCVC, Descriptor: m.StatementDescriptor, Country: in.Country,
 		Live: p.Livemode, Reference: p.RailReference, OnRailID: func(id string) { a.keepRailID(p.ID, id) }, Integration: p.Integration,
 	}, func(o domain.Outcome) {
 		if err := a.CompletePayment(context.Background(), p.ID, o); err != nil {
@@ -359,9 +372,15 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		}
 		return nil, err
 	}
-	if in.Method == domain.MethodCard {
-		p.CardBrand, p.CardLast4 = res.Brand, res.Last4
-		if err := a.Payments.Save(ctx, p); err != nil {
+	if in.Method == domain.MethodCard || res.RedirectURL != "" {
+		if err := a.Tx.Do(ctx, func(ctx context.Context) error {
+			cur, err := a.Payments.Lock(ctx, p.ID)
+			if err != nil {
+				return err
+			}
+			cur.CardBrand, cur.CardLast4, cur.RedirectURL = res.Brand, res.Last4, res.RedirectURL
+			return a.Payments.Save(ctx, cur)
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -462,7 +481,7 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			c := *p
 			notify, merchant = &c, m
 		}
-		p.ContactPhone, p.RecheckAt = "", nil
+		p.ContactPhone, p.RecheckAt, p.RedirectURL = "", nil, ""
 		if !o.Success {
 			p.Status, p.FailureCode, p.FailedAt = domain.PaymentFailed, o.FailureCode, &now
 			p.FailureMessage = domain.FailureMessages[o.FailureCode]
@@ -573,22 +592,43 @@ func (a *App) Receipt(ctx context.Context, ref string) (*domain.Payment, *domain
 }
 
 // cleanMethods is CleanMethods without what can't take money yet.
-func (a *App) cleanMethods(in []string) ([]string, error) {
+func (a *App) cleanMethods(in []string, live bool) ([]string, error) {
 	methods, err := domain.CleanMethods(in)
 	if err != nil {
 		return nil, err
 	}
-	out := a.ActiveMethods(methods)
+	out := a.ActiveMethodsFor(methods, live)
 	if len(out) == 0 {
 		return nil, domain.Invalid("payment_method_unavailable", "payment_method_types", "Estes métodos ainda não estão disponíveis.")
 	}
 	return out, nil
 }
 
-func (a *App) ActiveMethods(methods []string) []string {
+func (a *App) ActiveMethods(methods []string) []string { return a.ActiveMethodsFor(methods, true) }
+
+// RedirectMethodsFor lists the methods a mode takes on the operator's own
+// page: the customer picks their country, then pays there.
+func (a *App) RedirectMethodsFor(live bool) []string {
+	if live {
+		return nil
+	}
+	return a.AbroadMethods
+}
+
+// ComingSoonFor lists the methods a mode can't take money with yet.
+func (a *App) ComingSoonFor(live bool) []string {
+	if live || a.TestComingSoon == nil {
+		return a.ComingSoon
+	}
+	return a.TestComingSoon
+}
+
+// ActiveMethodsFor keeps the methods a mode can take money with.
+func (a *App) ActiveMethodsFor(methods []string, live bool) []string {
+	soon := a.ComingSoonFor(live)
 	out := make([]string, 0, len(methods))
 	for _, m := range methods {
-		if !domain.Contains(a.ComingSoon, m) {
+		if !domain.Contains(soon, m) {
 			out = append(out, m)
 		}
 	}

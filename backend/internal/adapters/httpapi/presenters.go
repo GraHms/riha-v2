@@ -20,7 +20,7 @@ func (srv *Server) merchantJSON(c context.Context, m *domain.Merchant) gin.H {
 		"statement_descriptor": m.StatementDescriptor, "avatar_color": m.AvatarColor, "status": m.Status,
 		"fee_bps": bps, "fee_negotiated": m.FeeBps != nil, "fee_label": domain.FormatBps(bps),
 		"success_url": m.SuccessURL, "cancel_url": m.CancelURL, "sms_notifications": m.SMSNotifications, "email_notifications": m.EmailNotifications,
-		"coming_soon": srv.A.ComingSoon, "live_refunds": !srv.A.NoLiveRefunds,
+		"coming_soon": srv.A.ComingSoon, "test_coming_soon": srv.A.TestComingSoon, "live_refunds": !srv.A.NoLiveRefunds,
 		"beta": m.Beta, "min_amount": domain.MinAmountFor(m), "plan_min_amount": domain.PlanMinFor(m),
 		"kyc_submitted_at": iso(m.KycSubmittedAt), "approved_at": iso(m.ApprovedAt), "review_note": m.ReviewNote,
 		"created_at": isoT(m.CreatedAt),
@@ -175,7 +175,7 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	}
 	out := gin.H{
 		"id": cs.ID, "status": status, "amount": cs.Amount, "currency": cs.Currency, "description": cs.Description,
-		"line_items": items, "payment_method_types": srv.A.ActiveMethods(cs.PaymentMethodTypes), "coming_soon": srv.A.ComingSoon, "livemode": cs.Livemode,
+		"line_items": items, "payment_method_types": srv.A.ActiveMethodsFor(cs.PaymentMethodTypes, cs.Livemode), "coming_soon": srv.A.ComingSoonFor(cs.Livemode), "livemode": cs.Livemode,
 		"success_url": success, "cancel_url": cs.CancelURL, "return_host": hostOf(domain.FirstNonEmpty(cs.SuccessURL, cs.CancelURL)),
 		"client_reference_id": cs.ClientReferenceID, "customer_phone": strings.TrimPrefix(cs.CustomerPhone, "+258"),
 		"customer_name": cs.CustomerName, "email_on_file": cs.CustomerEmail != "", "expires_at": isoT(cs.ExpiresAt), "merchant": publicMerchant(m), "payment": nil,
@@ -184,6 +184,9 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	// link kept after that shows neither.
 	if status != "open" {
 		out["customer_phone"], out["customer_name"] = "", ""
+	}
+	if abroad := srv.A.RedirectMethodsFor(cs.Livemode); len(abroad) > 0 {
+		out["abroad_methods"], out["abroad_countries"] = abroad, srv.A.AbroadCountries
 	}
 	out["success_message"] = cs.SuccessMessage
 	out["submit_type"] = domain.FirstNonEmpty(cs.SubmitType, domain.SubmitPay)
@@ -195,7 +198,8 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	if p := srv.A.LatestPayment(c, cs.ID); p != nil {
 		out["payment"] = gin.H{"id": p.ID, "reference": p.Reference, "attempt_id": p.AttemptID, "status": p.Status, "method": p.Method, "phone_prefix": p.PhonePrefix,
 			"phone_last4": p.PhoneLast4, "card_brand": p.CardBrand, "card_last4": p.CardLast4, "failure_code": p.FailureCode,
-			"failure_message": p.FailureMessage, "created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt), "stage": waitStage(p)}
+			"failure_message": p.FailureMessage, "created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt), "stage": waitStage(p),
+			"country": p.Country, "redirect_url": p.RedirectURL}
 	}
 	return out
 }

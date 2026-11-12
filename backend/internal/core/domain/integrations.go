@@ -16,6 +16,8 @@ const (
 	IntegrationMpesaDirect = "mpesa_direct"
 	// IntegrationSimulator is test mode's: no money moves.
 	IntegrationSimulator = "simulator"
+	// IntegrationU2opia takes cards and wallets from abroad, in test mode only.
+	IntegrationU2opia = "u2opia"
 )
 
 var integrationCode = regexp.MustCompile(`^[a-z][a-z0-9_]{1,29}$`)

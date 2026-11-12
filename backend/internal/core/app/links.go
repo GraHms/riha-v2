@@ -127,7 +127,7 @@ func (a *App) CreateLink(ctx context.Context, m *domain.Merchant, live bool, p L
 		}
 		amount = *p.Amount
 	}
-	methods, err := a.cleanMethods(p.Methods)
+	methods, err := a.cleanMethods(p.Methods, live)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (a *App) UpdateLink(ctx context.Context, m *domain.Merchant, live bool, id 
 		l.Reusable = *p.Reusable
 	}
 	if p.Methods != nil {
-		if l.Methods, err = a.cleanMethods(p.Methods); err != nil {
+		if l.Methods, err = a.cleanMethods(p.Methods, live); err != nil {
 			return nil, err
 		}
 	}

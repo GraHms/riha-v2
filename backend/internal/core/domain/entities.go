@@ -377,6 +377,10 @@ type Payment struct {
 	PlatformFee int64
 	PartnerFee  int64
 	Priced      bool
+	// Country is where a payment from abroad comes from, and RedirectURL the
+	// operator's page the customer is sent to, kept until the payment ends.
+	Country     string
+	RedirectURL string
 }
 
 func (p *Payment) Refundable() int64 {

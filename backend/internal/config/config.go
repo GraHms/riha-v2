@@ -51,6 +51,14 @@ type Config struct {
 	MtocaDebug           bool
 	MpesaViaMtoca        bool
 	MtocaTestOn          bool
+	// U2opia takes cards and other countries' wallets, in test mode only: its
+	// callbacks can't be checked yet. U2opiaRates gives each country offered
+	// and how much of its currency one metical is worth, e.g. ZA=0.28,NG=24.3.
+	U2opiaEnabled     bool
+	U2opiaTestURL     string
+	U2opiaPartnerCode string
+	U2opiaRates       map[string]string
+	U2opiaMethods     []string
 	// MozeSMS sends live SMS when its key and secret are set; without them, SMS stay
 	// in the outbox.
 	MozeSMSURL           string
@@ -135,6 +143,11 @@ func Load() Config {
 		MtocaDebug:           flag("RIHA_MTOCA_DEBUG", false),
 		MpesaViaMtoca:        flag("RIHA_MPESA_VIA_MTOCA", false),
 		MtocaTestOn:          flag("RIHA_MTOCA_TEST_ON", true),
+		U2opiaEnabled:        flag("RIHA_U2OPIA_ENABLED", false),
+		U2opiaTestURL:        env("RIHA_U2OPIA_TEST_URL", "https://api-staging.pay.u2opiaglobal.com/api-manager"),
+		U2opiaPartnerCode:    env("RIHA_U2OPIA_PARTNER_CODE", ""),
+		U2opiaRates:          pairs(env("RIHA_U2OPIA_RATES", "")),
+		U2opiaMethods:        list(env("RIHA_U2OPIA_METHODS", "card,abroad")),
 		MozeSMSURL:           env("RIHA_MOZESMS_URL", "https://api.mozesms.com"),
 		MozeSMSKey:           env("RIHA_MOZESMS_API_KEY", ""),
 		MozeSMSSecret:        env("RIHA_MOZESMS_API_SECRET", ""),

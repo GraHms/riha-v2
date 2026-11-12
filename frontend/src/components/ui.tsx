@@ -20,6 +20,7 @@ const P: Record<string, ReactNode> = {
   check: <path d="M20 6 9 17l-5-5" />,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   card: <><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 10h20" /></>,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
   bank: <path d="M3 21h18M5 21V10M19 21V10M9 21V10M15 21V10M2 10l10-7 10 7z" />,
   lock: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></>,
@@ -85,6 +86,7 @@ export function Stripes({ top = -40, right = 0, w = 44, h = 320, gap = 12, fade 
 export function MethodIcon({ method, size = 36, radius = 11 }: { method: string; size?: number; radius?: number }) {
   const s: CSSProperties = { width: size, height: size, borderRadius: radius, fontSize: Math.round(size * 0.4) }
   if (method === 'mpesa' || method === 'emola' || method === 'bim') return <img className="method-ico" src={`/assets/methods/${method}.png`} alt={METHOD_NAME[method]} width={size} height={size} style={{ ...s, display: 'block', objectFit: 'cover', flex: 'none' }} />
+  if (method === 'abroad') return <span className="method-ico" style={{ ...s, background: '#2A4AA8', color: '#fff' }}><Icon name="globe" size={Math.round(size * 0.5)} stroke={2} /></span>
   if (method === 'bank') return <span className="method-ico" style={{ ...s, background: 'var(--paper)', color: 'var(--ink)' }}><Icon name="bank" size={Math.round(size * 0.46)} /></span>
   return <span className="method-ico" style={{ ...s, background: 'var(--ink)', color: '#fff' }}><Icon name="card" size={Math.round(size * 0.46)} stroke={2} /></span>
 }

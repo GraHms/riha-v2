@@ -54,6 +54,13 @@ func New(a *app.App, cfg Config) *gin.Engine {
 	r.MaxMultipartMemory = 8 << 20
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(200, gin.H{"ok": true}) })
 	r.Any("/callbacks/bim", srv.throttle(srv.limiter, "callback"), srv.railCallback)
+	// U2opia's callback and the page it sends customers back to, at the
+	// addresses registered with U2opia, outside /api's CSRF check: U2opia
+	// can't send RIHA's header. The older names stay as aliases.
+	r.Any("/api/callbacks/u2opay", srv.throttle(srv.limiter, "callback"), srv.abroadCallback)
+	r.GET("/u2op/thankyou", srv.throttle(srv.limiter, "callback"), srv.abroadReturn)
+	r.Any("/callbacks/u2opia", srv.throttle(srv.limiter, "callback"), srv.abroadCallback)
+	r.GET("/return/u2opia", srv.throttle(srv.limiter, "callback"), srv.abroadReturn)
 	r.POST("/callbacks/mozesms", srv.throttle(srv.limiter, "callback"), srv.smsReport)
 	r.GET("/robots.txt", srv.robots)
 	r.GET("/sitemap.xml", srv.sitemap)

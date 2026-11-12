@@ -12,11 +12,18 @@ const (
 	MethodEmola = "emola"
 	MethodBim   = "bim"
 	MethodCard  = "card"
+	// MethodAbroad is a wallet from another country, for a customer abroad
+	// paying a Mozambican merchant. A merchant turns it on per link.
+	MethodAbroad = "abroad"
 )
 
+// AllMethods are offered when nobody says which.
 var AllMethods = []string{MethodMpesa, MethodEmola, MethodBim, MethodCard}
 
-var MethodNames = map[string]string{MethodMpesa: "M-Pesa", MethodEmola: "e-Mola", MethodBim: "Bim IZI", MethodCard: "Cartão"}
+// OptInMethods are only offered when asked for by name.
+var OptInMethods = []string{MethodAbroad}
+
+var MethodNames = map[string]string{MethodMpesa: "M-Pesa", MethodEmola: "e-Mola", MethodBim: "Bim IZI", MethodCard: "Cartão", MethodAbroad: "Carteira de outro país"}
 
 func IsWallet(m string) bool { return m == MethodMpesa || m == MethodEmola || m == MethodBim }
 
@@ -76,6 +83,9 @@ type ChargeRequest struct {
 	CardExpiry  string
 	CardCVC     string
 	Descriptor  string
+	// Country is where the customer's wallet is, ISO 3166 alpha-2, for a
+	// payment from abroad.
+	Country string
 	// Live is real money. Reference is what the operator knows the payment by.
 	Live      bool
 	Reference string
@@ -98,6 +108,9 @@ type ChargeResult struct {
 	Outcome Outcome
 	Brand   string
 	Last4   string
+	// RedirectURL is the operator's own page, where the customer finishes
+	// paying; empty when they pay on their phone.
+	RedirectURL string
 }
 
 type StatusQuery struct {
@@ -153,4 +166,12 @@ func Safely(name string, f func()) {
 		}()
 		f()
 	}()
+}
+
+// AbroadCountry is a country customers can pay from with their own wallet.
+type AbroadCountry struct {
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	Dial     string `json:"dial"`
+	Currency string `json:"currency"`
 }

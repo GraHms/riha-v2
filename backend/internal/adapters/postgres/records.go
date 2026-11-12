@@ -205,7 +205,7 @@ type paymentRecord struct {
 	CardLast4         string     `gorm:"size:4"`
 	OperatorReference string     `gorm:"size:40"`
 	RailReference     string     `gorm:"size:20;index"`
-	RailID            string     `gorm:"size:64"`
+	RailID            string     `gorm:"size:64;index"`
 	AttemptID         string     `gorm:"size:20;uniqueIndex:idx_payment_attempt,priority:2,where:attempt_id <> ''"`
 	FailureCode       string     `gorm:"size:40"`
 	FailureMessage    string     `gorm:"size:300"`
@@ -230,6 +230,8 @@ type paymentRecord struct {
 	PlatformFee       int64      `gorm:"not null;default:0"`
 	PartnerFee        int64      `gorm:"not null;default:0"`
 	Priced            bool       `gorm:"not null;default:false"`
+	Country           string     `gorm:"size:2;not null;default:''"`
+	RedirectURL       string     `gorm:"size:600;not null;default:''"`
 }
 
 func (paymentRecord) TableName() string { return "payments" }

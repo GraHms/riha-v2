@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +26,7 @@ import (
 	"riha/internal/adapters/postgres"
 	"riha/internal/adapters/rails"
 	"riha/internal/adapters/rails/mtoca"
+	"riha/internal/adapters/rails/u2opia"
 	"riha/internal/adapters/sheets"
 	"riha/internal/adapters/webhooks"
 	"riha/internal/config"
@@ -71,8 +74,15 @@ func main() {
 	a.PayURL = cfg.PayURL
 	a.AllowPrivateNetworks = cfg.AllowPrivateNetworks
 	a.LoginCodes = cfg.Env != "development" && os.Getenv("RIHA_LOGIN_CODES") != "off"
+	a.ComingSoon, a.TestComingSoon, a.AbroadCountries = payments.ComingSoon, payments.TestComingSoon, payments.Abroad
+	if len(payments.Abroad) > 0 {
+		for _, m := range cfg.U2opiaMethods {
+			if m == domain.MethodCard || m == domain.MethodAbroad {
+				a.AbroadMethods = append(a.AbroadMethods, m)
+			}
+		}
+	}
 	if payments.RealMoney {
-		a.ComingSoon = payments.ComingSoon
 		a.NoLiveRefunds = true
 	}
 	a.AdminNotifyEmail = cfg.AdminNotifyEmail
@@ -140,9 +150,11 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 
 // paymentSetup is the rail, the methods it can't take yet, and whether it moves real money.
 type paymentSetup struct {
-	Rail       ports.Rail
-	ComingSoon []string
-	RealMoney  bool
+	Rail           ports.Rail
+	ComingSoon     []string
+	TestComingSoon []string
+	RealMoney      bool
+	Abroad         []domain.AbroadCountry
 }
 
 // paymentRail sets up each mode's integrations. With RIHA_MTOCA_ENABLED, the
@@ -212,17 +224,74 @@ func paymentRail(cfg config.Config, trace func(domain.TrailEvent)) (paymentSetup
 	for method, code := range live.Default {
 		log.Printf("payments: live %s goes through %s by default", method, code)
 	}
+	abroad, err := u2opiaRail(cfg, test, trace)
+	if err != nil {
+		return paymentSetup{}, err
+	}
+	// Test mode offers what live mode does, so a merchant tests what they'll
+	// get, plus the methods being tried in test first: those U2opia takes.
+	testSoon := func(soon []string) []string {
+		out := []string{}
+		for _, m := range soon {
+			if test.Default[m] != domain.IntegrationU2opia {
+				out = append(out, m)
+			}
+		}
+		return out
+	}
 	if len(live.Via) == 0 {
+		// The simulator takes everything but a payment from abroad, which
+		// only U2opia's page can take.
+		soon := []string{domain.MethodAbroad}
 		only := rails.Single(domain.IntegrationSimulator, sim)
-		return paymentSetup{Rail: rails.Modes{Test: only, Live: only}}, nil
+		return paymentSetup{Rail: rails.Modes{Test: test, Live: only}, ComingSoon: soon, TestComingSoon: testSoon(soon), Abroad: abroad}, nil
 	}
 	var soon []string
-	for _, method := range domain.AllMethods {
+	for _, method := range append(append([]string{}, domain.AllMethods...), domain.OptInMethods...) {
 		if live.RouteFor("", method, true) == "" {
 			soon = append(soon, method)
 		}
 	}
-	return paymentSetup{Rail: rails.Modes{Test: test, Live: live}, ComingSoon: soon, RealMoney: true}, nil
+	return paymentSetup{Rail: rails.Modes{Test: test, Live: live}, ComingSoon: soon, TestComingSoon: testSoon(soon), RealMoney: true, Abroad: abroad}, nil
+}
+
+// u2opiaRail puts U2opia behind cards and wallets from abroad, in test mode
+// only, for the countries RIHA_U2OPIA_RATES gives a rate for.
+func u2opiaRail(cfg config.Config, test rails.Router, trace func(domain.TrailEvent)) ([]domain.AbroadCountry, error) {
+	if !cfg.U2opiaEnabled {
+		return nil, nil
+	}
+	countries := map[string]u2opia.Country{}
+	for code, rate := range cfg.U2opiaRates {
+		c, ok := u2opia.Known[strings.ToUpper(code)]
+		v, err := strconv.ParseFloat(rate, 64)
+		if !ok || err != nil || v <= 0 {
+			return nil, fmt.Errorf("RIHA_U2OPIA_RATES: %q=%q is not a known country with a positive rate", code, rate)
+		}
+		c.PerMZN = v
+		countries[c.Code] = c
+	}
+	if len(countries) == 0 {
+		return nil, errors.New("RIHA_U2OPIA_ENABLED needs RIHA_U2OPIA_RATES, the countries to offer and their rates")
+	}
+	client, err := u2opia.New(u2opia.Config{BaseURL: cfg.U2opiaTestURL, PartnerCode: cfg.U2opiaPartnerCode, Countries: countries, Trace: trace})
+	if err != nil {
+		return nil, err
+	}
+	methods := []string{}
+	for _, m := range cfg.U2opiaMethods {
+		if m == domain.MethodCard || m == domain.MethodAbroad {
+			methods = append(methods, m)
+			test.Default[m] = domain.IntegrationU2opia
+			log.Printf("payments: test %s goes through U2opia (%d countries)", m, len(countries))
+		}
+	}
+	test.Via[domain.IntegrationU2opia] = rails.Via{Rail: client, Methods: methods}
+	var out []domain.AbroadCountry
+	for _, c := range client.Countries() {
+		out = append(out, domain.AbroadCountry{Code: c.Code, Name: c.Name, Dial: c.Dial, Currency: c.Currency})
+	}
+	return out, nil
 }
 
 // checkMtocaURLs refuses the mix-ups that move money wrongly: test payments on the

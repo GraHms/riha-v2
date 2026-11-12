@@ -65,7 +65,7 @@ func TestMtocaIsOffUntilEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"emola", "bim", "card"}; !reflect.DeepEqual(p.ComingSoon, want) || !p.RealMoney {
+	if want := []string{"emola", "bim", "card", "abroad"}; !reflect.DeepEqual(p.ComingSoon, want) || !p.RealMoney {
 		t.Fatalf("coming soon %v, real money %v", p.ComingSoon, p.RealMoney)
 	}
 	q := p.Rail.(ports.RailReferencer)
@@ -85,7 +85,7 @@ func TestEachModeUsesItsOwnMtoca(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"card"}; !reflect.DeepEqual(p.ComingSoon, want) {
+	if want := []string{"card", "abroad"}; !reflect.DeepEqual(p.ComingSoon, want) {
 		t.Fatalf("coming soon %v", p.ComingSoon)
 	}
 	charge(t, p.Rail, "emola", "861234567", false)
@@ -120,7 +120,7 @@ func TestMpesaFlagMovesItToMtoca(t *testing.T) {
 	charge(t, p.Rail, "mpesa", "841234567", true)
 	charge(t, p.Rail, "mpesa", "841234567", false)
 	eventually(t, func() bool { return prdHits.Load() == 1 && devHits.Load() == 1 }, "each mode must reach its own API")
-	if len(p.ComingSoon) != 1 || p.ComingSoon[0] != "card" {
+	if want := []string{"card", "abroad"}; !reflect.DeepEqual(p.ComingSoon, want) {
 		t.Fatalf("coming soon %v", p.ComingSoon)
 	}
 }
@@ -247,5 +247,38 @@ func TestMpesaCanGoEitherWay(t *testing.T) {
 	r = p.Rail.(ports.RailRouting)
 	if r.RouteFor("", "mpesa", true) != domain.IntegrationMtoca || r.RouteFor(domain.IntegrationMpesaDirect, "mpesa", true) != domain.IntegrationMpesaDirect {
 		t.Fatal("with the flag, mtoca is the default and direct still an option")
+	}
+}
+
+// U2opia takes cards and wallets from abroad in test mode only, for the
+// countries it has a rate for; live mode still can't take either.
+func TestU2opiaIsTestModeOnly(t *testing.T) {
+	cfg := base(t)
+	cfg.U2opiaEnabled, cfg.U2opiaPartnerCode, cfg.U2opiaTestURL = true, "RIH-TEST", "https://u2opia.invalid/api-manager"
+	cfg.U2opiaMethods = []string{"card", "abroad"}
+	cfg.U2opiaRates = map[string]string{"za": "0.28", "ng": "24.3"}
+	p, err := paymentRail(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"emola", "bim", "card", "abroad"}; !reflect.DeepEqual(p.ComingSoon, want) {
+		t.Fatalf("live coming soon %v", p.ComingSoon)
+	}
+	if want := []string{"emola", "bim"}; !reflect.DeepEqual(p.TestComingSoon, want) {
+		t.Fatalf("test coming soon %v", p.TestComingSoon)
+	}
+	r := p.Rail.(ports.RailRouting)
+	if r.RouteFor("", "card", false) != domain.IntegrationU2opia || r.RouteFor("", "abroad", false) != domain.IntegrationU2opia ||
+		r.RouteFor("", "mpesa", false) != domain.IntegrationSimulator || r.RouteFor("", "card", true) != "" || r.RouteFor("", "abroad", true) != "" {
+		t.Fatal("U2opia takes card and abroad in test mode only")
+	}
+	if len(p.Abroad) != 2 || p.Abroad[0].Code != "NG" || p.Abroad[1].Code != "ZA" {
+		t.Fatalf("countries %+v", p.Abroad)
+	}
+	for _, rates := range []map[string]string{{}, {"mz": "1"}, {"za": "-1"}, {"za": "x"}} {
+		cfg.U2opiaRates = rates
+		if _, err := paymentRail(cfg, nil); err == nil {
+			t.Fatalf("rates %v must stop the start", rates)
+		}
 	}
 }
