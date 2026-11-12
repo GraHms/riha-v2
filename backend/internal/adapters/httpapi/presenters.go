@@ -60,7 +60,7 @@ func bankJSON(b *domain.BankAccount) gin.H {
 	if b == nil {
 		return nil
 	}
-	return gin.H{"bank_name": b.BankName, "holder": b.Holder, "nib": b.NIB, "nib_last5": b.NIB[len(b.NIB)-5:], "verified": b.Verified, "document_id": b.DocumentID, "updated_at": b.UpdatedAt}
+	return gin.H{"bank_name": b.BankName, "holder": b.Holder, "nib": b.NIB, "nib_last5": b.NIB[len(b.NIB)-5:], "verified": b.Verified, "document_id": b.DocumentID, "updated_at": b.UpdatedAt, "payable_from": iso(b.PayableFrom())}
 }
 
 func (srv *Server) linkJSON(v app.LinkView, merchantSlug string) gin.H {
@@ -96,6 +96,8 @@ func payoutRowJSON(r *app.PayoutRow) gin.H {
 	o["merchant_name"] = r.MerchantName
 	o["due_at_iso"] = isoT(r.DueAt)
 	o["nib_last4"] = r.NIB[len(r.NIB)-4:]
+	o["bank_changed_at"] = iso(r.BankChangedAt)
+	o["holder_differs"] = r.HolderDiffers
 	return o
 }
 
@@ -177,6 +179,11 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 		"success_url": success, "cancel_url": cs.CancelURL, "return_host": hostOf(domain.FirstNonEmpty(cs.SuccessURL, cs.CancelURL)),
 		"client_reference_id": cs.ClientReferenceID, "customer_phone": strings.TrimPrefix(cs.CustomerPhone, "+258"),
 		"customer_name": cs.CustomerName, "email_on_file": cs.CustomerEmail != "", "expires_at": isoT(cs.ExpiresAt), "merchant": publicMerchant(m), "payment": nil,
+	}
+	// The customer's number and name fill the form while it can be paid; a
+	// link kept after that shows neither.
+	if status != "open" {
+		out["customer_phone"], out["customer_name"] = "", ""
 	}
 	out["success_message"] = cs.SuccessMessage
 	out["submit_type"] = domain.FirstNonEmpty(cs.SubmitType, domain.SubmitPay)

@@ -64,7 +64,7 @@ func (a *App) RecheckUnconfirmed(ctx context.Context) {
 			a.endUnconfirmed(ctx, p, "não há forma de perguntar ao operador")
 			continue
 		}
-		o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration})
+		o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration, Amount: p.Amount})
 		switch {
 		case err == nil && known:
 			_ = a.CompletePayment(ctx, p.ID, o)
@@ -148,7 +148,7 @@ func (a *App) CheckWithOperator(ctx context.Context, paymentID, actor string, ap
 		out.Answer = "unsupported"
 		return out, nil
 	}
-	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration, Urgent: true})
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration, Urgent: true, Amount: p.Amount})
 	switch {
 	case errors.Is(err, ports.ErrNoStatusCheck):
 		out.Answer = "unsupported"
@@ -164,9 +164,10 @@ func (a *App) CheckWithOperator(ctx context.Context, paymentID, actor string, ap
 		out.Answer, out.FailureCode = "failed", o.FailureCode
 	}
 	open := p.Status == domain.PaymentProcessing || p.Status == domain.PaymentUnconfirmed
-	// Only a payment closed for want of an answer is reopened: one the
+	// Only a payment closed without the operator's own final word is
+	// reopened: for want of an answer, or on an error reaching it. One the
 	// operator turned down was already settled on its word.
-	unanswered := p.Status == domain.PaymentFailed && domain.Contains([]string{domain.FailCustomerTimeout, domain.FailNotCompleted, domain.FailNotConfirmed}, p.FailureCode)
+	unanswered := p.Status == domain.PaymentFailed && domain.Contains([]string{domain.FailCustomerTimeout, domain.FailNotCompleted, domain.FailNotConfirmed, domain.FailOperatorUnavailable}, p.FailureCode)
 	switch {
 	case out.Answer == "paid" && (open || unanswered):
 		out.Fix = "credit"
@@ -208,6 +209,8 @@ func (a *App) reopenUnanswered(ctx context.Context, paymentID, actor string) err
 		a.trace(ctx, domain.TrailEvent{MerchantID: p.MerchantID, Livemode: p.Livemode, SessionID: p.SessionID, PaymentID: p.ID, Kind: domain.TrailPaymentStatus, Source: "riha", Level: domain.TrailWarn,
 			Title: "Reaberto por um administrador: estava fechado sem resposta (" + from + ") e o operador diz que foi pago",
 			Data:  map[string]any{"from": domain.PaymentFailed, "to": domain.PaymentUnconfirmed, "actor": actor}})
+		a.Record(ctx, p.MerchantID, Actor{ID: actor, Role: domain.RoleAdmin}, "payment.reopened", p.ID,
+			fmt.Sprintf("%s: fechado como %s, o operador diz que foi pago (%s MT)", p.ID, from, domain.FormatShort(p.Amount)))
 		return nil
 	})
 }

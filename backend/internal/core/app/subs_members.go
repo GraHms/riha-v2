@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -211,9 +212,33 @@ func (a *App) createMembership(ctx context.Context, m *domain.Merchant, live boo
 	if err != nil && !isNotFound(err) {
 		return nil, nil, err
 	}
+	dupOf := ""
+	if mem != nil && nm.via == "link" {
+		// Anyone can type a member's phone and name in the public form: a
+		// signup only carries on one of its own that was never completed,
+		// and otherwise starts a member of its own, flagged for the merchant.
+		all, err := a.Members.Identities(ctx, m.ID, live, nm.phone, domain.NameKey(nm.name))
+		if err != nil {
+			return nil, nil, err
+		}
+		dupOf, mem = mem.ID, nil
+		for i := len(all) - 1; i >= 0 && mem == nil; i-- {
+			if own, err := a.abandonedSignup(ctx, &all[i]); err != nil {
+				return nil, nil, err
+			} else if own {
+				mem = &all[i]
+				if _, err := a.Members.Lock(ctx, mem.ID); err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+		if mem != nil && mem.ID == dupOf {
+			dupOf = ""
+		}
+	}
 	if mem == nil {
 		mem = &domain.Member{ID: domain.NewID("mem"), MerchantID: m.ID, Livemode: live, Name: nm.name, NameKey: domain.NameKey(nm.name), Phone: nm.phone,
-			Status: nm.status, Token: domain.Token("", 24), CreatedVia: nm.via, CreatedBy: nm.actor, CreatedAt: now}
+			Status: nm.status, Token: domain.Token("", 24), CreatedVia: nm.via, CreatedBy: nm.actor, DuplicateOf: dupOf, CreatedAt: now}
 		if err := a.Members.Create(ctx, mem); err != nil {
 			return nil, nil, err
 		}
@@ -294,6 +319,24 @@ func (a *App) createMembership(ctx context.Context, m *domain.Merchant, live boo
 	}
 	mem, _ = a.Members.Get(ctx, mem.ID)
 	return mem, charges, nil
+}
+
+// abandonedSignup is a member made by a public signup that never went
+// further: no subscription past incomplete, nothing paid.
+func (a *App) abandonedSignup(ctx context.Context, mem *domain.Member) (bool, error) {
+	if mem.CreatedVia != "link" || mem.LastPaidAt != nil {
+		return false, nil
+	}
+	subs, err := a.Subs.ByMember(ctx, mem.ID)
+	if err != nil {
+		return false, err
+	}
+	for _, s := range subs {
+		if s.Status != domain.SubIncomplete && s.Status != domain.SubCanceled {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (a *App) cancelOpenCharges(ctx context.Context, subID string) error {
@@ -984,11 +1027,27 @@ func tokensIn(cell, name string) bool {
 	return true
 }
 
+var importSlots = make(chan struct{}, 2)
+
 func (a *App) PreviewImport(ctx context.Context, m *domain.Merchant, live bool, fileName string, data []byte, defaultPlan string) (*ImportPreview, error) {
+	if e := domain.RequireApproved(m); e != nil {
+		return nil, e
+	}
 	if len(data) > 4<<20 {
 		return nil, domain.Invalid("file_invalid", "file", "A folha tem de ter menos de 4 MB.")
 	}
+	// Two sheets read at a time, server-wide: reading one takes memory the
+	// payments in progress need too.
+	select {
+	case importSlots <- struct{}{}:
+		defer func() { <-importSlots }()
+	default:
+		return nil, domain.Conflict("import_busy", "Outra importação está em curso. Tente de novo daqui a um minuto.")
+	}
 	rows, err := a.Sheets.Rows(fileName, data)
+	if errors.Is(err, ports.ErrSheetTooWide) {
+		return nil, domain.Invalid("file_too_wide", "file", "A folha tem dados para lá da coluna BL. Apague essas colunas e tente de novo.")
+	}
 	if err != nil || len(rows) < 2 {
 		return nil, domain.Invalid("file_invalid", "file", "Use uma folha .xlsx ou .csv com uma linha de cabeçalho e pelo menos um membro.")
 	}

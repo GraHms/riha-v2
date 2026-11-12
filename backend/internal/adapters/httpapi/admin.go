@@ -19,6 +19,7 @@ import (
 func (srv *Server) adminRoutes(a *gin.RouterGroup) {
 	// The overview is every staff member's; each other area needs its permission.
 	a.GET("/overview", srv.adminOverview)
+	a.GET("/badges", srv.adminBadges)
 	a.GET("/settings", srv.adminSettings)
 
 	ap := a.Group("", can(domain.PermApprovals))
@@ -42,6 +43,8 @@ func (srv *Server) adminRoutes(a *gin.RouterGroup) {
 	po.GET("/payouts/:id/receipt", srv.adminPayoutReceipt)
 	po.POST("/payouts/:id/email", srv.adminPayoutEmail)
 	po.POST("/funding/:id/paid", srv.adminPayFunding)
+	po.POST("/funding/confirm", srv.adminConfirmFunding)
+	po.POST("/funding/:id/reject", srv.adminRejectClaim)
 	po.GET("/funding/:id/receipt", srv.adminFundingReceipt)
 
 	pr := a.Group("", can(domain.PermPricing))
@@ -138,6 +141,28 @@ func (srv *Server) adminOverview(c *gin.Context) {
 		"approvals": applicationsJSON(o.Approvals, false), "pending_approvals": o.PendingApprovals, "unconfirmed_payments": o.UnconfirmedPayments,
 		"payouts_due": payoutRowsJSON(o.PayoutsDue), "payout_stats": statsJSON(o.PayoutStats),
 	})
+}
+
+// adminBadges are the menu's counts, each one a small indexed read, shown
+// only for what this person can open.
+func (srv *Server) adminBadges(c *gin.Context) {
+	u := user(c)
+	out := gin.H{}
+	if u.Can(domain.PermApprovals) {
+		out["pending_approvals"] = srv.A.PendingApprovals(ctx(c))
+	}
+	if u.Can(domain.PermPayouts) {
+		out["payout_stats"] = gin.H{"pending_count": srv.A.PayoutStats(ctx(c)).PendingCount}
+	}
+	if u.Can(domain.PermTransactions) {
+		live := true
+		n, _ := srv.A.Payments.Count(ctx(c), ports.PaymentQuery{Live: &live, Statuses: []string{domain.PaymentUnconfirmed}})
+		out["unconfirmed_payments"] = n
+	}
+	if u.Can(domain.PermMetrics) {
+		out["alerts"] = len(srv.A.ActiveAlerts(ctx(c)))
+	}
+	c.JSON(200, out)
 }
 
 func (srv *Server) adminApprovals(c *gin.Context) {
@@ -327,7 +352,7 @@ func (srv *Server) adminPayoutExport(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="riha-transferencias-%s.csv"`, time.Now().Format("20060102-1504")))
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"referencia", "banco", "nib", "titular", "valor_mzn", "descritivo", "prazo", "quem_paga"})
+	_ = writeSafe(w, []string{"referencia", "banco", "nib", "titular", "valor_mzn", "descritivo", "prazo", "quem_paga"})
 	ids = make([]string, len(ps))
 	for i := range ps {
 		ids[i] = ps[i].ID
@@ -339,14 +364,14 @@ func (srv *Server) adminPayoutExport(c *gin.Context) {
 		// transfer fee, split between whoever holds the merchant's money.
 		fs := parts[p.ID]
 		if len(fs) == 0 {
-			_ = w.Write([]string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(p.Net()), "RIHA " + p.Ref(), isoT(p.DueAt), "RIHA"})
+			_ = writeSafe(w, []string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(p.Net()), "RIHA " + p.Ref(), isoT(p.DueAt), "RIHA"})
 			continue
 		}
 		for _, f := range fs {
 			if f.Status == domain.FundingCancelled {
 				continue
 			}
-			_ = w.Write([]string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(f.Send), "RIHA " + p.Ref(), isoT(p.DueAt), csvSafe(names[f.Source])})
+			_ = writeSafe(w, []string{p.Ref(), p.BankName, p.NIB, csvSafe(p.Holder), centsCSV(f.Send), "RIHA " + p.Ref(), isoT(p.DueAt), csvSafe(names[f.Source])})
 		}
 	}
 	w.Flush()

@@ -61,10 +61,19 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	m.DELETE("/developers/endpoints/:id", srv.deleteEndpoint)
 	m.POST("/developers/domains", srv.addDomain)
 	m.DELETE("/developers/domains/:id", srv.deleteDomain)
+	m.POST("/developers/domains/:id/verify", srv.verifyDomain)
 	m.GET("/developers/deliveries", srv.listDeliveries)
 	m.POST("/developers/deliveries/:id/resend", srv.resendDelivery)
 	m.POST("/developers/test-event", srv.testEvent)
 	m.GET("/developers/secret", func(c *gin.Context) { c.JSON(200, gin.H{"secret": merchant(c).SigningSecret(live(c))}) })
+	m.POST("/developers/secret/roll", func(c *gin.Context) {
+		s, err := srv.A.RollSigningSecret(ctx(c), merchant(c).ID, live(c), actor(c))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		c.JSON(200, gin.H{"secret": s})
+	})
 
 	srv.subscriptionRoutes(m)
 
@@ -139,19 +148,27 @@ func (srv *Server) sendReceipt(c *gin.Context) {
 	c.JSON(200, gin.H{"ok": true, "message": "Recibo enviado para " + to + "."})
 }
 
+// deviceCookie remembers a device that entered a login code.
+const deviceCookie = "riha_device"
+
 func (srv *Server) login(c *gin.Context) {
-	var in struct{ Email, Password string }
+	var in struct{ Email, Password, Code string }
 	if err := c.ShouldBindJSON(&in); err != nil {
 		bad(c, "Pedido inválido.")
 		return
 	}
-	tok, u, err := srv.A.Login(ctx(c), in.Email, in.Password, c.ClientIP(), c.GetHeader("User-Agent"))
+	device, _ := c.Cookie(deviceCookie)
+	r, err := srv.A.SignIn(ctx(c), app.LoginInput{Email: in.Email, Password: in.Password, Code: in.Code, Device: device, IP: c.ClientIP(), UA: c.GetHeader("User-Agent")})
 	if err != nil {
 		fail(c, err)
 		return
 	}
-	srv.setCookie(c, tok, int(app.SessionTTL.Seconds()))
-	c.Set("user", u)
+	if r.Device != "" {
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie(deviceCookie, r.Device, int(app.DeviceTTL.Seconds()), "/api/auth", "", srv.cfg.CookieSecure, true)
+	}
+	srv.setCookie(c, r.Token, int(app.SessionTTL.Seconds()))
+	c.Set("user", r.User)
 	srv.me(c)
 }
 
@@ -298,7 +315,7 @@ func (srv *Server) overview(c *gin.Context) {
 }
 
 func paymentFilter(c *gin.Context) app.PaymentFilter {
-	f := app.PaymentFilter{Status: c.Query("status"), Source: c.Query("source"), LinkID: c.Query("link"), Search: strings.TrimSpace(c.Query("q")), Limit: qInt(c, "limit", 50), Offset: qInt(c, "offset", 0)}
+	f := app.PaymentFilter{Status: c.Query("status"), Source: c.Query("source"), LinkID: c.Query("link"), Search: strings.TrimSpace(c.Query("q")), Limit: max(1, min(200, qInt(c, "limit", 50))), Offset: max(0, qInt(c, "offset", 0))}
 	if f.Limit > 200 {
 		f.Limit = 200
 	}
@@ -379,9 +396,9 @@ func (srv *Server) exportPayments(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", `attachment; filename="riha-transacoes.csv"`)
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"id", "referencia", "data", "estado", "metodo", "origem", "cliente", "client_reference_id", "valor_mzn", "taxa_mzn", "liquido_mzn", "reembolsado_mzn"})
+	_ = writeSafe(w, []string{"id", "referencia", "data", "estado", "metodo", "origem", "cliente", "client_reference_id", "valor_mzn", "taxa_mzn", "liquido_mzn", "reembolsado_mzn"})
 	for _, p := range rows {
-		_ = w.Write([]string{p.ID, p.Reference, isoT(p.CreatedAt), p.Status, p.Method, p.SourceType, csvSafe(p.CustomerName), csvSafe(p.ClientReferenceID), centsCSV(p.Amount), centsCSV(p.Fee), centsCSV(p.Net), centsCSV(p.AmountRefunded)})
+		_ = writeSafe(w, []string{p.ID, p.Reference, isoT(p.CreatedAt), p.Status, p.Method, p.SourceType, csvSafe(p.CustomerName), csvSafe(p.ClientReferenceID), centsCSV(p.Amount), centsCSV(p.Fee), centsCSV(p.Net), centsCSV(p.AmountRefunded)})
 	}
 	w.Flush()
 }
@@ -623,7 +640,7 @@ func (srv *Server) devSettings(c *gin.Context) {
 	}
 	d := []gin.H{}
 	for _, x := range srv.A.DomainList(ctx(c), m.ID) {
-		d = append(d, gin.H{"id": x.ID, "domain": x.Domain, "verified": x.VerifiedAt != nil})
+		d = append(d, gin.H{"id": x.ID, "domain": x.Domain, "verified": x.VerifiedAt != nil, "txt_name": "_riha." + x.Domain, "txt_value": x.Token})
 	}
 	sec := m.SigningSecret(lv)
 	c.JSON(200, gin.H{"success_url": m.SuccessURL, "cancel_url": m.CancelURL, "endpoints": e, "domains": d,
@@ -683,6 +700,17 @@ func (srv *Server) updateEndpoint(c *gin.Context) {
 
 func (srv *Server) deleteEndpoint(c *gin.Context) {
 	_, _ = srv.A.DeleteEndpoint(ctx(c), merchant(c).ID, nil, c.Param("id"))
+	srv.devSettings(c)
+}
+
+func (srv *Server) verifyDomain(c *gin.Context) {
+	m := merchant(c)
+	d, err := srv.A.VerifyDomain(ctx(c), m.ID, c.Param("id"))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	srv.A.Record(ctx(c), m.ID, actor(c), "domain.verified", d.Domain, "")
 	srv.devSettings(c)
 }
 

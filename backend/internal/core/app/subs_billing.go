@@ -411,7 +411,8 @@ func (a *App) Invoice(ctx context.Context, token string, touch bool) (*InvoiceVi
 		v.Total += u.Amount
 		if s.ConsentAt == nil {
 			v.NeedsConsent = true
-			v.Agreements = append(v.Agreements, domain.Agreement(m.Name, planOf(v.Plans, a, ctx, u.PlanID), u.Amount, mem.Phone, mem.Channel, s.AnchorAt))
+			// Whoever has the link reads this: the number is half hidden.
+			v.Agreements = append(v.Agreements, domain.MaskPhones(domain.Agreement(m.Name, planOf(v.Plans, a, ctx, u.PlanID), u.Amount, mem.Phone, mem.Channel, s.AnchorAt)))
 		}
 	}
 	sort.SliceStable(v.Lines, func(i, j int) bool {
@@ -463,8 +464,11 @@ type InvoicePay struct {
 	CardExpiry string   `json:"card_expiry"`
 	CardCVC    string   `json:"card_cvc"`
 	Accept     bool     `json:"accept"`
-	IP         string   `json:"-"`
-	UA         string   `json:"-"`
+	// PayAgain: the payer saw that an earlier payment is still being
+	// confirmed with the operator, and pays anyway.
+	PayAgain bool   `json:"pay_again"`
+	IP       string `json:"-"`
+	UA       string `json:"-"`
 }
 
 func (a *App) PayInvoice(ctx context.Context, token string, in InvoicePay) (*domain.Payment, error) {
@@ -550,6 +554,14 @@ func (a *App) PayInvoice(ctx context.Context, token string, in InvoicePay) (*dom
 			if c.SessionID != nil {
 				if p := a.LatestPayment(ctx, *c.SessionID); p != nil && p.Status == domain.PaymentProcessing {
 					return domain.Conflict("payment_in_progress", "Já existe um pagamento em curso. Confirme no telemóvel ou aguarde.")
+				} else if p != nil && p.Status == domain.PaymentUnconfirmed && !in.PayAgain {
+					return domain.Conflict("payment_unconfirmed", UnconfirmedNotice)
+				} else if p == nil && *c.SessionID != cs.ID {
+					// Another tap is between taking the charge and asking the
+					// operator: its push is about to go out.
+					if prev, err := a.Sessions.ByID(ctx, *c.SessionID); err == nil && now.Sub(prev.CreatedAt) < time.Minute {
+						return domain.Conflict("payment_in_progress", "Já existe um pagamento em curso. Confirme no telemóvel ou aguarde.")
+					}
 				}
 			}
 			c.SessionID, c.UpdatedAt = &cs.ID, now
@@ -765,7 +777,12 @@ func (a *App) remindUnfinished(ctx context.Context, now time.Time) {
 		if err != nil {
 			continue
 		}
-		body := fmt.Sprintf("%s: a inscrição de %s ficou por concluir. Pague hoje para ativar: %s", m.Name, mem.Name, a.chargeLink(&open[0]))
+		// Anyone can type any number in the public form: one reminder per
+		// number a week, whatever names were typed with it.
+		if n, err := a.Messages.CountRecentToPhone(ctx, s.MerchantID, mem.Phone, "unfinished", now.Add(-7*24*time.Hour)); err != nil || n > 0 {
+			continue
+		}
+		body := fmt.Sprintf("%s: a inscrição de %s ficou por concluir. Pague hoje para ativar: %s", m.Name, domain.PlainName(mem.Name, 40), a.chargeLink(&open[0]))
 		if err := a.queueMessage(ctx, m, mem, open[0].ID, "unfinished", body); err != nil {
 			log.Printf("unfinished %s: %v", s.ID, err)
 		}

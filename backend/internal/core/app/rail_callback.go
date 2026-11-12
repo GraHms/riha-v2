@@ -14,9 +14,11 @@ import (
 
 // RailCallback is told that something happened to an operation. Anyone can reach the
 // address it comes from, so the callback's own words are never believed: this only
-// asks the operator straight away, and its answer decides. Polling and the sweep still
-// run, so a callback that never comes costs only time. The id it brings is what finds
-// a payment whose create answer was lost.
+// asks the operator straight away, about RIHA's own operation number and the ids
+// the operator gave RIHA, and its answer decides. An id in the callback is never
+// asked about nor kept: anyone could send the id of another, cheaper, paid
+// transaction. Polling and the sweep still run, so a callback that never comes
+// costs only time.
 func (a *App) RailCallback(ctx context.Context, operation, railID string, raw []byte) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -34,8 +36,10 @@ func (a *App) RailCallback(ctx context.Context, operation, railID string, raw []
 	if !ok {
 		return
 	}
-	id := domain.FirstNonEmpty(p.RailID, railID)
-	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: id, Method: p.Method, Integration: p.Integration, Urgent: true})
+	if railID != "" && railID != p.RailID {
+		a.logPayment(ctx, p.ID, domain.TrailInfo, "rail callback: payment %s (%s) brought transaction id %q; asking the operator by RIHA's own references", p.ID, operation, railID)
+	}
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration, Urgent: true, Amount: p.Amount})
 	switch {
 	case errors.Is(err, ports.ErrStillPending):
 		a.logPayment(ctx, p.ID, domain.TrailInfo, "rail callback: payment %s (%s) is still pending at the operator", p.ID, operation)
@@ -50,9 +54,6 @@ func (a *App) RailCallback(ctx context.Context, operation, railID string, raw []
 		}
 		a.logPayment(ctx, p.ID, domain.TrailInfo, "rail callback: payment %s (%s) has already ended as %s", p.ID, operation, p.Status)
 	default:
-		if p.RailID == "" && id != "" {
-			a.keepRailID(p.ID, id)
-		}
 		if err := a.CompletePayment(ctx, p.ID, o); err != nil {
 			a.logPayment(ctx, p.ID, domain.TrailError, "rail callback: payment %s (%s): %v", p.ID, operation, err)
 			return

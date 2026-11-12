@@ -44,6 +44,9 @@ func (r Domains) Create(ctx context.Context, d *domain.AllowedDomain) error {
 func (r Domains) List(ctx context.Context, merchantID string) ([]domain.AllowedDomain, error) {
 	return find[domainRecord, domain.AllowedDomain](r.conn(ctx).Where("merchant_id = ?", merchantID).Order("created_at"))
 }
+func (r Domains) MarkVerified(ctx context.Context, merchantID, id string, at time.Time) error {
+	return r.conn(ctx).Model(&domainRecord{}).Where("id = ? AND merchant_id = ?", id, merchantID).Update("verified_at", at).Error
+}
 func (r Domains) Delete(ctx context.Context, merchantID, id string) error {
 	return r.conn(ctx).Where("id = ? AND merchant_id = ?", id, merchantID).Delete(&domainRecord{}).Error
 }
@@ -119,6 +122,21 @@ func (r Idempotency) Get(ctx context.Context, merchantID string, live bool, key 
 func (r Idempotency) Save(ctx context.Context, x *domain.IdempotencyRecord) error {
 	return create[idempotencyRecord](r.conn(ctx), x)
 }
+
+// Claim takes a key before its request runs: the first of two requests at
+// once wins, and the other finds the claim.
+func (r Idempotency) Claim(ctx context.Context, x *domain.IdempotencyRecord) (bool, error) {
+	res := r.conn(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(toRecord[idempotencyRecord](x))
+	return res.RowsAffected == 1, res.Error
+}
+
+func (r Idempotency) Finish(ctx context.Context, id string, status int, body string) error {
+	return r.conn(ctx).Model(&idempotencyRecord{}).Where("id = ?", id).Updates(map[string]any{"status_code": status, "response_body": body}).Error
+}
+
+func (r Idempotency) Release(ctx context.Context, id string) error {
+	return r.conn(ctx).Where("id = ? AND status_code = 0", id).Delete(&idempotencyRecord{}).Error
+}
 func (r Idempotency) Purge(ctx context.Context, before time.Time) error {
 	return r.conn(ctx).Where("created_at < ?", before).Delete(&idempotencyRecord{}).Error
 }
@@ -160,18 +178,50 @@ func (r Reports) scope(ctx context.Context, s ports.Scope) *gorm.DB {
 	}
 	return q
 }
+// days answers from the payment_days rollup when the scope's bounds start
+// Maputo days, as the console's and the reports' do; any other bounds read
+// the payments themselves, within those bounds.
+func (r Reports) days(ctx context.Context, s ports.Scope) (*gorm.DB, bool) {
+	if !maputoMidnight(s.From) || !maputoMidnight(s.To) {
+		return nil, false
+	}
+	q := r.conn(ctx).Model(&paymentDayRecord{}).Where("livemode = ?", s.Live)
+	if s.MerchantID != "" {
+		q = q.Where("merchant_id = ?", s.MerchantID)
+	}
+	if s.From != nil {
+		q = q.Where("day >= ?", maputoDay(*s.From))
+	}
+	if s.To != nil {
+		q = q.Where("day < ?", maputoDay(*s.To))
+	}
+	return q, true
+}
+
 func (r Reports) SettledVolume(ctx context.Context, s ports.Scope) (int64, error) {
 	var v int64
+	if q, ok := r.days(ctx, s); ok {
+		err := q.Where("status IN ?", domain.SettledStatuses).Select("COALESCE(SUM(amount),0)").Scan(&v).Error
+		return v, err
+	}
 	err := r.scope(ctx, s).Where("status IN ?", domain.SettledStatuses).Select("COALESCE(SUM(amount),0)").Scan(&v).Error
 	return v, err
 }
 func (r Reports) SettledCount(ctx context.Context, s ports.Scope) (int64, error) {
 	var n int64
+	if q, ok := r.days(ctx, s); ok {
+		err := q.Where("status IN ?", domain.SettledStatuses).Select("COALESCE(SUM(n),0)").Scan(&n).Error
+		return n, err
+	}
 	err := r.scope(ctx, s).Where("status IN ?", domain.SettledStatuses).Count(&n).Error
 	return n, err
 }
 func (r Reports) Attempts(ctx context.Context, s ports.Scope) (int64, error) {
 	var n int64
+	if q, ok := r.days(ctx, s); ok {
+		err := q.Select("COALESCE(SUM(n),0)").Scan(&n).Error
+		return n, err
+	}
 	err := r.scope(ctx, s).Count(&n).Error
 	return n, err
 }
@@ -180,13 +230,22 @@ func (r Reports) VolumeBuckets(ctx context.Context, s ports.Scope, unit string) 
 		unit = "day"
 	}
 	var out []ports.Bucket
+	if q, ok := r.days(ctx, s); ok {
+		err := q.Where("status IN ?", domain.SettledStatuses).
+			Select(fmt.Sprintf("date_trunc('%s', day)::date AS date, SUM(amount) AS amount", unit)).Group("date").Order("date").Scan(&out).Error
+		return out, err
+	}
 	err := r.scope(ctx, s).Where("status IN ?", domain.SettledStatuses).
 		Select(fmt.Sprintf("date_trunc('%s', created_at) AS date, SUM(amount) AS amount", unit)).Group("date").Order("date").Scan(&out).Error
 	return out, err
 }
 func (r Reports) VolumeByMethod(ctx context.Context, s ports.Scope) (map[string]int64, error) {
 	var rows []ports.Bucket
-	err := r.scope(ctx, s).Where("status IN ?", domain.SettledStatuses).Select("method, SUM(amount) AS amount").Group("method").Scan(&rows).Error
+	q, ok := r.days(ctx, s)
+	if !ok {
+		q = r.scope(ctx, s)
+	}
+	err := q.Where("status IN ?", domain.SettledStatuses).Select("method, SUM(amount) AS amount").Group("method").Scan(&rows).Error
 	out := map[string]int64{}
 	for _, x := range rows {
 		out[x.Method] = x.Amount
@@ -195,6 +254,10 @@ func (r Reports) VolumeByMethod(ctx context.Context, s ports.Scope) (map[string]
 }
 func (r Reports) VolumeByDayAndMethod(ctx context.Context, s ports.Scope) ([]ports.Bucket, error) {
 	var out []ports.Bucket
+	if q, ok := r.days(ctx, s); ok {
+		err := q.Where("status IN ?", domain.SettledStatuses).Select("day AS date, method, SUM(amount) AS amount").Group("1, 2").Scan(&out).Error
+		return out, err
+	}
 	err := r.scope(ctx, s).Where("status IN ?", domain.SettledStatuses).
 		Select("date_trunc('day', created_at) AS date, method, SUM(amount) AS amount").Group("1, 2").Scan(&out).Error
 	return out, err
@@ -210,9 +273,58 @@ func (r Reports) Health(ctx context.Context, since time.Time) ([]ports.MethodHea
 }
 func (r Reports) MainMethod(ctx context.Context, merchantID string) (string, error) {
 	var row struct{ Method string }
-	err := r.conn(ctx).Raw(`SELECT method FROM payments WHERE merchant_id = ? AND livemode AND status IN ? GROUP BY method ORDER BY SUM(amount) DESC LIMIT 1`,
-		merchantID, domain.SettledStatuses).Scan(&row).Error
+	err := r.conn(ctx).Raw(`SELECT method FROM settled_days WHERE merchant_id = ? AND livemode GROUP BY method HAVING SUM(n) > 0 ORDER BY SUM(amount) DESC LIMIT 1`,
+		merchantID).Scan(&row).Error
 	return row.Method, err
+}
+
+func (r Reports) PaymentTotal(ctx context.Context, live bool, merchantID, method string, statuses []string) (int64, error) {
+	q := r.conn(ctx).Model(&paymentDayRecord{}).Where("livemode = ?", live)
+	if merchantID != "" {
+		q = q.Where("merchant_id = ?", merchantID)
+	}
+	if method != "" {
+		q = q.Where("method = ?", method)
+	}
+	if len(statuses) > 0 {
+		q = q.Where("status IN ?", statuses)
+	}
+	var n int64
+	err := q.Select("COALESCE(SUM(n),0)").Scan(&n).Error
+	return n, err
+}
+
+func (r Reports) MerchantSummaries(ctx context.Context, ids []string, since time.Time) (map[string]ports.MerchantSummary, error) {
+	out := map[string]ports.MerchantSummary{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	var rows []ports.MerchantSummary
+	err := r.conn(ctx).Raw(`SELECT m.id AS merchant_id,
+		COALESCE((SELECT SUM(amount) FROM settled_days s WHERE s.merchant_id = m.id AND s.livemode AND s.day >= ?), 0) AS volume,
+		COALESCE((SELECT method FROM settled_days s WHERE s.merchant_id = m.id AND s.livemode GROUP BY method HAVING SUM(n) > 0 ORDER BY SUM(amount) DESC LIMIT 1), '') AS main_method,
+		COALESCE((SELECT balance FROM merchant_balances b WHERE b.merchant_id = m.id AND b.livemode), 0) AS balance
+		FROM unnest(ARRAY[?]::text[]) AS m(id)`, maputoDay(since), ids).Scan(&rows).Error
+	for _, x := range rows {
+		out[x.MerchantID] = x
+	}
+	return out, err
+}
+
+func (r Reports) Prune(ctx context.Context, before time.Time) (int64, error) {
+	var total int64
+	for _, q := range []string{
+		`DELETE FROM api_request_logs WHERE created_at < ?`,
+		`DELETE FROM webhook_deliveries WHERE created_at < ? AND status <> 'pending'`,
+		`DELETE FROM events e WHERE e.created_at < ? AND NOT EXISTS (SELECT 1 FROM webhook_deliveries d WHERE d.event_id = e.id)`,
+	} {
+		res := r.conn(ctx).Exec(q, before)
+		if res.Error != nil {
+			return total, res.Error
+		}
+		total += res.RowsAffected
+	}
+	return total, nil
 }
 
 type Emails struct{ *Store }
@@ -272,5 +384,37 @@ func (r PasswordResets) SpendAll(ctx context.Context, userID string, now time.Ti
 	return r.conn(ctx).Model(&passwordResetRecord{}).Where("user_id = ? AND used_at IS NULL", userID).Update("used_at", now).Error
 }
 func (r PasswordResets) Purge(ctx context.Context, before time.Time) error {
+	if err := r.conn(ctx).Where("expires_at < ?", before).Delete(&trustedDeviceRecord{}).Error; err != nil {
+		return err
+	}
+	if err := r.conn(ctx).Where("expires_at < ?", before).Delete(&loginCodeRecord{}).Error; err != nil {
+		return err
+	}
 	return r.conn(ctx).Where("expires_at < ?", before).Delete(&passwordResetRecord{}).Error
+}
+
+// SaveLoginCode keeps one code per user: a new one replaces the last.
+func (r PasswordResets) SaveLoginCode(ctx context.Context, c *domain.LoginCode) error {
+	return r.conn(ctx).Save(toRecord[loginCodeRecord](c)).Error
+}
+
+func (r PasswordResets) LoginCode(ctx context.Context, userID string) (*domain.LoginCode, error) {
+	return first[loginCodeRecord, domain.LoginCode](r.conn(ctx).Where("user_id = ?", userID))
+}
+
+// TryLoginCode counts one try at a user's code.
+func (r PasswordResets) TryLoginCode(ctx context.Context, userID string) error {
+	return r.conn(ctx).Model(&loginCodeRecord{}).Where("user_id = ?", userID).Update("attempts", gorm.Expr("attempts + 1")).Error
+}
+
+func (r PasswordResets) SpendLoginCode(ctx context.Context, userID string) error {
+	return r.conn(ctx).Where("user_id = ?", userID).Delete(&loginCodeRecord{}).Error
+}
+
+func (r PasswordResets) TrustDevice(ctx context.Context, d *domain.TrustedDevice) error {
+	return create[trustedDeviceRecord](r.conn(ctx), d)
+}
+
+func (r PasswordResets) DeviceTrusted(ctx context.Context, userID, tokenHash string, now time.Time) (bool, error) {
+	return exists(r.conn(ctx).Model(&trustedDeviceRecord{}).Where("token_hash = ? AND user_id = ? AND expires_at > ?", tokenHash, userID, now))
 }

@@ -49,7 +49,7 @@ export default function AdminTeam() {
       </div>
       {tab === 'riha' && (
         !staff.data ? <Skeleton h={160} /> : (
-          <TeamList members={staff.data.data} perms={staff.data.permissions} canManage meId={me!.user.id} allowAll onChange={staff.reload}
+          <TeamList members={staff.data.data} perms={staff.data.permissions} canManage meId={me!.user.id} allowAll={!!me?.user.permissions?.includes('*')} onChange={staff.reload}
             api={{ invite: g.admin.invite, setAccess: g.admin.setAccess, resend: g.admin.resendInvite }} />
         )
       )}

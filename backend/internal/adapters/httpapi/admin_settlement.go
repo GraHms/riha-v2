@@ -188,10 +188,10 @@ func (srv *Server) adminSettlementExport(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", `attachment; filename="`+name+`.csv"`)
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"integracao", "parceiro", "comerciante", "pagamentos", "valor_mt", "taxa_riha_mt", "taxa_operador_mt", "parte_parceiro_mt", "margem_riha_mt", "reembolsado_mt", "devido_a_riha_mt"})
+	_ = writeSafe(w, []string{"integracao", "parceiro", "comerciante", "pagamentos", "valor_mt", "taxa_riha_mt", "taxa_operador_mt", "parte_parceiro_mt", "margem_riha_mt", "reembolsado_mt", "devido_a_riha_mt"})
 	for _, p := range r.Partners {
 		for _, m := range p.Merchants {
-			_ = w.Write([]string{p.Integration.Code, p.PartnerName, strings.TrimSpace(m.Name), fmt.Sprint(m.Count), mt(m.Amount), mt(m.Fee), mt(m.PlatformFee),
+			_ = writeSafe(w, []string{p.Integration.Code, p.PartnerName, strings.TrimSpace(m.Name), fmt.Sprint(m.Count), mt(m.Amount), mt(m.Fee), mt(m.PlatformFee),
 				mt(m.PartnerFee), mt(m.Margin()), mt(m.Refunded), mt(m.DueToRIHA())})
 		}
 	}

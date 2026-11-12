@@ -61,10 +61,16 @@ type Deps struct {
 
 type App struct {
 	Deps
+	hosts webhookHosts
 	PublicURL            string
 	PayURL               string // the address in checkout and payment links
 	AllowPrivateNetworks bool
-	AdminNotifyEmail     string
+	// LoginCodes asks staff and partners for a code emailed to them when they
+	// sign in on a device RIHA does not know.
+	LoginCodes bool
+	// LookupTXT reads DNS TXT records, to verify a merchant's domain.
+	LookupTXT        func(ctx context.Context, name string) ([]string, error)
+	AdminNotifyEmail string
 	// BackupStatusFile is where the server's backup writes the time of its last success.
 	BackupStatusFile string
 	// ComingSoon lists the methods that can't take money yet.

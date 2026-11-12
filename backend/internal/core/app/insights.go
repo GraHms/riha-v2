@@ -191,5 +191,30 @@ func (a *App) PruneTrail(ctx context.Context) {
 	}
 }
 
+// Retention is how long request logs, and webhook events and deliveries, are
+// kept. The audit log and the money are kept for good.
+const Retention = 90 * 24 * time.Hour
+
+// Housekeeping runs once a day: it checks the rollups against the rows they
+// add up, rebuilding any that drifted, and deletes what retention lets go.
+func (a *App) Housekeeping(ctx context.Context) {
+	if n, err := a.Reports.RollupDrift(ctx); err != nil {
+		log.Printf("rollups: check failed: %v", err)
+	} else if n > 0 {
+		// A drift is a bug: say so loudly, then put the numbers right.
+		log.Printf("ROLLUP DRIFT: %d rows differ from the payments and ledger; rebuilding", n)
+		a.trace(ctx, domain.TrailEvent{Kind: domain.TrailLog, Source: "riha", Level: domain.TrailError,
+			Title: fmt.Sprintf("Os totais diários diferiam dos pagamentos em %d linhas. Foram refeitos.", n)})
+		if err := a.Reports.RebuildRollups(ctx); err != nil {
+			log.Printf("rollups: rebuild failed: %v", err)
+		}
+	}
+	if n, err := a.Reports.Prune(ctx, a.Now().Add(-Retention)); err != nil {
+		log.Printf("retention: %v", err)
+	} else if n > 0 {
+		log.Printf("retention: deleted %d old request logs, events and deliveries", n)
+	}
+}
+
 // ActiveAlerts is what is wrong now, for the admin's menu.
 func (a *App) ActiveAlerts(ctx context.Context) []Alert { return a.alerts(ctx) }

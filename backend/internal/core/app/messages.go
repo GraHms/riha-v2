@@ -38,7 +38,7 @@ func (a *App) SendQueued(ctx context.Context) {
 
 // SendSoon sends what is queued without holding up the request that queued it.
 func (a *App) SendSoon(ctx context.Context) {
-	go a.SendQueued(context.WithoutCancel(ctx))
+	domain.Safely("messages", func() { a.SendQueued(context.WithoutCancel(ctx)) })
 }
 
 func (a *App) sendOne(ctx context.Context, msg *domain.Message) {

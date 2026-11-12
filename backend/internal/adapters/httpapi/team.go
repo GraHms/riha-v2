@@ -154,7 +154,7 @@ func (srv *Server) adminRenamePartner(c *gin.Context) {
 
 func fundingJSON(f *domain.PayoutFunding) gin.H {
 	return gin.H{"id": f.ID, "source": f.Source, "amount": f.Amount, "send": f.Send, "status": f.Status, "reference": f.Reference,
-		"has_receipt": f.HasReceipt(), "paid_at": iso(f.PaidAt)}
+		"has_receipt": f.HasReceipt(), "paid_at": iso(f.PaidAt), "confirmed_at": iso(f.ConfirmedAt), "warning": f.Warning}
 }
 
 // fundingRowJSON is a part of a withdrawal with what its payer needs to send
@@ -215,7 +215,44 @@ func (srv *Server) fundingReceipt(c *gin.Context, partner string) {
 	c.Data(http.StatusOK, att.ContentType, att.Data)
 }
 
-func (srv *Server) adminPayFunding(c *gin.Context)     { srv.payFunding(c, "") }
+func (srv *Server) adminPayFunding(c *gin.Context) { srv.payFunding(c, "") }
+
+// adminConfirmFunding is staff seeing partners' transfers on the statement.
+func (srv *Server) adminConfirmFunding(c *gin.Context) {
+	var in struct {
+		IDs []string `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil || len(in.IDs) > 200 {
+		bad(c, "Pedido inválido.")
+		return
+	}
+	fs, err := srv.A.ConfirmFunding(ctx(c), in.IDs, user(c).ID)
+	out := make([]gin.H, 0, len(fs))
+	for i := range fs {
+		out = append(out, fundingJSON(&fs[i]))
+	}
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, gin.H{"data": out})
+}
+
+func (srv *Server) adminRejectClaim(c *gin.Context) {
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil {
+		bad(c, "Pedido inválido.")
+		return
+	}
+	f, err := srv.A.RejectClaim(ctx(c), c.Param("id"), in.Reason, user(c).ID)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(200, fundingJSON(f))
+}
 func (srv *Server) adminFundingReceipt(c *gin.Context) { srv.fundingReceipt(c, "") }
 
 // The partner's account

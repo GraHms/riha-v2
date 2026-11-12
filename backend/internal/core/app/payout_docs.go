@@ -61,6 +61,10 @@ func (a *App) PayoutInstructionsPDF(ctx context.Context, ids []string) ([]byte, 
 
 var receiptTypes = map[string]string{".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 
+// CompletePayouts is RIHA paying withdrawals from its own account, with one
+// receipt: every part still open is RIHA's to pay, and is booked so, whoever
+// was to pay it. A part a partner says it paid must be confirmed or rejected
+// first, or the merchant would be paid twice.
 func (a *App) CompletePayouts(ctx context.Context, ids []string, up Upload, actor string) ([]domain.Payout, error) {
 	if len(ids) == 0 {
 		return nil, domain.Invalid("parameter_missing", "ids", "Escolha pelo menos um levantamento.")
@@ -69,9 +73,9 @@ func (a *App) CompletePayouts(ctx context.Context, ids []string, up Upload, acto
 	if err != nil {
 		return nil, err
 	}
-	path, name, ct, hash := r.Path, r.Name, r.Type, r.Hash
 	out := []domain.Payout{}
 	for _, id := range ids {
+		var done *domain.Payout
 		err := a.Tx.Do(ctx, func(ctx context.Context) error {
 			p, err := a.Payouts.Lock(ctx, id)
 			if err != nil {
@@ -80,21 +84,44 @@ func (a *App) CompletePayouts(ctx context.Context, ids []string, up Upload, acto
 			if p.Status != domain.PayoutSent {
 				return domain.Invalid("payout_state", "status", fmt.Sprintf("%s tem de estar enviado ao banco antes de concluir.", p.Ref()))
 			}
-			p.ReceiptPath, p.ReceiptName, p.ReceiptType, p.ReceiptSize, p.ReceiptHash = path, name, ct, r.Size, hash
+			if a.Integrations != nil {
+				fs, err := a.Integrations.FundingOf(ctx, []string{p.ID})
+				if err != nil {
+					return err
+				}
+				for i := range fs {
+					if fs[i].Status == domain.FundingClaimed {
+						return domain.Invalid("payout_part_claimed", "status", fmt.Sprintf("%s: um parceiro diz que já pagou %s MT. Confirme ou recuse esse pagamento primeiro.",
+							p.Ref(), domain.FormatShort(fs[i].Send)))
+					}
+				}
+				now := a.Now()
+				for i := range fs {
+					f := &fs[i]
+					if f.Status != domain.FundingOpen {
+						continue
+					}
+					if f.Source != domain.FundRIHA {
+						f.Planned, f.Source = f.Source, domain.FundRIHA
+					}
+					f.Status, f.PaidAt, f.PaidBy, f.ConfirmedAt, f.ConfirmedBy = domain.FundingPaid, &now, actor, &now, actor
+					f.ReceiptPath, f.ReceiptName, f.ReceiptType, f.ReceiptSize, f.ReceiptHash = r.Path, r.Name, r.Type, r.Size, r.Hash
+					if err := a.Integrations.SaveFunding(ctx, f); err != nil {
+						return err
+					}
+				}
+			}
+			p.ReceiptPath, p.ReceiptName, p.ReceiptType, p.ReceiptSize, p.ReceiptHash = r.Path, r.Name, r.Type, r.Size, r.Hash
 			if err := a.Payouts.Save(ctx, p); err != nil {
 				return err
 			}
-			// RIHA paying it settles every part still open, a partner's included.
-			return a.payFundingOf(ctx, p.ID, r, "", actor)
+			done, err = a.TransitionPayout(ctx, id, domain.ActPaid, "", actor)
+			return err
 		})
 		if err != nil {
 			return out, err
 		}
-		p, err := a.TransitionPayout(ctx, id, domain.ActPaid, "", actor)
-		if err != nil {
-			return out, err
-		}
-		out = append(out, *p)
+		out = append(out, *done)
 	}
 	return out, nil
 }

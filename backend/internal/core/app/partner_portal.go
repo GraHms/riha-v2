@@ -76,21 +76,23 @@ func (a *App) PartnerHome(ctx context.Context, code string, from, to time.Time) 
 		routes = r.Routes(true)
 	}
 	deals, _ := a.Integrations.Deals(ctx, "")
-	names := map[string]string{}
+	ids := []string{}
+	for _, r := range period {
+		ids = append(ids, r.MerchantID)
+	}
+	for _, d := range deals {
+		ids = append(ids, d.MerchantID)
+	}
+	merchants := a.merchantsByID(ctx, ids)
 	name := func(id string) string {
-		if n, ok := names[id]; ok {
-			return n
+		if m := merchants[id]; m != nil {
+			return m.Name
 		}
-		n := ""
-		if m, err := a.Merchants.ByID(ctx, id); err == nil {
-			n = m.Name
-		}
-		names[id] = n
-		return n
+		return ""
 	}
 	for _, in := range ins {
 		pi := PartnerIntegration{Integration: in, Methods: []string{}, Deals: []PartnerDeal{}, Received: received[in.Code],
-			PaidOut: funding[in.Code][domain.FundingPaid], Reserved: funding[in.Code][domain.FundingOpen]}
+			PaidOut: funding[in.Code][domain.FundingPaid], Reserved: funding[in.Code][domain.FundingOpen] + funding[in.Code][domain.FundingClaimed]}
 		for _, m := range domain.AllMethods {
 			if domain.Contains(routes[m], in.Code) {
 				pi.Methods = append(pi.Methods, m)

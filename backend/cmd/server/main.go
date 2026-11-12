@@ -70,6 +70,7 @@ func main() {
 	a := app.New(deps, cfg.PublicURL)
 	a.PayURL = cfg.PayURL
 	a.AllowPrivateNetworks = cfg.AllowPrivateNetworks
+	a.LoginCodes = cfg.Env != "development" && os.Getenv("RIHA_LOGIN_CODES") != "off"
 	if payments.RealMoney {
 		a.ComingSoon = payments.ComingSoon
 		a.NoLiveRefunds = true

@@ -99,6 +99,17 @@ func TestWithdrawalsArePaidFromWhereTheMoneyIs(t *testing.T) {
 	if _, err := a.PayFunding(ctx, parts[1].ID, domain.PartnerInteractions92, "TRF-92-1", receipt(), i92.ID); err != nil {
 		t.Fatal(err)
 	}
+	// A partner's word alone doesn't close the merchant's withdrawal: RIHA
+	// sees the transfers on the statement first.
+	if p, _ := a.Payouts.Lock(ctx, big.ID); p.Status != domain.PayoutSent {
+		t.Fatalf("both parts claimed, none confirmed: %s", p.Status)
+	}
+	if _, err := a.TransitionPayout(ctx, big.ID, domain.ActFail, "", "admin"); err == nil {
+		t.Fatal("a withdrawal partners say they paid was failed, and the merchant given it all back")
+	}
+	if _, err := a.ConfirmFunding(ctx, []string{parts[0].ID, parts[1].ID}, "admin"); err != nil {
+		t.Fatal(err)
+	}
 	if p, _ := a.Payouts.Lock(ctx, big.ID); p.Status != domain.PayoutPaid || !p.HasReceipt() {
 		t.Fatalf("both parts paid: %s", p.Status)
 	}

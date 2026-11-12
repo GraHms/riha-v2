@@ -79,7 +79,7 @@ export function TeamList({ members, perms, canManage, meId, api, onChange, invit
   const actions = (m: any) => (
     <div className="tl-acts">
       {!m.disabled && !m.last_login_at && <button className="btn btn-ghost btn-sm" onClick={() => resend(m)}>Reenviar convite</button>}
-      {!m.disabled && <button className="btn btn-outline btn-sm" onClick={() => setEdit(m)}>Permissões</button>}
+      {!m.disabled && m.id !== meId && <button className="btn btn-outline btn-sm" onClick={() => setEdit(m)}>Permissões</button>}
       {m.id !== meId && <button className={'btn btn-ghost btn-sm' + (m.disabled ? '' : ' tl-close')} onClick={() => toggle(m)}>{m.disabled ? 'Reabrir' : 'Fechar conta'}</button>}
     </div>
   )

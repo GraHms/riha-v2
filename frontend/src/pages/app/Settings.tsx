@@ -138,14 +138,18 @@ function Bank() {
   useEffect(() => { const a = data?.account; if (a) setF({ bank_name: a.bank_name, holder: a.holder, nib: a.nib.replace(/(\d{4})(?=\d)/g, '$1 ') }) }, [data])
   const a = data?.account
   const nib = f.nib.replace(/\D/g, '')
+  // Replacing an approved merchant's account takes the password again.
+  const replacing = !!a && m.status === 'active' && nib.length === 21 && nib !== a.nib
+  const [pw, setPw] = useState('')
+  const hold = a?.payable_from && new Date(a.payable_from) > new Date() ? new Date(a.payable_from) : null
   const save = async () => {
     setBusy(true); setErr('')
-    try { const r = await g.merchant.saveBankAccount({ ...f, nib }); setData(r); toast('Conta bancária guardada') } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+    try { const r = await g.merchant.saveBankAccount({ ...f, nib, password: replacing ? pw : undefined }); setData(r); setPw(''); toast('Conta bancária guardada') } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
   }
   const proof = (kyc.data?.documents || []).find((d: any) => d.kind === 'nib_proof')
   return (
     <div className="bank-grid">
-      <style>{`.bank-grid{display:grid;grid-template-columns:380px minmax(0,1fr);gap:16px;align-items:start}@media(max-width:1100px){.bank-grid{grid-template-columns:1fr}}`}</style>
+      <style>{`.bank-grid{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:16px;align-items:start}@media(max-width:1100px){.bank-grid{grid-template-columns:minmax(0,1fr)}}`}</style>
       <div className="dark-card" style={{ height: 220, borderRadius: 24, padding: 24, display: 'flex', flexDirection: 'column' }}>
         <div className="stripe g" style={{ top: -30, left: 170, width: 34, height: 320 }} /><div className="stripe r" style={{ top: -30, left: 216, width: 34, height: 320 }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(11,18,14,.2),rgba(11,18,14,.88) 70%)' }} />
@@ -164,8 +168,15 @@ function Bank() {
         <div style={{ marginTop: 14, borderRadius: 14, border: '1.5px dashed #D6D4CB', background: '#FAFAF7' }}>
           <DocRow kind="nib_proof" title="Comprovativo de NIB" hint="Declaração do banco, PDF ou fotografia" doc={proof} onUploaded={kyc.reload} last />
         </div>
+        {replacing && (
+          <label style={{ display: 'block', marginTop: 14 }}><span className="label">Palavra-passe</span>
+            <input className="input" type="password" autoComplete="current-password" value={pw} onChange={e => setPw(e.target.value)} />
+            <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 6 }}>Para proteger o seu dinheiro, os levantamentos só vão para a nova conta 48 horas depois da mudança.</div>
+          </label>
+        )}
+        {hold && <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 12, background: '#FFF6E5', fontSize: 13, lineHeight: 1.5 }}>Conta mudada há pouco: recebe levantamentos a partir de {hold.toLocaleString('pt-PT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.</div>}
         {err && <div className="form-err" style={{ marginTop: 12 }}>{err}</div>}
-        <div className="between" style={{ marginTop: 18, flexWrap: 'wrap' }}><span style={{ fontSize: 13, color: 'var(--muted)', flex: 1, minWidth: 220 }}>O titular tem de ter o mesmo nome ou NUIT registado na RIHA. Alterações ficam registadas.</span><button className="btn btn-green" onClick={save} disabled={busy || nib.length !== 21}>{busy ? <Spinner /> : 'Guardar'}</button></div>
+        <div className="between" style={{ marginTop: 18, flexWrap: 'wrap' }}><span style={{ fontSize: 13, color: 'var(--muted)', flex: 1, minWidth: 220 }}>O titular tem de ter o mesmo nome ou NUIT registado na RIHA. Alterações ficam registadas.</span><button className="btn btn-green" onClick={save} disabled={busy || nib.length !== 21 || (replacing && !pw)}>{busy ? <Spinner /> : 'Guardar'}</button></div>
       </Card>
     </div>
   )
@@ -295,14 +306,30 @@ function Hooks() {
           <div className="mono" style={{ marginTop: 12, padding: '10px 14px', borderRadius: 12, background: 'var(--ink)', color: '#C9D3CD', fontSize: 12.5, overflowX: 'auto', whiteSpace: 'nowrap' }}><span style={{ color: 'var(--sun)' }}>"callback_url"</span>: <span style={{ color: 'var(--lime)' }}>"https://{data.domains[0]?.domain || 'loja.co.mz'}/pedidos/2094/riha"</span></div>
           <span className="label" style={{ margin: '14px 0 8px' }}>Domínios autorizados</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {data.domains.map((d: any) => <span key={d.id} className="chip" style={{ background: 'var(--green-bg)', color: 'var(--green-dark)' }}><Icon name="check" size={12} stroke={3} />{d.domain}<button aria-label="Remover" onClick={() => call(() => g.developers.removeDomain(d.id), 'Domínio removido')} style={{ border: 0, background: 'none', padding: 0, color: 'inherit', display: 'grid' }}><Icon name="close" size={12} stroke={2.4} /></button></span>)}
+            {data.domains.filter((d: any) => d.verified).map((d: any) => <span key={d.id} className="chip" style={{ background: 'var(--green-bg)', color: 'var(--green-dark)' }}><Icon name="check" size={12} stroke={3} />{d.domain}<button aria-label="Remover" onClick={() => call(() => g.developers.removeDomain(d.id), 'Domínio removido')} style={{ border: 0, background: 'none', padding: 0, color: 'inherit', display: 'grid' }}><Icon name="close" size={12} stroke={2.4} /></button></span>)}
             {addDomain ? (
-              <form onSubmit={async e => { e.preventDefault(); if (await call(() => g.developers.addDomain(domain), 'Domínio verificado')) { setDomain(''); setAddDomain(false) } }} className="row" style={{ gap: 6 }}>
+              <form onSubmit={async e => { e.preventDefault(); if (await call(() => g.developers.addDomain(domain), 'Domínio adicionado. Falta verificá-lo.')) { setDomain(''); setAddDomain(false) } }} className="row" style={{ gap: 6 }}>
                 <input autoFocus className="input mono" style={{ height: 30, width: 200, fontSize: 12, borderRadius: 9 }} value={domain} onChange={e => setDomain(e.target.value)} placeholder="loja.co.mz" />
                 <button className="btn btn-ink btn-sm" style={{ height: 30 }}>Adicionar</button>
               </form>
-            ) : <button className="chip" style={{ border: '1px dashed #D6D4CB', color: 'var(--muted)', background: 'none' }} onClick={() => setAddDomain(true)}>+ verificar domínio</button>}
+            ) : <button className="chip" style={{ border: '1px dashed #D6D4CB', color: 'var(--muted)', background: 'none' }} onClick={() => setAddDomain(true)}>+ adicionar domínio</button>}
           </div>
+          {data.domains.filter((d: any) => !d.verified).map((d: any) => (
+            <div key={d.id} style={{ marginTop: 10, padding: '12px 14px', borderRadius: 12, border: '1px solid #F5DFAE', background: '#FFF8E8', fontSize: 13, lineHeight: 1.5 }}>
+              <div className="between" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <b className="mono">{d.domain}</b>
+                <span className="row" style={{ gap: 6 }}>
+                  <button className="btn btn-ink btn-sm" onClick={() => call(() => g.developers.verifyDomain(d.id), `${d.domain} verificado`)}>Verificar</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => call(() => g.developers.removeDomain(d.id), 'Domínio removido')}>Remover</button>
+                </span>
+              </div>
+              <div style={{ color: 'var(--muted)', marginTop: 6 }}>No DNS do domínio, crie um registo TXT. Depois carregue em Verificar.</div>
+              <div className="mono" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr)', gap: '4px 10px', fontSize: 12 }}>
+                <span style={{ color: 'var(--muted)' }}>Nome</span><span style={{ wordBreak: 'break-all' }}>{d.txt_name}</span>
+                <span style={{ color: 'var(--muted)' }}>Valor</span><span style={{ wordBreak: 'break-all' }}>{d.txt_value}</span>
+              </div>
+            </div>
+          ))}
           <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 10 }}>Pedidos com callback_url fora destes domínios são recusados com o erro <span className="mono">callback_url_not_allowed</span>. {!live && 'Em teste, localhost também é aceite.'}</div>
         </Card>
         <Card>
@@ -324,6 +351,10 @@ function Hooks() {
             <span className="mono" style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secret || data.secret_hint}</span>
             {!secret && <button className="btn btn-outline btn-sm" onClick={revealSecret}>Mostrar</button>}
             <button className="btn btn-outline btn-sm" onClick={copySecret}>{copied ? 'Copiado' : 'Copiar'}</button>
+            <button className="btn btn-ghost btn-sm" onClick={async () => {
+              if (!window.confirm('Gerar um novo segredo? O atual deixa de assinar já: atualize-o no seu servidor logo a seguir.')) return
+              try { setSecret(await g.developers.rollSigningSecret()); toast('Novo segredo gerado. Atualize-o no seu servidor.') } catch (e) { toast(errMsg(e), true) }
+            }}>Gerar novo</button>
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>Usado para assinar endpoints e callback_url: <span className="mono">Riha-Signature: t=…,v1=HMAC-SHA256(t + "." + corpo)</span></div>
         </Card>

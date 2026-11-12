@@ -8,8 +8,12 @@ import (
 // FundRIHA is a withdrawal paid from RIHA's own account, for money no partner holds.
 const FundRIHA = "riha"
 
+// A part is open until its payer pays it. A partner saying it paid makes it
+// claimed, and RIHA confirming the transfer on the statement makes it paid:
+// a partner's word alone never closes a merchant's withdrawal.
 const (
 	FundingOpen      = "open"
+	FundingClaimed   = "claimed"
 	FundingPaid      = "paid"
 	FundingCancelled = "cancelled"
 )
@@ -32,18 +36,27 @@ type PayoutFunding struct {
 	ReceiptType string
 	ReceiptSize int64
 	ReceiptHash string
-	PaidAt      *time.Time
+	PaidAt      *time.Time // when its payer said it paid
 	PaidBy      string
-	CreatedAt   time.Time
+	ConfirmedAt *time.Time // when RIHA saw the transfer
+	ConfirmedBy string
+	// Planned is the partner first asked to pay this part, when RIHA paid
+	// it instead: the money stays with that partner, owed to RIHA.
+	Planned   string
+	Warning   string // what staff should check before confirming
+	CreatedAt time.Time
 }
 
 func (f *PayoutFunding) HasReceipt() bool { return f.ReceiptPath != "" }
+
+// Sent is a part whose money its payer says left: claimed or paid.
+func (f *PayoutFunding) Sent() bool { return f.Status == FundingClaimed || f.Status == FundingPaid }
 
 // PlanFunding splits a withdrawal of amount, with its transfer fee, between the
 // sources that hold the merchant's money (by integration code). One source pays
 // it all when one can, the one holding most, so the merchant gets one transfer;
 // otherwise the fullest pay first. What no source holds comes from RIHA. The
-// fee rides on the first part, which sends that much less.
+// transfer fee comes off one part, which sends that much less.
 func PlanFunding(amount, fee int64, held map[string]int64) []PayoutFunding {
 	type src struct {
 		code string
@@ -77,14 +90,21 @@ func PlanFunding(amount, fee int64, held map[string]int64) []PayoutFunding {
 	if left > 0 {
 		out = append(out, PayoutFunding{Source: FundRIHA, Amount: left, Send: left, Status: FundingOpen})
 	}
-	// The fee comes off the largest part, which can always bear it: the whole
-	// withdrawal is at least the minimum plus the fee.
-	big := 0
+	// The fee comes off one part that can bear it, RIHA's first, then the
+	// largest. When none can, RIHA pays the whole withdrawal: the merchant
+	// gets one transfer and no part is ever told to send less than nothing.
+	carry := -1
 	for i := range out {
-		if out[i].Amount > out[big].Amount {
-			big = i
+		if out[i].Amount <= fee {
+			continue
+		}
+		if carry < 0 || out[i].Source == FundRIHA || (out[carry].Source != FundRIHA && out[i].Amount > out[carry].Amount) {
+			carry = i
 		}
 	}
-	out[big].Send -= fee
+	if carry < 0 {
+		return []PayoutFunding{{Source: FundRIHA, Amount: amount, Send: amount - fee, Status: FundingOpen}}
+	}
+	out[carry].Send -= fee
 	return out
 }

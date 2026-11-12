@@ -20,10 +20,13 @@ export function useQuery<T>(fetcher: ((g: Gateway) => Promise<T>) | null, deps: 
     finally { if (n === seq.current) setLoading(false) }
   }, [g])
   useEffect(() => { load() }, [load, ...deps]) // eslint-disable-line react-hooks/exhaustive-deps
+  // A tab nobody is looking at doesn't poll; it catches up when seen again.
   useEffect(() => {
     if (!pollMs) return
-    const id = setInterval(() => load(true), pollMs)
-    return () => clearInterval(id)
+    const id = setInterval(() => { if (!document.hidden) load(true) }, pollMs)
+    const seen = () => { if (!document.hidden) load(true) }
+    document.addEventListener('visibilitychange', seen)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', seen) }
   }, [load, pollMs])
   return { data, error, loading, reload: () => load(true), setData }
 }

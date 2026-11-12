@@ -20,6 +20,7 @@ type Users interface {
 	EmailTaken(ctx context.Context, email string) (bool, error)
 	SetPassword(ctx context.Context, id, hash string) error
 	TouchLogin(ctx context.Context, id string, at time.Time) error
+	LoginFailed(ctx context.Context, id string, now time.Time, max int, lock time.Duration) error
 	// Team lists staff (role admin, no partner) or one partner's users.
 	Team(ctx context.Context, role, partnerCode string) ([]domain.User, error)
 	// SetAccess saves a user's name, title, permissions and whether it's closed.
@@ -48,6 +49,13 @@ type PasswordResets interface {
 	Take(ctx context.Context, tokenHash string, now time.Time) (string, error)
 	SpendAll(ctx context.Context, userID string, now time.Time) error
 	Purge(ctx context.Context, before time.Time) error
+	// Codes emailed to staff and partners on a device RIHA doesn't know.
+	SaveLoginCode(ctx context.Context, c *domain.LoginCode) error
+	LoginCode(ctx context.Context, userID string) (*domain.LoginCode, error)
+	TryLoginCode(ctx context.Context, userID string) error
+	SpendLoginCode(ctx context.Context, userID string) error
+	TrustDevice(ctx context.Context, d *domain.TrustedDevice) error
+	DeviceTrusted(ctx context.Context, userID, tokenHash string, now time.Time) (bool, error)
 }
 
 type MerchantFilter struct {
@@ -61,6 +69,8 @@ type MerchantFilter struct {
 type Merchants interface {
 	Create(ctx context.Context, m *domain.Merchant) error
 	ByID(ctx context.Context, id string) (*domain.Merchant, error)
+	// Many reads several merchants in one query.
+	Many(ctx context.Context, ids []string) ([]domain.Merchant, error)
 	BySlug(ctx context.Context, slug string) (*domain.Merchant, error)
 	Lock(ctx context.Context, id string) (*domain.Merchant, error)
 	SlugTaken(ctx context.Context, slug string) (bool, error)
@@ -207,6 +217,7 @@ type Domains interface {
 	Create(ctx context.Context, d *domain.AllowedDomain) error
 	List(ctx context.Context, merchantID string) ([]domain.AllowedDomain, error)
 	Delete(ctx context.Context, merchantID, id string) error
+	MarkVerified(ctx context.Context, merchantID, id string, at time.Time) error
 }
 
 type Events interface {
@@ -232,6 +243,11 @@ type RequestLogs interface {
 type Idempotency interface {
 	Get(ctx context.Context, merchantID string, live bool, key string) (*domain.IdempotencyRecord, error)
 	Save(ctx context.Context, r *domain.IdempotencyRecord) error
+	// Claim records a key before its request runs; false when it is taken.
+	Claim(ctx context.Context, r *domain.IdempotencyRecord) (bool, error)
+	Finish(ctx context.Context, id string, status int, body string) error
+	// Release frees a claim whose request failed, for the client to retry.
+	Release(ctx context.Context, id string) error
 	Purge(ctx context.Context, before time.Time) error
 }
 
@@ -249,6 +265,15 @@ type Scope struct {
 	MerchantID string
 	Live       bool
 	From, To   *time.Time
+}
+
+// MerchantSummary is what a merchant list shows of each: live volume paid
+// since a day, its main method and its live balance.
+type MerchantSummary struct {
+	MerchantID string
+	Volume     int64
+	MainMethod string
+	Balance    int64
 }
 
 type Bucket struct {
@@ -273,11 +298,29 @@ type Reports interface {
 	VolumeByDayAndMethod(ctx context.Context, s Scope) ([]Bucket, error)
 	Health(ctx context.Context, since time.Time) ([]MethodHealth, error)
 	MainMethod(ctx context.Context, merchantID string) (string, error)
+	// RollupDrift counts rollup rows that differ from adding the rows up
+	// again; RebuildRollups adds them up again.
+	// PaymentTotal counts payments from the payment_days rollup: live or
+	// test, of a merchant and a method ("" for any), in these statuses (any
+	// when empty).
+	PaymentTotal(ctx context.Context, live bool, merchantID, method string, statuses []string) (int64, error)
+	// MerchantSummaries reads the summaries of many merchants at once, from
+	// the rollups.
+	MerchantSummaries(ctx context.Context, ids []string, since time.Time) (map[string]MerchantSummary, error)
+	RollupDrift(ctx context.Context) (int64, error)
+	RebuildRollups(ctx context.Context) error
+	// Prune deletes request logs, and events whose deliveries are over,
+	// older than before.
+	Prune(ctx context.Context, before time.Time) (int64, error)
 }
 
 type Rail interface {
 	Initiate(ctx context.Context, req domain.ChargeRequest, onComplete func(domain.Outcome)) (domain.ChargeResult, error)
 }
+
+// ErrSheetTooWide is a spreadsheet with data far to the right, refused
+// before it is read.
+var ErrSheetTooWide = errors.New("sheet has data past the widest column read")
 
 // ErrNoStatusCheck means this rail can't be asked about a payment, as with the simulator.
 var ErrNoStatusCheck = errors.New("rail has no status check")
@@ -392,6 +435,8 @@ type Members interface {
 	Lock(ctx context.Context, id string) (*domain.Member, error)
 	ByToken(ctx context.Context, token string) (*domain.Member, error)
 	Identity(ctx context.Context, merchantID string, live bool, phone, nameKey string) (*domain.Member, error)
+	// Identities are every member with this phone and name, oldest first.
+	Identities(ctx context.Context, merchantID string, live bool, phone, nameKey string) ([]domain.Member, error)
 	Find(ctx context.Context, q MemberQuery) ([]domain.Member, error)
 	Count(ctx context.Context, q MemberQuery) (int64, error)
 	CountByStatus(ctx context.Context, merchantID string, live bool) (map[string]int64, error)
@@ -432,6 +477,7 @@ type Messages interface {
 	ByProviderID(ctx context.Context, providerID string) (*domain.Message, error)
 	Failed(ctx context.Context, merchantID string, live bool, since time.Time, limit int) ([]domain.Message, error)
 	CountRecent(ctx context.Context, memberID, kind string, since time.Time) (int64, error)
+	CountRecentToPhone(ctx context.Context, merchantID, phone, kind string, since time.Time) (int64, error)
 }
 
 type SubscriptionSettingsRepo interface {
@@ -568,8 +614,15 @@ type Integrations interface {
 	CreateFunding(ctx context.Context, f *domain.PayoutFunding) error
 	SaveFunding(ctx context.Context, f *domain.PayoutFunding) error
 	LockFunding(ctx context.Context, id string) (*domain.PayoutFunding, error)
+	// LockRoom serializes giving partners withdrawals to pay, until the
+	// transaction ends.
+	LockRoom(ctx context.Context) error
+	// ReceiptUsed tells whether a receipt already paid another part or withdrawal.
+	ReceiptUsed(ctx context.Context, hash, exceptFunding string) (bool, error)
 	FundingOf(ctx context.Context, payoutIDs []string) ([]domain.PayoutFunding, error)
-	FundingFrom(ctx context.Context, sources, statuses []string, limit int) ([]domain.PayoutFunding, error)
+	// FundingFrom is parts paid from these sources, in these statuses, of
+	// withdrawals in payoutStatuses (any, when empty), newest first.
+	FundingFrom(ctx context.Context, sources, statuses, payoutStatuses []string, limit int) ([]domain.PayoutFunding, error)
 	// HeldFor is what each integration still holds of a merchant's live money.
 	HeldFor(ctx context.Context, merchantID string) (map[string]int64, error)
 	// FundingTotals sums withdrawal parts by source, then status.

@@ -75,6 +75,8 @@ func (a *App) CatalogCover(ctx context.Context, slug string) ([]byte, error) {
 	return a.Files.Read(ctx, s.CatalogCover)
 }
 
+var decodeSlot = make(chan struct{}, 1)
+
 // redraw reads a JPEG, PNG or WebP picture of at least minW by minH, and draws it
 // again as a JPEG no wider than maxW. Only the picture is kept: no metadata, and
 // nothing else the file may have carried.
@@ -93,9 +95,13 @@ func redraw(r io.Reader, minW, minH, maxW int) ([]byte, int, int, error) {
 	if cfg.Width < minW || cfg.Height < minH {
 		return nil, 0, 0, domain.Invalid("file_invalid", "file", fmt.Sprintf("A imagem é pequena demais. Use uma com pelo menos %d por %d pixels.", minW, minH))
 	}
-	if cfg.Width*cfg.Height > 40_000_000 {
-		return nil, 0, 0, domain.Invalid("file_invalid", "file", "A imagem é grande demais.")
+	if cfg.Width > 12_000 || cfg.Height > 12_000 || cfg.Width*cfg.Height > 40_000_000 {
+		return nil, 0, 0, domain.Invalid("file_invalid", "file", "A imagem é grande demais. Use uma com até 12 000 pixels de lado.")
 	}
+	// One picture drawn at a time, server-wide: a big one takes a few hundred
+	// MB while it is open.
+	decodeSlot <- struct{}{}
+	defer func() { <-decodeSlot }()
 	src, _, err := image.Decode(bytes.NewReader(raw))
 	if err != nil {
 		return nil, 0, 0, domain.Invalid("file_invalid", "file", "Não foi possível ler a imagem.")

@@ -371,7 +371,7 @@ func TestWithdrawalTransferFee(t *testing.T) {
 		t.Fatalf("10 000 MT to FNB: %+v %v", po, err)
 	}
 	// A bim account never pays.
-	if _, err := a.SaveBankAccount(ctx, m, app.BankInput{BankName: "Millennium bim", Holder: "Loja Taxa", NIB: "000100004821130101135"}, app.Actor{}); err != nil {
+	if _, err := a.SaveBankAccount(ctx, m, app.BankInput{BankName: "Millennium bim", Holder: "Loja Taxa", NIB: "000100004821130101135"}, app.Actor{Role: domain.RoleAdmin}); err != nil {
 		t.Fatal(err)
 	}
 	if po, err = a.RequestPayout(ctx, m.ID, false, 20_000, "u"); err != nil || po.Fee != 0 {

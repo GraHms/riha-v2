@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"regexp"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"riha/internal/core/domain"
@@ -35,6 +38,29 @@ func (a *App) APIKey(ctx context.Context, id string) *domain.APIKey {
 		return nil
 	}
 	return k
+}
+
+// RollSigningSecret replaces the secret that signs a mode's webhooks, for a
+// merchant who fears it leaked. The old one stops signing at once.
+func (a *App) RollSigningSecret(ctx context.Context, merchantID string, live bool, actor Actor) (string, error) {
+	secret := domain.Token("whsec_", 32)
+	err := a.Tx.Do(ctx, func(ctx context.Context) error {
+		m, err := a.Merchants.Lock(ctx, merchantID)
+		if err != nil {
+			return err
+		}
+		if live {
+			m.SigningSecretLive = secret
+		} else {
+			m.SigningSecretTest = secret
+		}
+		return a.Merchants.Save(ctx, m)
+	})
+	if err != nil {
+		return "", err
+	}
+	a.Record(ctx, merchantID, actor, "signing_secret.rolled", "", domain.Mode(live))
+	return secret, nil
 }
 
 func (a *App) RollSecretKey(ctx context.Context, m *domain.Merchant, live bool, actor Actor) (string, *domain.APIKey, error) {
@@ -97,18 +123,31 @@ func (a *App) RecentRequests(ctx context.Context, merchantID string, live bool) 
 	return r
 }
 
-func (a *App) IdempotentResponse(ctx context.Context, merchantID string, live bool, key string) *domain.IdempotencyRecord {
-	r, err := a.Idempotency.Get(ctx, merchantID, live, key)
-	if err != nil {
-		return nil
+// ClaimIdempotent takes an Idempotency-Key before its request runs. It gives
+// the claim, or what holds the key: the stored answer to replay, or a request
+// still running (StatusCode 0).
+func (a *App) ClaimIdempotent(ctx context.Context, r *domain.IdempotencyRecord) (mine bool, held *domain.IdempotencyRecord, err error) {
+	r.ID, r.CreatedAt, r.StatusCode = domain.NewID("idem"), a.Now(), 0
+	ok, err := a.Idempotency.Claim(ctx, r)
+	if err != nil || ok {
+		return ok, nil, err
 	}
-	return r
+	held, err = a.Idempotency.Get(ctx, r.MerchantID, r.Livemode, r.Key)
+	if err != nil {
+		return false, nil, err
+	}
+	return false, held, nil
 }
 
-func (a *App) StoreIdempotent(ctx context.Context, r *domain.IdempotencyRecord) {
-	r.ID, r.CreatedAt = domain.NewID("idem"), a.Now()
-	_ = a.Idempotency.Save(ctx, r)
+var webhookSecretRe = regexp.MustCompile(`whsec_[A-Za-z0-9_\-]+`)
+
+// FinishIdempotent stores the answer to replay. A webhook signing secret is
+// shown once, on the first answer, and never kept.
+func (a *App) FinishIdempotent(ctx context.Context, id string, status int, body string) {
+	_ = a.Idempotency.Finish(ctx, id, status, webhookSecretRe.ReplaceAllString(body, "whsec_…"))
 }
+
+func (a *App) ReleaseIdempotent(ctx context.Context, id string) { _ = a.Idempotency.Release(ctx, id) }
 
 func (a *App) DomainList(ctx context.Context, merchantID string) []domain.AllowedDomain {
 	d, _ := a.Domains.List(ctx, merchantID)
@@ -155,8 +194,8 @@ func (a *App) SendTestEvent(ctx context.Context, merchantID string, live bool) e
 		return domain.Invalid("parameter_invalid", "", "Adicione um endpoint de webhook primeiro.")
 	}
 	return a.Tx.Do(ctx, func(ctx context.Context) error {
-		return a.emit(ctx, merchantID, live, "payment.succeeded", "pay_test_event", map[string]any{
-			"id": "pay_test_event", "object": "payment", "status": "succeeded", "amount": 125000, "livemode": live, "test_event": true,
+		return a.emit(ctx, merchantID, live, domain.EventPing, "ping", map[string]any{
+			"object": "ping", "livemode": live, "test_event": true, "message": "Evento de teste da RIHA: o seu endpoint recebe e verifica a assinatura.",
 		}, "")
 	})
 }
@@ -169,15 +208,86 @@ func (a *App) Event(ctx context.Context, merchantID string, live bool, id string
 	return ev, nil
 }
 
+var ipInError = regexp.MustCompile(`\[?(?:[0-9a-fA-F]{0,4}:){2,}[0-9a-fA-F]{0,4}\]?(?::\d+)?|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b`)
+
+// webhookHosts remembers merchants' hosts that keep failing, so a dead
+// endpoint waits apart instead of slowing every merchant's webhooks.
+type webhookHosts struct {
+	mu    sync.Mutex
+	fails map[string]int
+	until map[string]time.Time
+}
+
+const (
+	webhookWorkers   = 8
+	webhookPerHost   = 2
+	hostFailsToPause = 5
+	hostPause        = 10 * time.Minute
+)
+
+func (h *webhookHosts) paused(host string, now time.Time) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return now.Before(h.until[host])
+}
+
+func (h *webhookHosts) result(host string, ok bool, now time.Time) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.fails == nil {
+		h.fails, h.until = map[string]int{}, map[string]time.Time{}
+	}
+	if ok {
+		delete(h.fails, host)
+		delete(h.until, host)
+		return
+	}
+	h.fails[host]++
+	if h.fails[host] >= hostFailsToPause {
+		h.until[host], h.fails[host] = now.Add(hostPause), 0
+	}
+}
+
+// DeliverDue sends a batch of due webhooks side by side: a few at a time,
+// at most two to one host, and none to a host that keeps failing.
 func (a *App) DeliverDue(ctx context.Context, n int) int {
 	now := a.Now()
 	batch, err := a.Deliveries.ClaimDue(ctx, now, now.Add(2*time.Minute), n)
 	if err != nil {
 		return 0
 	}
+	workers := make(chan struct{}, webhookWorkers)
+	perHost := map[string]chan struct{}{}
+	var wg sync.WaitGroup
 	for i := range batch {
-		a.deliver(ctx, &batch[i])
+		d := &batch[i]
+		host := hostOf(d.URL)
+		if a.hosts.paused(host, now) {
+			next := now.Add(hostPause)
+			d.NextAttemptAt, d.LastError, d.UpdatedAt = &next, "O endereço falhou várias vezes seguidas: tentamos de novo daqui a pouco.", now
+			_ = a.Deliveries.Save(ctx, d)
+			continue
+		}
+		if perHost[host] == nil {
+			perHost[host] = make(chan struct{}, webhookPerHost)
+		}
+		slot := perHost[host]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("webhook %s: panic: %v", d.ID, r)
+				}
+			}()
+			workers <- struct{}{}
+			slot <- struct{}{}
+			defer func() { <-slot; <-workers }()
+			a.deliver(ctx, d)
+			a.hosts.result(host, d.Status == domain.DeliverySucceeded, a.Now())
+		}()
 	}
+	wg.Wait()
 	return len(batch)
 }
 
@@ -189,6 +299,14 @@ func (a *App) deliver(ctx context.Context, d *domain.Delivery) {
 	m, err := a.Merchants.ByID(ctx, d.MerchantID)
 	if err != nil {
 		return
+	}
+	// An endpoint deleted, or turned off, since the event takes nothing more.
+	if d.EndpointID != nil {
+		if e, err := a.Endpoints.ByID(ctx, d.MerchantID, *d.EndpointID); errors.Is(err, domain.ErrNotFound) || (err == nil && !e.Active) {
+			d.Status, d.NextAttemptAt, d.LastError, d.UpdatedAt = domain.DeliveryFailed, nil, "Endpoint removido ou desativado.", a.Now()
+			_ = a.Deliveries.Save(ctx, d)
+			return
+		}
 	}
 	attempt := d.Attempts + 1
 	body := domain.EventPayload(ev, d.Target, attempt)
@@ -206,7 +324,8 @@ func (a *App) deliver(ctx context.Context, d *domain.Delivery) {
 	}
 	d.Attempts, d.LastStatusCode, d.LastDurationMs, d.LastError = attempt, code, time.Since(start).Milliseconds(), ""
 	if err != nil {
-		d.LastError = domain.Trim(err.Error(), 500)
+		// The merchant reads this: never the addresses RIHA's network saw.
+		d.LastError = domain.Trim(ipInError.ReplaceAllString(err.Error(), "<endereço>"), 500)
 	}
 	a.traceDelivery(ctx, d, ev, body, reply, err)
 	switch {
@@ -269,7 +388,7 @@ func (a *App) settleStale(ctx context.Context, p *domain.Payment) {
 		return
 	}
 	age := a.Now().Sub(p.CreatedAt)
-	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration})
+	o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration, Amount: p.Amount})
 	switch {
 	case errors.Is(err, ports.ErrNoStatusCheck):
 		_ = a.CompletePayment(ctx, p.ID, timedOut)
@@ -304,14 +423,26 @@ func (a *App) CheckClosedPayments(ctx context.Context) {
 	}
 	for i := range closed {
 		p := &closed[i]
-		if o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration}); err == nil && known && o.Success {
+		if o, known, err := rail.Query(ctx, domain.StatusQuery{PaymentID: p.ID, Live: p.Livemode, Reference: p.RailReference, RailID: p.RailID, Method: p.Method, Integration: p.Integration, Amount: p.Amount}); err == nil && known && o.Success {
 			a.logPayment(ctx, p.ID, domain.TrailError, "payment %s (%s): PAID AFTER IT WAS CLOSED, %d cents from a customer, operator reference %s. CHECK BY HAND: the operator check on its trail credits it", p.ID, p.RailReference, p.Amount, o.OperatorReference)
 		}
 	}
 }
 
 func (a *App) RunWorkers(ctx context.Context) {
-	tick := func(every time.Duration, f func()) {
+	// Each run has a deadline, so one call an operator never answers can't
+	// stop the worker, and a panic ends that run, not the server.
+	tick := func(name string, every, limit time.Duration, f func(ctx context.Context)) {
+		run := func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("worker %s: panic: %v\n%s", name, r, debug.Stack())
+				}
+			}()
+			c, cancel := context.WithTimeout(ctx, limit)
+			defer cancel()
+			f(c)
+		}
 		go func() {
 			t := time.NewTicker(every)
 			defer t.Stop()
@@ -320,26 +451,40 @@ func (a *App) RunWorkers(ctx context.Context) {
 				case <-ctx.Done():
 					return
 				case <-t.C:
-					f()
+					run()
 				}
 			}
 		}()
 	}
-	tick(time.Second, func() {
-		for a.DeliverDue(ctx, 20) == 20 {
+	tick("webhooks", time.Second, 2*time.Minute, func(ctx context.Context) {
+		for ctx.Err() == nil && a.DeliverDue(ctx, 20) == 20 {
 		}
 	})
-	tick(2*time.Second, func() {
-		for a.SendDueEmails(ctx, 20) == 20 {
+	tick("emails", 2*time.Second, 2*time.Minute, func(ctx context.Context) {
+		for ctx.Err() == nil && a.SendDueEmails(ctx, 20) == 20 {
 		}
 	})
-	tick(10*time.Second, func() { a.Sweep(ctx) })
-	tick(5*time.Minute, func() { a.CheckClosedPayments(ctx) })
-	tick(time.Minute, func() { a.RecheckUnconfirmed(ctx) })
-	tick(15*time.Second, func() { a.BillingTick(ctx) })
-	tick(2*time.Second, func() { a.SendQueued(ctx) })
-	tick(time.Minute, func() { a.Watchdog(ctx) })
-	tick(6*time.Hour, func() { a.PruneTrail(ctx) })
+	tick("sweep", 10*time.Second, 3*time.Minute, a.Sweep)
+	tick("closed", 5*time.Minute, 5*time.Minute, a.CheckClosedPayments)
+	tick("unconfirmed", time.Minute, 3*time.Minute, a.RecheckUnconfirmed)
+	tick("billing", 15*time.Second, 3*time.Minute, a.BillingTick)
+	tick("messages", 2*time.Second, 2*time.Minute, a.SendQueued)
+	tick("watchdog", time.Minute, time.Minute, a.Watchdog)
+	tick("trail", 6*time.Hour, 30*time.Minute, a.PruneTrail)
+	tick("pricing", time.Minute, 10*time.Minute, a.PriceBacklog)
+	tick("housekeeping", 24*time.Hour, time.Hour, a.Housekeeping)
+	// The first pricing and check run soon after the start, not a day later.
+	domain.Safely("startup work", func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+		c, cancel := context.WithTimeout(ctx, time.Hour)
+		defer cancel()
+		a.PriceBacklog(c)
+		a.Housekeeping(c)
+	})
 }
 
 // traceDelivery puts a webhook attempt on the trail of the payment or checkout it is about.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -124,8 +125,28 @@ type Member struct {
 	Token       string
 	CreatedVia  string
 	CreatedBy   string
+	// DuplicateOf is the member a public signup has the phone and name of.
+	// A signup never changes a member the merchant already has: it is kept
+	// apart, for the merchant to tell whether it is the same person.
+	DuplicateOf string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// PlainName is a name as typed in a public form, fit to put in an SMS: only
+// letters, spaces, hyphens and apostrophes, so it can't carry a link.
+func PlainName(s string, max int) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || r == ' ' || r == '-' || r == '\'' {
+			b.WriteRune(r)
+		}
+	}
+	out := strings.Join(strings.Fields(b.String()), " ")
+	if r := []rune(out); len(r) > max {
+		out = string(r[:max])
+	}
+	return out
 }
 
 func NameKey(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }

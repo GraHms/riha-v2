@@ -125,8 +125,9 @@ export function TrailSearch() {
   const [text, setText] = useState(q)
   const [level, setLevel] = useState('warn,error')
   const hits = useQuery(q ? g => g.admin.trailSearch(q) : null, [q])
-  const feed = useQuery(g => g.admin.trailEvents({ level: level.includes(',') ? '' : level, hours: 48 }), [level], 20000)
-  const events = ((feed.data?.data || []) as any[]).filter(e => level === '' || level.split(',').includes(e.level))
+  // The server filters, so a busy day's info lines never push warnings out of the 200 shown.
+  const feed = useQuery(g => g.admin.trailEvents({ level, hours: 48 }), [level], 20000)
+  const events = (feed.data?.data || []) as any[]
   const open = (to: string) => to && nav('/admin/rasto/' + to)
   return (
     <Page>
@@ -225,7 +226,14 @@ export function TrailThread() {
   const { data, reload } = useQuery(g => g.admin.trailThread(id!), [id], 0)
   const [filter, setFilter] = useState('all')
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  useEffect(() => { const t = setInterval(reload, 5000); return () => clearInterval(t) }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Polls only while something can still change: an open checkout or a
+  // payment not yet settled.
+  const moving = !data || data.session?.status === 'open' || (data.payments || []).some((p: any) => p.status === 'processing' || p.status === 'unconfirmed')
+  useEffect(() => {
+    if (!moving) return
+    const t = setInterval(() => { if (!document.hidden) reload() }, 5000)
+    return () => clearInterval(t)
+  }, [id, moving]) // eslint-disable-line react-hooks/exhaustive-deps
   const events: any[] = data?.events || []
   const start = events.length ? new Date(events[0].created_at).getTime() : 0
   const shown = useMemo(() => events.filter((FILTERS.find(f => f[0] === filter) || FILTERS[0])[2]), [events, filter])

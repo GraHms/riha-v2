@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"log"
 	"net/http"
@@ -251,11 +252,24 @@ func iso(t *time.Time) any {
 
 func isoT(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
+// csvSafe keeps a spreadsheet from reading a cell as a formula: text that
+// starts like one gets a leading quote. Numbers, negative ones too, stay.
 func csvSafe(s string) string {
 	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		if _, err := strconv.ParseFloat(s, 64); err == nil {
+			return s
+		}
 		return "'" + s
 	}
 	return s
+}
+
+// writeSafe writes a CSV row with every cell made safe.
+func writeSafe(w *csv.Writer, row []string) error {
+	for i := range row {
+		row[i] = csvSafe(row[i])
+	}
+	return w.Write(row)
 }
 
 func centsCSV(v int64) string { return strconv.FormatInt(v/100, 10) + "." + pad2(v%100) }

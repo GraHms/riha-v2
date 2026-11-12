@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"gorm.io/gorm"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,7 +29,14 @@ func (r Users) SetPassword(ctx context.Context, id, hash string) error {
 	return r.conn(ctx).Model(&userRecord{}).Where("id = ?", id).Update("password_hash", hash).Error
 }
 func (r Users) TouchLogin(ctx context.Context, id string, at time.Time) error {
-	return r.conn(ctx).Model(&userRecord{}).Where("id = ?", id).Update("last_login_at", at).Error
+	return r.conn(ctx).Model(&userRecord{}).Where("id = ?", id).Updates(map[string]any{"last_login_at": at, "failed_logins": 0, "locked_until": nil}).Error
+}
+
+// LoginFailed counts a wrong password, in one statement so guesses at once
+// all count, and locks the account for lock once it reaches max.
+func (r Users) LoginFailed(ctx context.Context, id string, now time.Time, max int, lock time.Duration) error {
+	return r.conn(ctx).Exec(`UPDATE users SET failed_logins = CASE WHEN failed_logins + 1 >= ? THEN 0 ELSE failed_logins + 1 END,
+		locked_until = CASE WHEN failed_logins + 1 >= ? THEN ?::timestamptz ELSE locked_until END WHERE id = ?`, max, max, now.Add(lock), id).Error
 }
 func (r Users) Team(ctx context.Context, role, partnerCode string) ([]domain.User, error) {
 	return find[userRecord, domain.User](r.conn(ctx).Where("role = ? AND partner_code = ?", role, partnerCode).Order("disabled_at NULLS FIRST, name"))
@@ -76,6 +85,13 @@ func (r Merchants) Lock(ctx context.Context, id string) (*domain.Merchant, error
 func (r Merchants) SlugTaken(ctx context.Context, slug string) (bool, error) {
 	return exists(r.conn(ctx).Model(&merchantRecord{}).Where("slug = ?", slug))
 }
+func (r Merchants) Many(ctx context.Context, ids []string) ([]domain.Merchant, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return find[merchantRecord, domain.Merchant](r.conn(ctx).Where("id IN ?", ids))
+}
+
 func (r Merchants) Save(ctx context.Context, m *domain.Merchant) error {
 	return save[merchantRecord](r.conn(ctx), m)
 }
@@ -322,8 +338,7 @@ func (r Payments) query(ctx context.Context, q ports.PaymentQuery) *gormDB {
 		db = db.Where("duplicate_of <> ''")
 	}
 	if s := strings.TrimSpace(q.Search); s != "" {
-		like := "%" + strings.ToLower(s) + "%"
-		db = db.Where("LOWER(customer_name) LIKE ? OR LOWER(reference) LIKE ? OR LOWER(client_reference_id) LIKE ? OR id = ? OR phone_last4 = ? OR attempt_id = ? OR rail_reference = ? OR rail_id = ? OR operator_reference = ?", like, like, like, s, s, strings.ToUpper(s), s, s, s)
+		db = searchPayments(db, s)
 	}
 	if q.From != nil {
 		db = db.Where("created_at >= ?", *q.From)
@@ -393,8 +408,11 @@ func (r Ledger) Add(ctx context.Context, e *domain.LedgerEntry) error {
 	return create[ledgerRecord](r.conn(ctx), e)
 }
 func (r Ledger) Balance(ctx context.Context, merchantID string, live bool) (int64, error) {
+	// The merchant_balances rollup, kept by the ledger's trigger in the same
+	// transaction as each entry: inside a transaction it already counts
+	// that transaction's entries.
 	var sum int64
-	err := r.conn(ctx).Model(&ledgerRecord{}).Where("merchant_id = ? AND livemode = ?", merchantID, live).Select("COALESCE(SUM(amount),0)").Scan(&sum).Error
+	err := r.conn(ctx).Model(&merchantBalanceRecord{}).Where("merchant_id = ? AND livemode = ?", merchantID, live).Select("COALESCE(SUM(balance),0)").Scan(&sum).Error
 	return sum, err
 }
 
@@ -459,6 +477,30 @@ func (r Payouts) TestModeToSettle(ctx context.Context, before time.Time, limit i
 }
 
 // likeEscape makes % and _ in a search mean themselves, not wildcards.
+// searchPayments looks where what was typed can be: an id, a RIHA reference,
+// an operation number or the last digits of a phone each go to their own
+// index. Only free text reads names and the merchant's own references.
+func searchPayments(db *gorm.DB, s string) *gorm.DB {
+	up := strings.ToUpper(s)
+	digits := strings.Trim(s, "0123456789") == ""
+	switch {
+	case strings.HasPrefix(s, "pay_"):
+		return db.Where("id = ?", s)
+	case strings.HasPrefix(up, "RH-"):
+		return db.Where("reference LIKE ?", likeEscape(up)+"%")
+	case digits && len(s) == 4:
+		return db.Where("phone_last4 = ?", s)
+	case digits && (len(s) == 12 || len(s) == 20):
+		return db.Where("rail_reference = ? OR rail_id = ?", s, s)
+	case attemptShape.MatchString(up):
+		return db.Where("attempt_id = ? OR operator_reference = ? OR rail_id = ?", up, s, s)
+	}
+	like := "%" + likeEscape(strings.ToLower(s)) + "%"
+	return db.Where("LOWER(customer_name) LIKE ? OR LOWER(client_reference_id) LIKE ? OR operator_reference = ? OR rail_id = ?", like, like, s, s)
+}
+
+var attemptShape = regexp.MustCompile(`^[A-Z2-9-]{9,20}$`)
+
 func likeEscape(s string) string {
 	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s)
 }

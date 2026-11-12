@@ -213,7 +213,20 @@ func TestSessionValidation(t *testing.T) {
 			t.Errorf("case %d should fail", i)
 		}
 	}
-	if _, err := a.AddDomain(ctx, m.ID, "https://loja.co.mz/x"); err != nil {
+	d, err := a.AddDomain(ctx, m.ID, "https://loja.co.mz/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.CreateSession(ctx, m, false, app.SessionParams{Amount: 5000, SuccessURL: "https://loja.co.mz/ok", CallbackURL: "https://api.loja.co.mz/cb", Origin: api}); err == nil {
+		t.Fatal("a domain not yet verified took callbacks")
+	}
+	a.LookupTXT = func(_ context.Context, name string) ([]string, error) {
+		if name == "_riha.loja.co.mz" {
+			return []string{d.Token}, nil
+		}
+		return nil, nil
+	}
+	if _, err := a.VerifyDomain(ctx, m.ID, d.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.CreateSession(ctx, m, false, app.SessionParams{Amount: 5000, SuccessURL: "https://loja.co.mz/ok", CallbackURL: "https://api.loja.co.mz/cb", Origin: api}); err != nil {

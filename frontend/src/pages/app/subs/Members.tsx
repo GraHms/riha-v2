@@ -60,7 +60,7 @@ export default function Members() {
               {data.data.length === 0 && <div style={{ padding: 28, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Nenhum membro com estes filtros.</div>}
               {data.data.map((m: any) => (
                 <div key={m.id} className="trow click mem-row" style={{ background: m.status === 'past_due' || m.status === 'suspended' ? '#FFFCF0' : undefined }} onClick={() => nav('/painel/assinaturas/membros/' + m.id)}>
-                  <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[m.payer_name, m.phone].filter(Boolean).join(' · ')}</div></div>
+                  <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}{m.duplicate_of && <span title="Inscreveu-se pelo link com o número e o nome de um membro que já tem. Veja se é a mesma pessoa." style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 6, background: '#FFF4DB', color: '#8A5A00' }}>Possível duplicado</span>}</div><div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[m.payer_name, m.phone].filter(Boolean).join(' · ')}</div></div>
                   <span style={{ fontSize: 13.5, color: 'var(--text-2)' }}>{m.plans || '—'}</span>
                   <span style={{ fontSize: 13.5 }}>{fieldDef ? m.fields?.[fieldDef.key] || '—' : ''}</span>
                   <span><StatusPill map={SUB_STATUS} s={m.status} /></span>
@@ -82,7 +82,7 @@ export default function Members() {
           <div className="mem-cards" style={{ display: 'none', flexDirection: 'column', gap: 8, marginTop: 12 }}>
             {data.data.map((m: any) => (
               <button key={m.id} className="card" onClick={() => nav('/painel/assinaturas/membros/' + m.id)} style={{ textAlign: 'left', padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center', border: '1px solid var(--line)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5 }}>{m.name}</div><div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{[fieldDef && m.fields?.[fieldDef.key], m.payer_name].filter(Boolean).join(' · ')}</div></div>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5 }}>{m.name}{m.duplicate_of && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 6, background: '#FFF4DB', color: '#8A5A00' }}>Possível duplicado</span>}</div><div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{[fieldDef && m.fields?.[fieldDef.key], m.payer_name].filter(Boolean).join(' · ')}</div></div>
                 <div style={{ textAlign: 'right' }}><StatusPill map={SUB_STATUS} s={m.status} /><div style={{ fontSize: 12, color: m.debt ? 'var(--sun-text)' : 'var(--muted)', marginTop: 4 }}>{m.debt ? `${money(m.debt)} MT em dívida` : m.next_due ? `próx. ${m.next_due}` : ''}</div></div>
               </button>
             ))}

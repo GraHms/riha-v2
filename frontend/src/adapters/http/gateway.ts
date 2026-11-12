@@ -14,7 +14,7 @@ export function httpGateway(t = new Transport()): Gateway {
     onUnauthorized: t.onUnauthorized,
     auth: {
       me: () => get<Me>('/auth/me'),
-      login: (email, password) => post<Me>('/auth/login', { email, password }),
+      login: (email, password, code) => post<Me>('/auth/login', { email, password, code }),
       signup: input => post<Me>('/auth/signup', input),
       logout: async () => { await post('/auth/logout') },
       changePassword: async (current_password, new_password) => { await post('/auth/password', { current_password, new_password }) },
@@ -64,10 +64,12 @@ export function httpGateway(t = new Transport()): Gateway {
       deleteEndpoint: id => send('DELETE', '/developers/endpoints/' + encodeURIComponent(id)),
       addDomain: domain => post('/developers/domains', { domain }),
       removeDomain: id => send('DELETE', '/developers/domains/' + encodeURIComponent(id)),
+      verifyDomain: id => post(`/developers/domains/${encodeURIComponent(id)}/verify`),
       deliveries: () => get('/developers/deliveries'),
       resendDelivery: async id => { await post(`/developers/deliveries/${encodeURIComponent(id)}/resend`) },
       sendTestEvent: async () => { await post('/developers/test-event') },
       signingSecret: async () => (await get<{ secret: string }>('/developers/secret')).secret,
+      rollSigningSecret: async () => (await post<{ secret: string }>('/developers/secret/roll')).secret,
     },
     checkout: {
       // A status check is small and repeats: a slow one is better given up and tried again.
@@ -131,6 +133,7 @@ export function httpGateway(t = new Transport()): Gateway {
     },
     admin: {
       overview: () => get('/admin/overview'),
+      badges: () => get('/admin/badges'),
       trailSearch: q => get('/admin/trail/search?' + qs({ q })),
       payments: f => get('/admin/payments?' + qs({ ...f, page: f.page && f.page > 1 ? f.page : undefined })),
       checkPayment: (id, apply) => post(`/admin/payments/${encodeURIComponent(id)}/check`, { apply }),
@@ -174,6 +177,8 @@ export function httpGateway(t = new Transport()): Gateway {
       resendInvite: id => post(`/admin/users/${encodeURIComponent(id)}/invite`),
       payFunding: (id, reference, receipt) => { const fd = new FormData(); fd.append('reference', reference); fd.append('receipt', receipt); return t.request(`/admin/funding/${encodeURIComponent(id)}/paid`, { form: fd }) },
       fundingReceiptUrl: id => t.url(`/admin/funding/${encodeURIComponent(id)}/receipt`),
+      confirmFunding: ids => post('/admin/funding/confirm', { ids }),
+      rejectClaim: (id, reason) => post(`/admin/funding/${encodeURIComponent(id)}/reject`, { reason }),
     },
   }
 }

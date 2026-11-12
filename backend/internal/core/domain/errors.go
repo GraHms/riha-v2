@@ -36,5 +36,8 @@ func Unauthorized(code, msg string) *Error {
 
 var (
 	ErrBadCredentials = Unauthorized("invalid_credentials", "Email ou palavra-passe incorretos.")
+	ErrLoginLocked    = &Error{Status: 429, Type: "rate_limit_error", Code: "login_locked", Message: "Demasiadas tentativas erradas. Tente de novo daqui a 15 minutos, ou recupere a palavra-passe."}
+	ErrLoginCode      = Unauthorized("login_code_required", "Enviámos um código para o seu email. Escreva-o para entrar neste dispositivo.")
+	ErrLoginCodeWrong = Unauthorized("login_code_invalid", "O código não está certo ou expirou. Peça outro.")
 	ErrBadKey         = Unauthorized("api_key_invalid", "Chave API inválida ou revogada.")
 )

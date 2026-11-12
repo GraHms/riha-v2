@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"golang.org/x/net/publicsuffix"
 	"net"
 	"net/url"
 	"strings"
@@ -324,8 +325,16 @@ var schemeStripper = strings.NewReplacer("https://", "", "http://", "")
 func (a *App) AddDomain(ctx context.Context, merchantID, raw string) (*domain.AllowedDomain, error) {
 	d := strings.ToLower(strings.TrimSpace(schemeStripper.Replace(raw)))
 	d = strings.TrimSuffix(strings.SplitN(d, "/", 2)[0], ".")
-	if d == "" || !strings.Contains(d, ".") || strings.ContainsAny(d, " :@") {
+	if d == "" || !strings.Contains(d, ".") || strings.ContainsAny(d, " :@[]") {
 		return nil, domain.Invalid("domain_invalid", "domain", "Domínio inválido, por exemplo loja.co.mz.")
+	}
+	// A name the merchant can own: never an address, nor a suffix shared
+	// by everyone under it, as co.mz is.
+	if net.ParseIP(d) != nil {
+		return nil, domain.Invalid("domain_invalid", "domain", "Use o nome do domínio, não um endereço IP.")
+	}
+	if _, err := publicsuffix.EffectiveTLDPlusOne(d); err != nil {
+		return nil, domain.Invalid("domain_invalid", "domain", "Use um domínio seu, por exemplo loja.co.mz.")
 	}
 	doms, _ := a.Domains.List(ctx, merchantID)
 	for _, x := range doms {
@@ -334,6 +343,45 @@ func (a *App) AddDomain(ctx context.Context, merchantID, raw string) (*domain.Al
 		}
 	}
 	now := a.Now()
-	ad := &domain.AllowedDomain{ID: domain.NewID("dom"), MerchantID: merchantID, Domain: d, Token: "riha-verify=" + domain.Token("", 20), VerifiedAt: &now, CreatedAt: now}
+	ad := &domain.AllowedDomain{ID: domain.NewID("dom"), MerchantID: merchantID, Domain: d, Token: "riha-verify=" + domain.Token("", 20), CreatedAt: now}
 	return ad, a.Domains.Create(ctx, ad)
+}
+
+// VerifyDomain looks for the domain's TXT record with its token: only who
+// runs a domain's DNS can add it.
+func (a *App) VerifyDomain(ctx context.Context, merchantID, id string) (*domain.AllowedDomain, error) {
+	doms, err := a.Domains.List(ctx, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range doms {
+		d := &doms[i]
+		if d.ID != id {
+			continue
+		}
+		if d.VerifiedAt != nil {
+			return d, nil
+		}
+		lookup := a.LookupTXT
+		if lookup == nil {
+			lookup = net.DefaultResolver.LookupTXT
+		}
+		ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+		defer cancel()
+		for _, name := range []string{"_riha." + d.Domain, d.Domain} {
+			txts, _ := lookup(ctx, name)
+			for _, t := range txts {
+				if strings.TrimSpace(t) == d.Token {
+					now := a.Now()
+					if err := a.Domains.MarkVerified(ctx, merchantID, d.ID, now); err != nil {
+						return nil, err
+					}
+					d.VerifiedAt = &now
+					return d, nil
+				}
+			}
+		}
+		return nil, domain.Invalid("domain_unverified", "domain", fmt.Sprintf("Ainda não encontrámos o registo TXT em _riha.%s. Os registos DNS podem demorar alguns minutos a aparecer.", d.Domain))
+	}
+	return nil, domain.NotFound("O domínio")
 }

@@ -2,7 +2,7 @@ import type { CheckoutSession, Json, Me, Mode, PaymentFilter, PaymentLink, Publi
 
 export interface AuthPort {
   me(): Promise<Me>
-  login(email: string, password: string): Promise<Me>
+  login(email: string, password: string, code?: string): Promise<Me>
   signup(input: SignupInput): Promise<Me>
   logout(): Promise<void>
   changePassword(current: string, next: string): Promise<void>
@@ -17,7 +17,7 @@ export interface MerchantPort {
   uploadDocument(kind: string, file: File): Promise<Json>
   submitKyc(): Promise<Json>
   bankAccount(): Promise<Json>
-  saveBankAccount(input: { bank_name: string; holder: string; nib: string }): Promise<Json>
+  saveBankAccount(input: { bank_name: string; holder: string; nib: string; password?: string }): Promise<Json>
 }
 
 export interface PaymentsPort {
@@ -57,10 +57,12 @@ export interface DevelopersPort {
   deleteEndpoint(id: string): Promise<Json>
   addDomain(domain: string): Promise<Json>
   removeDomain(id: string): Promise<Json>
+  verifyDomain(id: string): Promise<Json>
   deliveries(): Promise<Json>
   resendDelivery(id: string): Promise<void>
   sendTestEvent(): Promise<void>
   signingSecret(): Promise<string>
+  rollSigningSecret(): Promise<string>
 }
 
 export interface CheckoutPort {
@@ -73,6 +75,7 @@ export interface CheckoutPort {
 
 export interface AdminPort {
   overview(): Promise<Json>
+  badges(): Promise<Json>
   trailSearch(q: string): Promise<Json>
   payments(f: { q?: string; view?: string; method?: string; merchant?: string; mode?: string; page?: number }): Promise<Json>
   checkPayment(id: string, apply: boolean): Promise<Json>
@@ -116,6 +119,8 @@ export interface AdminPort {
   resendInvite(userId: string): Promise<Json>
   payFunding(id: string, reference: string, receipt: File): Promise<Json>
   fundingReceiptUrl(id: string): string
+  confirmFunding(ids: string[]): Promise<Json>
+  rejectClaim(id: string, reason: string): Promise<Json>
 }
 
 export interface PartnerPort {

@@ -242,13 +242,13 @@ func (t *Trail) Recent(ctx context.Context, q ports.TrailQuery) ([]domain.TrailE
 		db = db.Where("kind IN ?", q.Kinds)
 	}
 	if q.Level != "" {
-		db = db.Where("level = ?", q.Level)
+		db = db.Where("level IN ?", strings.Split(q.Level, ","))
 	}
 	if q.Since != nil {
 		db = db.Where("created_at >= ?", *q.Since)
 	}
 	if s := strings.TrimSpace(q.Search); s != "" {
-		like := "%" + s + "%"
+		like := "%" + likeEscape(s) + "%"
 		db = db.Where("title ILIKE ? OR path ILIKE ? OR request_id = ? OR payment_id = ? OR session_id = ?", like, like, s, s, s)
 	}
 	limit := q.Limit

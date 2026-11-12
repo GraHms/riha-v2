@@ -2,8 +2,12 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"errors"
+	"fmt"
 	"log"
+	"math/big"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -109,21 +113,115 @@ func (a *App) CreateAdmin(ctx context.Context, email, password, name, title stri
 	return a.Users.Create(ctx, &domain.User{ID: domain.NewID("usr"), Email: email, PasswordHash: hash, Name: name, Role: domain.RoleAdmin, AdminTitle: title, Permissions: []string{domain.PermAll}, CreatedAt: a.Now()})
 }
 
+const (
+	// MaxFailedLogins wrong passwords in a row lock an account for LoginLock.
+	MaxFailedLogins = 8
+	LoginLock       = 15 * time.Minute
+	LoginCodeTTL    = 10 * time.Minute
+	// DeviceTTL is how long a device that entered a login code is known.
+	DeviceTTL = 30 * 24 * time.Hour
+)
+
 func (a *App) Login(ctx context.Context, email, password, ip, ua string) (string, *domain.User, error) {
-	u, err := a.Users.ByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	r, err := a.SignIn(ctx, LoginInput{Email: email, Password: password, IP: ip, UA: ua})
+	return r.Token, r.User, err
+}
+
+// LoginInput is a sign in: Device is the token of a device that entered a
+// login code before, and Code the one emailed now.
+type LoginInput struct {
+	Email, Password, Code, Device, IP, UA string
+}
+
+type LoginResult struct {
+	Token string
+	User  *domain.User
+	// Device is set when this sign in made the device known.
+	Device string
+}
+
+// SignIn checks the password, with guessing slowed by a lock after too many
+// wrong ones. Staff and partners, who can move money, also enter a code
+// emailed to them on a device RIHA doesn't know: a stolen password alone
+// doesn't open the backoffice.
+func (a *App) SignIn(ctx context.Context, in LoginInput) (LoginResult, error) {
+	var out LoginResult
+	u, err := a.Users.ByEmail(ctx, strings.ToLower(strings.TrimSpace(in.Email)))
 	if err != nil {
-		a.Hasher.Matches("", password)
-		return "", nil, domain.ErrBadCredentials
+		a.Hasher.Matches("", in.Password)
+		return out, domain.ErrBadCredentials
 	}
-	if !a.Hasher.Matches(u.PasswordHash, password) || u.DisabledAt != nil {
-		return "", nil, domain.ErrBadCredentials
+	now := a.Now()
+	if u.LockedUntil != nil && now.Before(*u.LockedUntil) {
+		return out, domain.ErrLoginLocked
 	}
-	tok, err := a.NewSession(ctx, u, ip, ua)
+	if !a.Hasher.Matches(u.PasswordHash, in.Password) || u.DisabledAt != nil {
+		if u.DisabledAt == nil {
+			_ = a.Users.LoginFailed(ctx, u.ID, now, MaxFailedLogins, LoginLock)
+		}
+		return out, domain.ErrBadCredentials
+	}
+	if a.LoginCodes && (u.Role == domain.RoleAdmin || u.Role == domain.RolePartner) {
+		known := false
+		if in.Device != "" {
+			if known, err = a.Resets.DeviceTrusted(ctx, u.ID, domain.Hash(in.Device), now); err != nil {
+				return out, err
+			}
+		}
+		if !known {
+			code := strings.Join(strings.Fields(in.Code), "")
+			if code == "" {
+				if err := a.sendLoginCode(ctx, u, in); err != nil {
+					return out, err
+				}
+				return out, domain.ErrLoginCode
+			}
+			c, err := a.Resets.LoginCode(ctx, u.ID)
+			if err != nil || now.After(c.ExpiresAt) || c.Attempts >= 5 {
+				return out, domain.ErrLoginCodeWrong
+			}
+			if err := a.Resets.TryLoginCode(ctx, u.ID); err != nil {
+				return out, err
+			}
+			if subtle.ConstantTimeCompare([]byte(c.CodeHash), []byte(domain.Hash(u.ID+":"+code))) != 1 {
+				return out, domain.ErrLoginCodeWrong
+			}
+			if err := a.Resets.SpendLoginCode(ctx, u.ID); err != nil {
+				return out, err
+			}
+			out.Device = domain.Token("", 32)
+			if err := a.Resets.TrustDevice(ctx, &domain.TrustedDevice{TokenHash: domain.Hash(out.Device), UserID: u.ID, ExpiresAt: now.Add(DeviceTTL), CreatedAt: now}); err != nil {
+				return out, err
+			}
+			a.Record(ctx, "", Actor{ID: u.ID, Role: u.Role, IP: in.IP}, "auth.device_added", u.ID, domain.Trim(in.UA, 160))
+		}
+	}
+	tok, err := a.NewSession(ctx, u, in.IP, in.UA)
 	if err != nil {
-		return "", nil, err
+		return out, err
 	}
-	_ = a.Users.TouchLogin(ctx, u.ID, a.Now())
-	return tok, u, nil
+	_ = a.Users.TouchLogin(ctx, u.ID, now)
+	out.Token, out.User = tok, u
+	return out, nil
+}
+
+// sendLoginCode emails a new code, unless one went out in the last minute.
+func (a *App) sendLoginCode(ctx context.Context, u *domain.User, in LoginInput) error {
+	now := a.Now()
+	if c, err := a.Resets.LoginCode(ctx, u.ID); err == nil && now.Sub(c.CreatedAt) < time.Minute && now.Before(c.ExpiresAt) {
+		return nil
+	}
+	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return err
+	}
+	code := fmt.Sprintf("%06d", n.Int64())
+	return a.Tx.Do(ctx, func(ctx context.Context) error {
+		if err := a.Resets.SaveLoginCode(ctx, &domain.LoginCode{UserID: u.ID, CodeHash: domain.Hash(u.ID + ":" + code), ExpiresAt: now.Add(LoginCodeTTL), CreatedAt: now}); err != nil {
+			return err
+		}
+		return a.mailLoginCode(ctx, u, code, in.IP)
+	})
 }
 
 func (a *App) NewSession(ctx context.Context, u *domain.User, ip, ua string) (string, error) {

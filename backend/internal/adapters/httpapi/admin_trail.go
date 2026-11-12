@@ -87,8 +87,11 @@ func (srv *Server) adminMetrics(c *gin.Context) {
 	if days <= 0 || days > 365 {
 		days = 7
 	}
+	// Whole Maputo days: today and the days before it.
 	to := time.Now()
-	q := ports.MetricsQuery{From: to.AddDate(0, 0, -days), To: to, Live: c.DefaultQuery("live", "true") == "true", MerchantID: c.Query("merchant")}
+	mt := to.In(domain.Maputo)
+	from := time.Date(mt.Year(), mt.Month(), mt.Day(), 0, 0, 0, 0, domain.Maputo).AddDate(0, 0, 1-days)
+	q := ports.MetricsQuery{From: from, To: to, Live: c.DefaultQuery("live", "true") == "true", MerchantID: c.Query("merchant")}
 	m, err := srv.A.AdminMetrics(ctx(c), q)
 	if err != nil {
 		fail(c, err)

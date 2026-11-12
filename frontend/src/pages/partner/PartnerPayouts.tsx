@@ -107,8 +107,9 @@ export default function PartnerPayouts() {
                     <div className="o-t2"><span className="o-mono">{p.reference}</span> · pedido {rel(p.requested_at)}</div>
                   </div>
                   {dl && <Badge tone={dl[1]} dot>{dl[0]}</Badge>}
-                  {tab === 'paid' && <Badge tone="ok" dot>Pago</Badge>}
+                  {tab === 'paid' && (r.status === 'claimed' ? <Badge tone="warn" dot>A RIHA está a confirmar</Badge> : <Badge tone="ok" dot>Pago</Badge>)}
                 </div>
+                {tab === 'to_pay' && r.warning && <div className="form-err" style={{ margin: '10px 0 0' }}>{r.warning}</div>}
 
                 <div className="pp-amt">
                   <div className="o-stat-l">{tab === 'paid' ? 'Transferido' : 'A transferir'}</div>
@@ -140,7 +141,7 @@ export default function PartnerPayouts() {
           })}
         </div>
       )}
-      {paying && <PayModal row={paying} pay={(ref, file) => g.partner.payFunding(paying.id, ref, file)} onClose={() => setPaying(null)} onDone={() => { setPaying(null); toast(`${paying.payout.reference} marcado como pago`); reload() }} />}
+      {paying && <PayModal row={paying} pay={(ref, file) => g.partner.payFunding(paying.id, ref, file)} onClose={() => setPaying(null)} onDone={() => { setPaying(null); toast(`${paying.payout.reference} enviado. A RIHA confirma a transferência no extrato.`); reload() }} />}
     </Page>
   )
 }

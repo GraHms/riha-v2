@@ -263,7 +263,7 @@ func memberRow(mem *domain.Member) gin.H {
 	return gin.H{"id": mem.ID, "name": mem.Name, "payer_name": mem.PayerName, "phone": domain.FormatPhone(mem.Phone), "email": mem.Email,
 		"channel": mem.Channel, "fields": mem.Fields, "status": mem.Status, "debt": mem.Debt, "debt_count": mem.DebtCount, "plans": mem.PlanNames,
 		"next_due": short(mem.NextDueAt), "next_due_iso": iso(mem.NextDueAt), "last_paid": short(mem.LastPaidAt), "last_paid_via": mem.LastPaidVia,
-		"created_at": mem.CreatedAt.UTC().Format(time.RFC3339)}
+		"duplicate_of": mem.DuplicateOf, "created_at": mem.CreatedAt.UTC().Format(time.RFC3339)}
 }
 
 func (srv *Server) memberQuery(c *gin.Context) ports.MemberQuery {
@@ -323,13 +323,13 @@ func (srv *Server) exportMembers(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", `attachment; filename="riha-membros.csv"`)
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"Membro", "Quem paga", "Número", "Planos", "Estado", "Próxima", "Em dívida (MT)", "Último pagamento", "Campos"})
+	_ = writeSafe(w, []string{"Membro", "Quem paga", "Número", "Planos", "Estado", "Próxima", "Em dívida (MT)", "Último pagamento", "Campos"})
 	for _, mem := range ms {
 		var fs []string
 		for k, v := range mem.Fields {
 			fs = append(fs, k+": "+v)
 		}
-		_ = w.Write([]string{csvSafe(mem.Name), csvSafe(mem.PayerName), domain.FormatPhone(mem.Phone), csvSafe(mem.PlanNames), mem.Status, short(mem.NextDueAt),
+		_ = writeSafe(w, []string{csvSafe(mem.Name), csvSafe(mem.PayerName), domain.FormatPhone(mem.Phone), csvSafe(mem.PlanNames), mem.Status, short(mem.NextDueAt),
 			domain.Format(mem.Debt), short(mem.LastPaidAt), csvSafe(strings.Join(fs, "; "))})
 	}
 	w.Flush()

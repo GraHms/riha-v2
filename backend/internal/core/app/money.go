@@ -22,6 +22,10 @@ func (a *App) RequestPayout(ctx context.Context, merchantID string, live bool, a
 		if err != nil {
 			return domain.Invalid("bank_account_missing", "bank_account", "Adicione uma conta bancária em Definições antes de levantar.")
 		}
+		if from := bank.PayableFrom(); live && from != nil && a.Now().Before(*from) {
+			return domain.Invalid("bank_account_on_hold", "bank_account", fmt.Sprintf("A conta bancária foi mudada há pouco. Recebe levantamentos a partir de %s: protege o seu dinheiro se alguém entrar na sua conta.",
+				domain.EmailTime(*from)))
+		}
 		fee := a.TransferPricing(ctx).FeeFor(bank.BankName, bank.NIB, amount)
 		if amount-fee < domain.MinPayout {
 			if fee > 0 {
@@ -43,7 +47,7 @@ func (a *App) RequestPayout(ctx context.Context, merchantID string, live bool, a
 		}
 		now := a.Now()
 		p := &domain.Payout{ID: domain.NewID("po"), Number: num, MerchantID: merchantID, Livemode: live, Amount: amount, Fee: fee,
-			Status: domain.PayoutNew, BankName: bank.BankName, Holder: bank.Holder, NIB: bank.NIB,
+			Status: domain.PayoutNew, BankName: bank.BankName, Holder: bank.Holder, NIB: bank.NIB, BankChangedAt: bank.ChangedAt,
 			RequestedBy: actor, RequestedAt: now, DueAt: now.Add(domain.PayoutSLA), UpdatedAt: now}
 		if err := a.Payouts.Create(ctx, p); err != nil {
 			return err
@@ -84,11 +88,20 @@ func (a *App) TransitionPayout(ctx context.Context, id, action, reason, actor st
 		if err != nil {
 			return err
 		}
+		if action == domain.ActPaid {
+			// Paid only once every part is: no one closes a withdrawal its
+			// partners haven't all paid, or RIHA hasn't confirmed.
+			if done, err := a.fundingDone(ctx, p.ID); err != nil {
+				return err
+			} else if !done {
+				return domain.Invalid("payout_parts_open", "status", fmt.Sprintf("%s ainda tem partes por pagar ou por confirmar.", p.Ref()))
+			}
+		}
 		if t.Reversal {
-			if err := a.ledger(ctx, p.MerchantID, p.Livemode, domain.LedgerPayoutReversal, p.Amount, p.ID, "Devolução "+p.Ref()); err != nil {
+			if err := a.cancelFunding(ctx, p); err != nil {
 				return err
 			}
-			if err := a.cancelFunding(ctx, p.ID); err != nil {
+			if err := a.ledger(ctx, p.MerchantID, p.Livemode, domain.LedgerPayoutReversal, p.Amount, p.ID, "Devolução "+p.Ref()); err != nil {
 				return err
 			}
 		}
@@ -117,16 +130,18 @@ func (a *App) Refund(ctx context.Context, merchantID string, live bool, paymentI
 	}
 	var out *domain.Refund
 	err := a.Tx.Do(ctx, func(ctx context.Context) error {
+		// The payment, then its merchant: the order completing a payment
+		// takes them in, so the two never wait on each other.
+		p, err := a.Payments.Lock(ctx, paymentID)
+		if err != nil || p.MerchantID != merchantID || p.Livemode != live {
+			return domain.NotFound("O pagamento")
+		}
 		m, err := a.Merchants.Lock(ctx, merchantID)
 		if err != nil {
 			return err
 		}
 		if e := domain.RequireApproved(m); e != nil {
 			return e
-		}
-		p, err := a.Payments.Lock(ctx, paymentID)
-		if err != nil || p.MerchantID != merchantID || p.Livemode != live {
-			return domain.NotFound("O pagamento")
 		}
 		remaining := p.Refundable()
 		if remaining == 0 {

@@ -46,7 +46,10 @@ func (s Insights) FindThreads(ctx context.Context, q string, limit int) ([]ports
 
 func (s Insights) Metrics(ctx context.Context, q ports.MetricsQuery) (ports.Metrics, error) {
 	var out ports.Metrics
-	args := map[string]any{"from": q.From, "to": q.To, "live": q.Live, "merchant": q.MerchantID}
+	// Counts and sums of payments come from the payment_days rollup, by
+	// whole Maputo days; timings and the trail are read within the bounds.
+	args := map[string]any{"from": q.From, "to": q.To, "live": q.Live, "merchant": q.MerchantID,
+		"fromday": maputoDay(q.From), "today": maputoDay(q.To)}
 	mf := ""
 	if q.MerchantID != "" {
 		mf = " and p.merchant_id = @merchant"
@@ -56,15 +59,15 @@ func (s Insights) Metrics(ctx context.Context, q ports.MetricsQuery) (ports.Metr
 		sql  string
 		dest any
 	}{
-		{`select to_char(date_trunc('day', p.created_at at time zone 'Africa/Maputo'), 'YYYY-MM-DD') as day, p.method,
-		         count(*) as total, count(*) filter (where p.status in ('succeeded','refunded')) as paid,
-		         count(*) filter (where p.status = 'failed') as failed,
-		         coalesce(sum(p.amount) filter (where p.status in ('succeeded','refunded')), 0) as amount
-		  from payments p where p.livemode = @live and p.created_at >= @from and p.created_at < @to` + mf + `
-		  group by 1, 2 order by 1, 2`, &out.Daily},
-		{`select coalesce(nullif(p.failure_code,''), 'desconhecido') as code, p.method, count(*) as n
-		  from payments p where p.livemode = @live and p.status = 'failed' and p.created_at >= @from and p.created_at < @to` + mf + `
-		  group by 1, 2 order by 3 desc`, &out.Failures},
+		{`select to_char(p.day, 'YYYY-MM-DD') as day, p.method,
+		         sum(p.n) as total, coalesce(sum(p.n) filter (where p.status in (` + settledList() + `)), 0) as paid,
+		         coalesce(sum(p.n) filter (where p.status = 'failed'), 0) as failed,
+		         coalesce(sum(p.amount) filter (where p.status in (` + settledList() + `)), 0) as amount
+		  from payment_days p where p.livemode = @live and p.day >= @fromday and p.day <= @today` + mf + `
+		  group by 1, 2 having sum(p.n) <> 0 order by 1, 2`, &out.Daily},
+		{`select coalesce(nullif(p.failure_code,''), 'desconhecido') as code, p.method, sum(p.n) as n
+		  from payment_days p where p.livemode = @live and p.status = 'failed' and p.day >= @fromday and p.day <= @today` + mf + `
+		  group by 1, 2 having sum(p.n) <> 0 order by 3 desc`, &out.Failures},
 		{`select p.method,
 		         count(*) filter (where p.status in ('succeeded','refunded')) as paid, count(*) filter (where p.status = 'failed') as failed,
 		         coalesce(percentile_cont(0.5) within group (order by extract(epoch from p.succeeded_at - p.created_at)) filter (where p.succeeded_at is not null), 0) as p50_seconds,

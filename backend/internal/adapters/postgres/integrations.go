@@ -184,24 +184,26 @@ func (r Integrations) SettledTotals(ctx context.Context) (map[string]int64, erro
 	return out, err
 }
 
+// Collected reads the settled_days rollup, by the Maputo days from and to
+// fall in (to excluded).
 func (r Integrations) Collected(ctx context.Context, from, to *time.Time) ([]ports.CollectedRow, error) {
-	db := r.conn(ctx).Model(&paymentRecord{}).Where("livemode AND status IN ?", domain.SettledStatuses)
+	db := r.conn(ctx).Model(&settledDayRecord{}).Where("livemode")
 	if from != nil {
-		db = db.Where("succeeded_at >= ?", *from)
+		db = db.Where("day >= ?", maputoDay(*from))
 	}
 	if to != nil {
-		db = db.Where("succeeded_at < ?", *to)
+		db = db.Where("day < ?", maputoDay(*to))
 	}
 	var rows []ports.CollectedRow
-	err := db.Select(`integration, merchant_id, COUNT(*) AS count, COALESCE(SUM(amount),0) AS amount, COALESCE(SUM(fee),0) AS fee,
-		COALESCE(SUM(platform_fee),0) AS platform_fee, COALESCE(SUM(partner_fee),0) AS partner_fee, COALESCE(SUM(amount_refunded),0) AS refunded`).
-		Group("integration, merchant_id").Order("integration, amount DESC").Scan(&rows).Error
+	err := db.Select(`integration, merchant_id, SUM(n) AS count, SUM(amount) AS amount, SUM(fee) AS fee,
+		SUM(platform_fee) AS platform_fee, SUM(partner_fee) AS partner_fee, SUM(refunded) AS refunded`).
+		Group("integration, merchant_id").Having("SUM(n) <> 0").Order("integration, amount DESC").Scan(&rows).Error
 	return rows, err
 }
 
 func (r Integrations) MerchantMoney(ctx context.Context) (ports.MerchantMoney, error) {
 	var m ports.MerchantMoney
-	if err := r.conn(ctx).Model(&ledgerRecord{}).Where("livemode").Select("COALESCE(SUM(amount),0)").Scan(&m.Balances).Error; err != nil {
+	if err := r.conn(ctx).Model(&merchantBalanceRecord{}).Where("livemode").Select("COALESCE(SUM(balance),0)").Scan(&m.Balances).Error; err != nil {
 		return m, err
 	}
 	if err := r.conn(ctx).Model(&payoutRecord{}).Where("livemode AND status IN ?", domain.OpenPayoutStatuses).Select("COALESCE(SUM(amount),0)").Scan(&m.InTransit).Error; err != nil {
@@ -246,6 +248,10 @@ type payoutFundingRecord struct {
 	ReceiptHash string `gorm:"size:64"`
 	PaidAt      *time.Time
 	PaidBy      string `gorm:"size:40"`
+	ConfirmedAt *time.Time
+	ConfirmedBy string `gorm:"size:40"`
+	Planned     string `gorm:"size:30"`
+	Warning     string `gorm:"size:300"`
 	CreatedAt   time.Time
 }
 
@@ -288,6 +294,25 @@ func (r Integrations) LockFunding(ctx context.Context, id string) (*domain.Payou
 	return first[payoutFundingRecord, domain.PayoutFunding](r.conn(ctx).Clauses(forUpdate).Where("id = ?", id))
 }
 
+// LockRoom holds, until the transaction ends, the right to give partners
+// withdrawals to pay: two merchants withdrawing at once can't both be given
+// the same money a partner holds.
+func (r Integrations) LockRoom(ctx context.Context) error {
+	return r.conn(ctx).Exec("SELECT pg_advisory_xact_lock(724100)").Error
+}
+
+// ReceiptUsed tells whether a receipt with this hash already paid another
+// part or withdrawal.
+func (r Integrations) ReceiptUsed(ctx context.Context, hash, exceptFunding string) (bool, error) {
+	if hash == "" {
+		return false, nil
+	}
+	var n int64
+	err := r.conn(ctx).Raw(`SELECT (SELECT COUNT(*) FROM payout_funding WHERE receipt_hash = ? AND id <> ? AND status <> ?)
+		+ (SELECT COUNT(*) FROM payouts WHERE receipt_hash = ?)`, hash, exceptFunding, domain.FundingCancelled, hash).Scan(&n).Error
+	return n > 0, err
+}
+
 func (r Integrations) FundingOf(ctx context.Context, payoutIDs []string) ([]domain.PayoutFunding, error) {
 	if len(payoutIDs) == 0 {
 		return nil, nil
@@ -295,10 +320,13 @@ func (r Integrations) FundingOf(ctx context.Context, payoutIDs []string) ([]doma
 	return find[payoutFundingRecord, domain.PayoutFunding](r.conn(ctx).Where("payout_id IN ?", payoutIDs).Order("created_at, amount DESC"))
 }
 
-func (r Integrations) FundingFrom(ctx context.Context, sources, statuses []string, limit int) ([]domain.PayoutFunding, error) {
+func (r Integrations) FundingFrom(ctx context.Context, sources, statuses, payoutStatuses []string, limit int) ([]domain.PayoutFunding, error) {
 	db := r.conn(ctx).Where("source IN ?", sources).Order("created_at DESC")
 	if len(statuses) > 0 {
 		db = db.Where("status IN ?", statuses)
+	}
+	if len(payoutStatuses) > 0 {
+		db = db.Where("payout_id IN (SELECT id FROM payouts WHERE status IN ?)", payoutStatuses)
 	}
 	if limit > 0 {
 		db = db.Limit(limit)
@@ -315,11 +343,11 @@ func (r Integrations) HeldFor(ctx context.Context, merchantID string) (map[strin
 		Total  int64
 	}
 	err := r.conn(ctx).Raw(`SELECT source, SUM(total) AS total FROM (
-		SELECT integration AS source, COALESCE(SUM(net - amount_refunded),0) AS total FROM payments
-			WHERE merchant_id = ? AND livemode AND status IN ? AND integration <> '' GROUP BY integration
+		SELECT integration AS source, COALESCE(SUM(net - refunded),0) AS total FROM settled_days
+			WHERE merchant_id = ? AND livemode AND integration <> '' GROUP BY integration
 		UNION ALL
 		SELECT source, -COALESCE(SUM(amount),0) FROM payout_funding WHERE merchant_id = ? AND status <> ? GROUP BY source
-	) t GROUP BY source`, merchantID, domain.SettledStatuses, merchantID, domain.FundingCancelled).Scan(&rows).Error
+	) t GROUP BY source`, merchantID, merchantID, domain.FundingCancelled).Scan(&rows).Error
 	out := map[string]int64{}
 	for _, x := range rows {
 		out[x.Source] = x.Total
@@ -351,9 +379,9 @@ func (r Integrations) UnfundedPayouts(ctx context.Context, statuses []string) ([
 
 func (r Integrations) CollectedDaily(ctx context.Context, integrations []string, from, to time.Time) ([]ports.DayRow, error) {
 	var rows []ports.DayRow
-	err := r.conn(ctx).Model(&paymentRecord{}).
-		Where("livemode AND status IN ? AND integration IN ? AND succeeded_at >= ? AND succeeded_at < ?", domain.SettledStatuses, integrations, from, to).
-		Select(`to_char(succeeded_at AT TIME ZONE 'Africa/Maputo', 'YYYY-MM-DD') AS day, COUNT(*) AS count, COALESCE(SUM(amount),0) AS amount, COALESCE(SUM(partner_fee),0) AS partner_fee`).
-		Group("day").Order("day").Scan(&rows).Error
+	err := r.conn(ctx).Model(&settledDayRecord{}).
+		Where("livemode AND integration IN ? AND day >= ? AND day < ?", integrations, maputoDay(from), maputoDay(to)).
+		Select(`to_char(day, 'YYYY-MM-DD') AS day, SUM(n) AS count, SUM(amount) AS amount, SUM(partner_fee) AS partner_fee`).
+		Group("day").Having("SUM(n) <> 0").Order("day").Scan(&rows).Error
 	return rows, err
 }

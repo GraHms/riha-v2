@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,8 +29,11 @@ type Config struct {
 	// CreateFor is how long to wait for the create call, which mtoca only answers
 	// when bim does. It must stay under the sweep's railNoRecordAfter (7 minutes).
 	CreateFor time.Duration
-	Debug     bool
-	HTTP      *http.Client
+	// QueryFor bounds one status question: a status call mtoca accepts but
+	// never answers must not hold up the sweep.
+	QueryFor time.Duration
+	Debug    bool
+	HTTP     *http.Client
 	// Trace receives what was sent to mtoca and what it answered, for the trail.
 	Trace func(domain.TrailEvent)
 }
@@ -59,9 +64,13 @@ func New(cfg Config) (*Client, error) {
 	if cfg.CreateFor <= 0 {
 		cfg.CreateFor = 5*time.Minute + 30*time.Second
 	}
+	if cfg.QueryFor <= 0 {
+		cfg.QueryFor = 15 * time.Second
+	}
 	h := cfg.HTTP
 	if h == nil {
-		h = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		// No call to mtoca outlives the longest one, the create.
+		h = &http.Client{Timeout: cfg.CreateFor + 30*time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
 	return &Client{cfg: cfg, http: h, seen: map[string]time.Time{}}, nil
 }
@@ -221,7 +230,8 @@ func (c *Client) Initiate(ctx context.Context, req domain.ChargeRequest, onCompl
 	}
 	phone := domain.NormalizeMZPhone(req.Phone)
 	b := createBody{OperationNumber: req.Reference, Channel: channel, Amount: amount(req.Amount), PhoneNumber: "258" + phone, Description: description(domain.FirstNonEmpty(req.Description, req.Descriptor))}
-	go c.create(b, req, domain.RequestFrom(ctx).ID, onComplete)
+	requestID := domain.RequestFrom(ctx).ID
+	domain.Safely("mtoca charge", func() { c.create(b, req, requestID, onComplete) })
 	return domain.ChargeResult{Async: true, Last4: phone[5:]}, nil
 }
 
@@ -255,14 +265,14 @@ func (c *Client) create(b createBody, req domain.ChargeRequest, requestID string
 	case err != nil:
 		// mtoca keeps the outcome, so the operation number is enough to find it.
 		log.Printf("mtoca create op=%s lost its answer, asking by operation number: %v", b.OperationNumber, err)
-		c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, Method: req.Method}, requestID, onComplete)
+		c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, Method: req.Method, Amount: req.Amount}, requestID, onComplete)
 		return
 	}
 	id := field(m, "vendorTransactionId_NEP", "transactionID_NEP")
 	if id != "" && req.OnRailID != nil {
 		req.OnRailID(id)
 	}
-	c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, RailID: id, Method: req.Method}, requestID, onComplete)
+	c.poll(domain.StatusQuery{PaymentID: req.PaymentID, Reference: b.OperationNumber, RailID: id, Method: req.Method, Amount: req.Amount}, requestID, onComplete)
 }
 
 func (c *Client) trace(ev domain.TrailEvent) {
@@ -299,7 +309,7 @@ func (c *Client) poll(q domain.StatusQuery, requestID string, onComplete func(do
 	deadline := time.Now().Add(c.cfg.PollFor)
 	started, asked, last := time.Now(), 0, ""
 	for {
-		ctx, cancel := context.WithTimeout(domain.WithRequest(context.Background(), domain.RequestInfo{ID: requestID}), 20*time.Second)
+		ctx, cancel := context.WithTimeout(domain.WithRequest(context.Background(), domain.RequestInfo{ID: requestID}), c.cfg.QueryFor)
 		out, final, m, raw, err := c.ask(ctx, q)
 		cancel()
 		asked++
@@ -335,6 +345,8 @@ func (c *Client) poll(q domain.StatusQuery, requestID string, onComplete func(do
 }
 
 func (c *Client) query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.cfg.QueryFor)
+	defer cancel()
 	out, final, _, _, err := c.ask(ctx, q)
 	return out, final, err
 }
@@ -345,10 +357,31 @@ func (c *Client) ask(ctx context.Context, q domain.StatusQuery) (domain.Outcome,
 		return domain.Outcome{}, false, m, raw, err
 	}
 	out, final := Interpret(m)
+	if err := sameOperation(m, q); err != nil {
+		return domain.Outcome{}, false, m, raw, err
+	}
 	if final && out.Success && out.OperatorReference == "" {
 		out.OperatorReference = domain.FirstNonEmpty(q.RailID, q.Reference)
 	}
 	return out, final, m, raw, nil
+}
+
+// sameOperation refuses an answer about another operation, or one that says
+// another amount was paid: only an answer about this payment can end it.
+func sameOperation(m map[string]any, q domain.StatusQuery) error {
+	if op := field(m, "operationNumber"); op != "" && q.Reference != "" && op != q.Reference {
+		return fmt.Errorf("mtoca answered about operation %s, not %s", op, q.Reference)
+	}
+	if strings.ToUpper(field(m, "paymentStatus")) != "P" || q.Amount <= 0 {
+		return nil
+	}
+	if a := field(m, "amount"); a != "" {
+		v, err := strconv.ParseFloat(strings.ReplaceAll(a, ",", "."), 64)
+		if err != nil || int64(math.Round(v*100)) != q.Amount {
+			return fmt.Errorf("mtoca says %s MT were paid for operation %s, not %d.%02d", a, q.Reference, q.Amount/100, q.Amount%100)
+		}
+	}
+	return nil
 }
 
 // NewReference: mtoca takes a 12 digit operation number.
@@ -357,6 +390,8 @@ func (c *Client) NewReference(string, bool) string { return domain.OperationNumb
 // Query answers the sweep. Pending is an error, not "no record": mtoca knows the
 // payment, so the customer can still confirm it. A 404 is the only "no record".
 func (c *Client) Query(ctx context.Context, q domain.StatusQuery) (domain.Outcome, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.cfg.QueryFor)
+	defer cancel()
 	wait := 30 * time.Second
 	if q.Urgent {
 		wait = 2 * time.Second

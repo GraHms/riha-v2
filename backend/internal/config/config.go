@@ -80,7 +80,7 @@ func flag(k string, def bool) bool {
 
 func Load() Config {
 	delay, _ := strconv.Atoi(env("RIHA_SIM_DELAY_MS", "4000"))
-	dev := env("RIHA_ENV", "development") == "development"
+	dev := env("RIHA_ENV", "production") == "development"
 	public := env("RIHA_PUBLIC_URL", "http://localhost:5173")
 	var proxies []string
 	for _, p := range strings.Split(env("RIHA_TRUSTED_PROXIES", ""), ",") {
@@ -89,7 +89,7 @@ func Load() Config {
 		}
 	}
 	return Config{
-		Env:               env("RIHA_ENV", "development"),
+		Env:               env("RIHA_ENV", "production"),
 		Addr:              env("RIHA_ADDR", ":8080"),
 		DatabaseURL:       env("DATABASE_URL", "postgres://riha:riha@localhost:5432/riha?sslmode=disable"),
 		PublicURL:         public,
@@ -102,7 +102,7 @@ func Load() Config {
 		CatalogSubdomains: flag("RIHA_CATALOG_SUBDOMAINS", false),
 		// Written by the server's nightly backup into the data volume; in production
 		// the alerts say when it is missing or old.
-		BackupStatusFile:     env("RIHA_BACKUP_STATUS_FILE", map[bool]string{true: "/app/data/backup/last-success", false: ""}[env("RIHA_ENV", "development") == "production"]),
+		BackupStatusFile:     env("RIHA_BACKUP_STATUS_FILE", map[bool]string{true: "/app/data/backup/last-success", false: ""}[env("RIHA_ENV", "production") == "production"]),
 		SimulatorDelayMs:     delay,
 		AllowPrivateNetworks: flag("RIHA_ALLOW_PRIVATE_NETWORKS", dev),
 		TrustedProxies:       proxies,

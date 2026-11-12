@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"log"
 	"regexp"
+	"runtime/debug"
 	"strings"
 )
 
@@ -108,6 +110,9 @@ type StatusQuery struct {
 	Integration string
 	// Urgent is for a callback: the operator just said something changed.
 	Urgent bool
+	// Amount is what the payment asked for, in cents: an answer that says
+	// another amount was paid is not about this payment.
+	Amount int64
 }
 
 var attemptShape = regexp.MustCompile(`^[A-Z2-9-]{9,20}$`)
@@ -136,3 +141,16 @@ var nonDigits = regexp.MustCompile(`\D`)
 func Digits(s string) string { return nonDigits.ReplaceAllString(s, "") }
 
 func NormalizeMZPhone(p string) string { return strings.TrimPrefix(Digits(p), "258") }
+
+// Safely runs f on its own goroutine: a panic in it is logged, never the end
+// of the server, which may be in the middle of other customers' payments.
+func Safely(name string, f func()) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("%s: panic: %v\n%s", name, r, debug.Stack())
+			}
+		}()
+		f()
+	}()
+}

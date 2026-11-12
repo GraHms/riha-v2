@@ -36,7 +36,7 @@ func NewHTTPSender(allowPrivate bool) *HTTPSender {
 		}
 	}
 	tr := &http.Transport{DialContext: dialer.DialContext, Proxy: nil, TLSHandshakeTimeout: 5 * time.Second, MaxIdleConns: 50, IdleConnTimeout: 60 * time.Second}
-	return &HTTPSender{Client: &http.Client{Timeout: 10 * time.Second, Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	return &HTTPSender{Client: &http.Client{Timeout: 5 * time.Second, Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
 func (s *HTTPSender) Send(ctx context.Context, url string, headers map[string]string, body []byte) (int, error) {

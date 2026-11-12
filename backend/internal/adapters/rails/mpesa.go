@@ -125,7 +125,7 @@ func (m *Mpesa) Initiate(_ context.Context, req domain.ChargeRequest, onComplete
 	if err != nil {
 		return domain.ChargeResult{}, err
 	}
-	go m.send(req.Reference, body, onComplete)
+	domain.Safely("mpesa charge", func() { m.send(req.Reference, body, onComplete) })
 	return domain.ChargeResult{Async: true, Last4: phone[5:]}, nil
 }
 

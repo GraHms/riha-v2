@@ -290,8 +290,11 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		PayerIP: in.PayerIP, PayerUserAgent: domain.Trim(in.PayerUA, 300), CreatedAt: a.Now(),
 	}
 	p.Integration = a.routeFor(ctx, m.ID, in.Method, cs.Livemode)
-	price := a.priceFor(ctx, m.ID, p.Integration, in.Method, p.Amount, p.Fee)
-	p.PlatformFee, p.PartnerFee, p.Priced = price.PlatformFee, price.PartnerFee, true
+	if price, err := a.priceFor(ctx, m.ID, p.Integration, in.Method, p.Amount, p.Fee); err == nil {
+		p.PlatformFee, p.PartnerFee, p.Priced = price.PlatformFee, price.PartnerFee, true
+	} else {
+		log.Printf("pricing payment %s: %v; the backlog prices it later", p.ID, err)
+	}
 	p.RailReference = a.railReference(p.Integration, in.Method, cs.Livemode)
 	if in.Method != domain.MethodCard {
 		if ph := domain.NormalizeMZPhone(in.Phone); len(ph) == 9 {
@@ -363,8 +366,14 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		}
 	}
 	if res.Async {
+		// The operator may have answered already: "processing" is only said
+		// of a payment still processing, never after it ended.
 		_ = a.Tx.Do(ctx, func(ctx context.Context) error {
-			return a.emit(ctx, m.ID, p.Livemode, "payment.processing", p.ID, domain.PaymentResource(p), "")
+			now, err := a.Payments.Lock(ctx, p.ID)
+			if err != nil || now.Status != domain.PaymentProcessing {
+				return err
+			}
+			return a.emit(ctx, m.ID, now.Livemode, "payment.processing", now.ID, domain.PaymentResource(now), "")
 		})
 	} else if err := a.CompletePayment(ctx, p.ID, res.Outcome); err != nil {
 		return nil, err

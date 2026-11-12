@@ -180,6 +180,8 @@ type BankInput struct {
 	BankName string `json:"bank_name"`
 	Holder   string `json:"holder"`
 	NIB      string `json:"nib"`
+	// Password is asked again to replace the account of an approved merchant.
+	Password string `json:"password"`
 }
 
 func (a *App) SaveBankAccount(ctx context.Context, m *domain.Merchant, in BankInput, actor Actor) (*domain.BankAccount, error) {
@@ -196,6 +198,15 @@ func (a *App) SaveBankAccount(ctx context.Context, m *domain.Merchant, in BankIn
 	b := a.BankAccount(ctx, m.ID)
 	replaced := b != nil && b.NIB != nib
 	changed := b == nil || b.NIB != nib
+	// Replacing where an approved merchant's money goes takes the password,
+	// and holds live withdrawals to the new account for a while.
+	guarded := replaced && m.Status == domain.MerchantActive
+	if guarded && actor.Role != domain.RoleAdmin {
+		u, err := a.Users.ByID(ctx, actor.ID)
+		if err != nil || in.Password == "" || !a.Hasher.Matches(u.PasswordHash, in.Password) {
+			return nil, domain.Invalid("password_incorrect", "password", "Confirme com a sua palavra-passe para mudar a conta bancária.")
+		}
+	}
 	if b == nil {
 		b = &domain.BankAccount{ID: domain.NewID("ba"), MerchantID: m.ID}
 		for _, d := range a.DocumentsOf(ctx, m.ID) {
@@ -208,6 +219,13 @@ func (a *App) SaveBankAccount(ctx context.Context, m *domain.Merchant, in BankIn
 	b.BankName, b.Holder, b.NIB, b.UpdatedAt = in.BankName, strings.TrimSpace(in.Holder), nib, a.Now()
 	if changed {
 		b.Verified = m.Status == domain.MerchantActive
+	}
+	if guarded && actor.Role != domain.RoleAdmin {
+		// Staff changing it checked it with the merchant: no hold.
+		now := a.Now()
+		b.ChangedAt = &now
+	} else if guarded {
+		b.ChangedAt = nil
 	}
 	if err := a.Banks.Save(ctx, b); err != nil {
 		return nil, err

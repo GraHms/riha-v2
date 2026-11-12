@@ -75,6 +75,9 @@ type Payout struct {
 	BankName      string
 	Holder        string
 	NIB           string
+	// BankChangedAt is when the merchant last replaced the account it is
+	// paid to, for staff to look twice at a recent change.
+	BankChangedAt *time.Time
 	RequestedBy   string
 	RequestedAt   time.Time
 	DueAt         time.Time

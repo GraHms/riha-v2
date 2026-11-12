@@ -110,17 +110,23 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  // Staff and partners on a new device enter a code emailed to them.
+  const [asked, setAsked] = useState('')
+  const [code, setCode] = useState('')
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setErr('')
     try {
-      const me = await g.auth.login(email, password)
+      const me = await g.auth.login(email, password, asked ? code : undefined)
       setMe(me)
       const next = sp.get('next')
       if (me.user.role === 'admin') nav(next?.startsWith('/admin') ? next : '/admin')
       else if (me.user.role === 'partner') nav(next?.startsWith('/parceiro') ? next : '/parceiro')
       else if (me.merchant?.status === 'lead' && !me.merchant.nuit) nav('/verificacao')
       else nav(next && next.startsWith('/painel') ? next : '/painel')
-    } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+    } catch (e: any) {
+      if (e?.code === 'login_code_required') { setAsked(errMsg(e)); setCode('') }
+      else setErr(errMsg(e))
+    } finally { setBusy(false) }
   }
   return (
     <AuthLayout back={() => nav('/')}>
@@ -132,6 +138,12 @@ export function Login() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 26 }}>
           <label><span className="label">Email</span><input className="input lg" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required autoFocus /></label>
           <label><span className="label">Palavra-passe</span><input className="input lg" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label>
+          {asked && (
+            <label><span className="label">Código do email</span>
+              <input className="input lg mono" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus required placeholder="000000" style={{ letterSpacing: '.3em' }} />
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 7, lineHeight: 1.45 }}>{asked}</div>
+            </label>
+          )}
         </div>
         <div style={{ textAlign: 'right', fontSize: 14, marginTop: 10 }}><Link to="/recuperar" style={{ fontWeight: 600 }}>Esqueceu-se da palavra-passe?</Link></div>
         {err && <div className="form-err" style={{ marginTop: 16 }}>{err}</div>}

@@ -56,6 +56,9 @@ func (s *Store) Migrate() error {
 	if err := s.db.Exec(tagPaymentsByIntegration).Error; err != nil {
 		return err
 	}
+	if err := s.migrateRollups(); err != nil {
+		return err
+	}
 	return s.db.Exec(`CREATE SEQUENCE IF NOT EXISTS payout_number_seq START 1`).Error
 }
 

@@ -243,7 +243,7 @@ func TestPaymentAndPayoutEmails(t *testing.T) {
 	if got := subjects(t, a, ctx); len(got) != 0 {
 		t.Fatalf("the first bank account is no alarm: %v", got)
 	}
-	if _, err := a.SaveBankAccount(ctx, m, app.BankInput{BankName: app.Banks[0], Holder: "Loja", NIB: "000800001234567899999"}, app.Actor{}); err != nil {
+	if _, err := a.SaveBankAccount(ctx, m, app.BankInput{BankName: app.Banks[0], Holder: "Loja", NIB: "000800001234567899999"}, app.Actor{Role: domain.RoleAdmin}); err != nil {
 		t.Fatal(err)
 	}
 	if got := subjects(t, a, ctx); !hasMail(got, "loja@sol.co.mz", "conta bancária") {

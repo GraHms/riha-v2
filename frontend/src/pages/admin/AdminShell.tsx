@@ -10,7 +10,8 @@ export default function AdminShell() {
   const { me, logout } = useSession()
   const nav = useNavigate()
   const path = useLocation().pathname
-  const { data } = useQuery(g => g.admin.overview(), [path], 30000)
+  // The menu's counts: one small request, not the whole overview.
+  const { data } = useQuery(g => g.admin.badges(), [], 30000)
   const has = (...perms: string[]) => !perms.length || perms.some(p => can(me, p))
   const areas: [NavGroup['title'], [string, string, string, number | undefined, boolean, string[]][]][] = [
     [undefined, [['/admin', 'chart', 'Visão geral', undefined, false, []]]],

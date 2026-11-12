@@ -193,7 +193,7 @@ export default function AdminMetrics() {
       <style>{CSS}</style>
       <PageHead title="Métricas" sub="Como estão a correr os pagamentos, e o que está mal agora"
         actions={<>
-          <div className="seg mx-seg">{[[1, '24 h'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']].map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k as number)}>{l}</button>)}</div>
+          <div className="seg mx-seg">{[[1, 'Hoje'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']].map(([k, l]) => <button key={k} className={days === k ? 'on' : ''} onClick={() => setDays(k as number)}>{l}</button>)}</div>
           <div className="seg mx-seg">{[[true, 'Produção'], [false, 'Teste']].map(([k, l]) => <button key={String(k)} className={live === k ? 'on' : ''} onClick={() => setLive(k as boolean)}>{l}</button>)}</div>
         </>} />
       {!m ? <><div className="o-stats">{[0, 1, 2, 3].map(i => <Skeleton key={i} h={96} r={16} />)}</div><Skeleton h={260} r={16} style={{ marginTop: 14 }} /></> : (

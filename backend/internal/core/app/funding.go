@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"riha/internal/core/domain"
+	"riha/internal/core/ports"
 )
 
 // Withdrawals are paid from where the merchant's money is: each live
@@ -14,35 +15,50 @@ import (
 // room is what each integration's partner still holds overall and isn't yet
 // asked to pay out: it can't be asked for more than it has, whatever one
 // merchant's payments through it add up to.
-func (a *App) room(ctx context.Context) map[string]int64 {
+func (a *App) room(ctx context.Context) (map[string]int64, error) {
 	out := map[string]int64{}
 	all, err := a.Integrations.Collected(ctx, nil, nil)
 	if err != nil {
-		return out
+		return nil, err
 	}
 	for _, r := range all {
 		var c Collected
 		c.add(r)
 		out[r.Integration] += c.DueToRIHA()
 	}
-	received, _ := a.Integrations.SettledTotals(ctx)
-	funding, _ := a.Integrations.FundingTotals(ctx)
-	for code := range out {
-		out[code] -= received[code] + funding[code][domain.FundingOpen] + funding[code][domain.FundingPaid]
+	received, err := a.Integrations.SettledTotals(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return out
+	funding, err := a.Integrations.FundingTotals(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for code := range out {
+		f := funding[code]
+		out[code] -= received[code] + f[domain.FundingOpen] + f[domain.FundingClaimed] + f[domain.FundingPaid]
+	}
+	return out, nil
 }
 
-// fund splits a live withdrawal between the sources holding the merchant's money.
+// fund splits a live withdrawal between the sources holding the merchant's
+// money. It runs in the withdrawal's transaction, one withdrawal at a time,
+// so two merchants withdrawing at once never share a partner's room.
 func (a *App) fund(ctx context.Context, p *domain.Payout) error {
 	if !p.Livemode || a.Integrations == nil {
 		return nil
+	}
+	if err := a.Integrations.LockRoom(ctx); err != nil {
+		return err
 	}
 	held, err := a.Integrations.HeldFor(ctx, p.MerchantID)
 	if err != nil {
 		return err
 	}
-	room := a.room(ctx)
+	room, err := a.room(ctx)
+	if err != nil {
+		return err
+	}
 	for code := range held {
 		held[code] = min(held[code], room[code])
 	}
@@ -70,14 +86,31 @@ func (a *App) fundOpenPayouts(ctx context.Context) error {
 	return nil
 }
 
-// cancelFunding ends the open parts of a withdrawal that won't be paid.
-func (a *App) cancelFunding(ctx context.Context, payoutID string) error {
+// cancelFunding ends the parts of a withdrawal that won't be paid, with the
+// withdrawal locked. A withdrawal with a part already sent to the merchant's
+// bank can't be undone: giving the merchant the whole amount back would pay
+// that part twice.
+func (a *App) cancelFunding(ctx context.Context, p *domain.Payout) error {
 	if a.Integrations == nil {
 		return nil
 	}
-	fs, err := a.Integrations.FundingOf(ctx, []string{payoutID})
+	fs, err := a.Integrations.FundingOf(ctx, []string{p.ID})
 	if err != nil {
 		return err
+	}
+	names := map[string]string{}
+	for i := range fs {
+		if fs[i].Sent() {
+			if len(names) == 0 {
+				names = a.SourceNames(ctx)
+			}
+			who := names[fs[i].Source]
+			if who == "" {
+				who = fs[i].Source
+			}
+			return domain.Invalid("payout_part_sent", "status", fmt.Sprintf("%s já transferiu %s MT de %s para o comerciante. Recuse esse pagamento, se não aconteceu, antes de anular o levantamento.",
+				who, domain.FormatShort(fs[i].Send), p.Ref()))
+		}
 	}
 	for i := range fs {
 		if fs[i].Status == domain.FundingOpen {
@@ -90,29 +123,43 @@ func (a *App) cancelFunding(ctx context.Context, payoutID string) error {
 	return nil
 }
 
-// payFundingOf marks a withdrawal's open parts paid with one receipt: those
-// of source, or with "" all of them.
-func (a *App) payFundingOf(ctx context.Context, payoutID string, r savedReceipt, source, actor string) error {
+// fundingDone tells whether a withdrawal's parts are all paid and confirmed.
+// One without parts (test mode, or from before the split) is done.
+func (a *App) fundingDone(ctx context.Context, payoutID string) (bool, error) {
 	if a.Integrations == nil {
-		return nil
+		return true, nil
 	}
 	fs, err := a.Integrations.FundingOf(ctx, []string{payoutID})
 	if err != nil {
+		return false, err
+	}
+	for _, f := range fs {
+		if f.Status == domain.FundingOpen || f.Status == domain.FundingClaimed {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// finishIfPaid closes a withdrawal, in the caller's transaction with it
+// locked, once its last part is confirmed: with this receipt if it has none.
+func (a *App) finishIfPaid(ctx context.Context, p *domain.Payout, r savedReceipt, actor string) error {
+	done, err := a.fundingDone(ctx, p.ID)
+	if err != nil || !done {
 		return err
 	}
-	now := a.Now()
-	for i := range fs {
-		f := &fs[i]
-		if f.Status != domain.FundingOpen || (source != "" && f.Source != source) {
-			continue
-		}
-		f.Status, f.PaidAt, f.PaidBy = domain.FundingPaid, &now, actor
-		f.ReceiptPath, f.ReceiptName, f.ReceiptType, f.ReceiptSize, f.ReceiptHash = r.Path, r.Name, r.Type, r.Size, r.Hash
-		if err := a.Integrations.SaveFunding(ctx, f); err != nil {
+	if !p.HasReceipt() {
+		p.ReceiptPath, p.ReceiptName, p.ReceiptType, p.ReceiptSize, p.ReceiptHash = r.Path, r.Name, r.Type, r.Size, r.Hash
+		if err := a.Payouts.Save(ctx, p); err != nil {
 			return err
 		}
 	}
-	return nil
+	_, err = a.TransitionPayout(ctx, p.ID, domain.ActPaid, "", actor)
+	return err
+}
+
+func receiptOf(f *domain.PayoutFunding) savedReceipt {
+	return savedReceipt{Path: f.ReceiptPath, Name: f.ReceiptName, Type: f.ReceiptType, Size: f.ReceiptSize, Hash: f.ReceiptHash}
 }
 
 // FundingRow is one part of a withdrawal, with what its payer needs to send it.
@@ -162,11 +209,16 @@ func (a *App) PartnerFunding(ctx context.Context, q PartnerFundingQuery) ([]Fund
 	if len(codes) == 0 {
 		return []FundingRow{}, nil
 	}
-	statuses := []string{domain.FundingOpen}
-	if q.Tab == "paid" {
-		statuses = []string{domain.FundingPaid}
+	// The withdrawal's state is asked of the database, so a long list of one
+	// kind never hides another.
+	statuses, payouts, limit := []string{domain.FundingOpen}, []string{domain.PayoutSent}, 1000
+	switch q.Tab {
+	case "waiting":
+		payouts = domain.PendingPayoutStatuses
+	case "paid":
+		statuses, payouts, limit = []string{domain.FundingClaimed, domain.FundingPaid}, nil, 300
 	}
-	fs, err := a.Integrations.FundingFrom(ctx, codes, statuses, 200)
+	fs, err := a.Integrations.FundingFrom(ctx, codes, statuses, payouts, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -183,104 +235,191 @@ func (a *App) PartnerFunding(ctx context.Context, q PartnerFundingQuery) ([]Fund
 
 func (a *App) fundingRows(ctx context.Context, fs []domain.PayoutFunding, keep func(*domain.Payout) bool) []FundingRow {
 	byCode := a.SourceNames(ctx)
-	merchants := map[string]string{}
+	ids := make([]string, 0, len(fs))
+	for _, f := range fs {
+		ids = append(ids, f.PayoutID)
+	}
+	payouts := map[string]*domain.Payout{}
+	if len(ids) > 0 {
+		ps, _ := a.Payouts.Find(ctx, ports.PayoutQuery{IDs: ids})
+		for i := range ps {
+			payouts[ps[i].ID] = &ps[i]
+		}
+	}
+	mids := make([]string, 0, len(fs))
+	for _, f := range fs {
+		mids = append(mids, f.MerchantID)
+	}
+	merchants := a.merchantsByID(ctx, mids)
 	out := []FundingRow{}
 	for _, f := range fs {
-		p, err := a.Payouts.Lock(ctx, f.PayoutID)
-		if err != nil || !keep(p) {
+		p := payouts[f.PayoutID]
+		if p == nil || !keep(p) {
 			continue
 		}
-		if _, ok := merchants[f.MerchantID]; !ok {
-			if m, err := a.Merchants.ByID(ctx, f.MerchantID); err == nil {
-				merchants[f.MerchantID] = m.Name
-			}
-		}
-		out = append(out, FundingRow{PayoutFunding: f, Payout: *p, MerchantName: merchants[f.MerchantID], SourceName: byCode[f.Source]})
+		out = append(out, FundingRow{PayoutFunding: f, Payout: *p, MerchantName: merchantName(merchants, f.MerchantID), SourceName: byCode[f.Source]})
 	}
 	return out
 }
 
-// PayFunding marks one part of a withdrawal paid, with the transfer's receipt
-// and reference. A partner pays only its own parts, once RIHA approved the
-// withdrawal; when every part is paid, the withdrawal is, and the merchant is told.
+// partnerPays tells whether source is one of partner's integrations.
+func (a *App) partnerPays(ctx context.Context, partner, source string) bool {
+	for _, in := range a.integrationsOf(ctx, partner) {
+		if in.Code == source {
+			return true
+		}
+	}
+	return false
+}
+
+// PayFunding records one part of a withdrawal paid, with the transfer's
+// receipt and reference, once RIHA approved the withdrawal. A partner pays
+// only its own parts, and its word makes the part claimed until RIHA confirms
+// the transfer; staff recording it make it paid. When every part is paid, so
+// is the withdrawal, and the merchant is told.
 func (a *App) PayFunding(ctx context.Context, id, partner, reference string, up Upload, actor string) (*domain.PayoutFunding, error) {
 	ref := domain.Trim(reference, 120)
 	if ref == "" {
 		return nil, domain.Invalid("reference_required", "reference", "Indique a referência da transferência.")
 	}
 	f, err := a.Integrations.LockFunding(ctx, id)
-	if err != nil {
-		return nil, notFound(err, "O levantamento")
+	if err != nil || (partner != "" && !a.partnerPays(ctx, partner, f.Source)) {
+		return nil, domain.NotFound("O levantamento")
 	}
-	if partner != "" {
-		mine := false
-		for _, in := range a.integrationsOf(ctx, partner) {
-			mine = mine || in.Code == f.Source
+	notOpen := domain.Invalid("payout_state", "status", "Esta parte do levantamento já não está por pagar.")
+	check := func(f *domain.PayoutFunding, p *domain.Payout) error {
+		if f.Status != domain.FundingOpen {
+			return notOpen
 		}
-		if !mine {
-			return nil, domain.NotFound("O levantamento")
+		if p.Status != domain.PayoutSent {
+			return domain.Invalid("payout_state", "status", fmt.Sprintf("%s ainda não foi aprovado pela RIHA.", p.Ref()))
 		}
+		return nil
 	}
 	p, err := a.Payouts.Lock(ctx, f.PayoutID)
 	if err != nil {
 		return nil, err
 	}
-	if f.Status != domain.FundingOpen {
-		return nil, domain.Invalid("payout_state", "status", "Esta parte do levantamento já não está por pagar.")
-	}
-	if p.Status != domain.PayoutSent {
-		return nil, domain.Invalid("payout_state", "status", fmt.Sprintf("%s ainda não foi aprovado pela RIHA.", p.Ref()))
+	if err := check(f, p); err != nil {
+		return nil, err
 	}
 	r, err := a.saveReceipt(ctx, up)
 	if err != nil {
 		return nil, err
 	}
-	var all []domain.PayoutFunding
 	err = a.Tx.Do(ctx, func(ctx context.Context) error {
-		f, err = a.Integrations.LockFunding(ctx, id)
-		if err != nil {
+		// The withdrawal first, then its part: whoever changes either holds both.
+		if p, err = a.Payouts.Lock(ctx, f.PayoutID); err != nil {
 			return err
 		}
-		if f.Status != domain.FundingOpen {
-			return domain.Invalid("payout_state", "status", "Esta parte do levantamento já não está por pagar.")
+		if f, err = a.Integrations.LockFunding(ctx, id); err != nil {
+			return err
+		}
+		if err := check(f, p); err != nil {
+			return err
 		}
 		now := a.Now()
-		f.Status, f.PaidAt, f.PaidBy, f.Reference = domain.FundingPaid, &now, actor, ref
+		f.PaidAt, f.PaidBy, f.Reference, f.Warning = &now, actor, ref, ""
 		f.ReceiptPath, f.ReceiptName, f.ReceiptType, f.ReceiptSize, f.ReceiptHash = r.Path, r.Name, r.Type, r.Size, r.Hash
+		if used, err := a.Integrations.ReceiptUsed(ctx, r.Hash, f.ID); err != nil {
+			return err
+		} else if used {
+			f.Warning = "Este comprovativo já foi usado noutro pagamento."
+		}
+		if partner != "" {
+			f.Status = domain.FundingClaimed
+		} else {
+			f.Status, f.ConfirmedAt, f.ConfirmedBy = domain.FundingPaid, &now, actor
+		}
 		if err := a.Integrations.SaveFunding(ctx, f); err != nil {
 			return err
 		}
-		all, err = a.Integrations.FundingOf(ctx, []string{p.ID})
-		return err
+		return a.finishIfPaid(ctx, p, r, actor)
 	})
 	if err != nil {
 		return nil, err
 	}
-	a.Record(ctx, p.MerchantID, Actor{ID: actor, Role: map[bool]string{true: domain.RolePartner, false: domain.RoleAdmin}[partner != ""]}, "payout.part_paid", p.ID,
-		fmt.Sprintf("%s: %s MT por %s · %s", p.Ref(), domain.FormatShort(f.Send), f.Source, ref))
-	for _, x := range all {
-		if x.Status == domain.FundingOpen {
-			return f, nil
-		}
+	who, act := Actor{ID: actor, Role: domain.RoleAdmin}, "payout.part_paid"
+	if partner != "" {
+		who, act = Actor{ID: actor, Role: domain.RolePartner}, "payout.part_claimed"
 	}
-	// The last part is paid: so is the withdrawal, with this receipt if it has none.
-	err = a.Tx.Do(ctx, func(ctx context.Context) error {
-		locked, err := a.Payouts.Lock(ctx, p.ID)
+	a.Record(ctx, p.MerchantID, who, act, p.ID, fmt.Sprintf("%s: %s MT por %s · %s", p.Ref(), domain.FormatShort(f.Send), f.Source, ref))
+	return f, nil
+}
+
+// ConfirmFunding is RIHA seeing, on its statement, the transfers partners
+// said they made: each part becomes paid, and a withdrawal whose last part
+// it was is paid and its merchant told.
+func (a *App) ConfirmFunding(ctx context.Context, ids []string, actor string) ([]domain.PayoutFunding, error) {
+	if len(ids) == 0 {
+		return nil, domain.Invalid("parameter_missing", "ids", "Escolha pelo menos um pagamento.")
+	}
+	out := []domain.PayoutFunding{}
+	for _, id := range ids {
+		f0, err := a.Integrations.LockFunding(ctx, id)
 		if err != nil {
+			return out, domain.NotFound("O pagamento")
+		}
+		var f *domain.PayoutFunding
+		var p *domain.Payout
+		err = a.Tx.Do(ctx, func(ctx context.Context) error {
+			if p, err = a.Payouts.Lock(ctx, f0.PayoutID); err != nil {
+				return err
+			}
+			if f, err = a.Integrations.LockFunding(ctx, id); err != nil {
+				return err
+			}
+			if f.Status != domain.FundingClaimed {
+				return domain.Invalid("payout_state", "status", fmt.Sprintf("O pagamento de %s MT para %s não está por confirmar.", domain.FormatShort(f.Send), p.Ref()))
+			}
+			now := a.Now()
+			f.Status, f.ConfirmedAt, f.ConfirmedBy = domain.FundingPaid, &now, actor
+			if err := a.Integrations.SaveFunding(ctx, f); err != nil {
+				return err
+			}
+			return a.finishIfPaid(ctx, p, receiptOf(f), actor)
+		})
+		if err != nil {
+			return out, err
+		}
+		a.Record(ctx, p.MerchantID, Actor{ID: actor, Role: domain.RoleAdmin}, "payout.part_confirmed", p.ID,
+			fmt.Sprintf("%s: %s MT por %s · %s", p.Ref(), domain.FormatShort(f.Send), f.Source, f.Reference))
+		out = append(out, *f)
+	}
+	return out, nil
+}
+
+// RejectClaim is RIHA not finding a partner's transfer: the part is open
+// again, for the partner to pay, with why.
+func (a *App) RejectClaim(ctx context.Context, id, reason, actor string) (*domain.PayoutFunding, error) {
+	reason = domain.Trim(reason, 200)
+	if reason == "" {
+		return nil, domain.Invalid("reason_required", "reason", "Diga ao parceiro porque recusa o pagamento.")
+	}
+	f0, err := a.Integrations.LockFunding(ctx, id)
+	if err != nil {
+		return nil, domain.NotFound("O pagamento")
+	}
+	var f *domain.PayoutFunding
+	var p *domain.Payout
+	err = a.Tx.Do(ctx, func(ctx context.Context) error {
+		if p, err = a.Payouts.Lock(ctx, f0.PayoutID); err != nil {
 			return err
 		}
-		if !locked.HasReceipt() {
-			locked.ReceiptPath, locked.ReceiptName, locked.ReceiptType, locked.ReceiptSize, locked.ReceiptHash = r.Path, r.Name, r.Type, r.Size, r.Hash
-			return a.Payouts.Save(ctx, locked)
+		if f, err = a.Integrations.LockFunding(ctx, id); err != nil {
+			return err
 		}
-		return nil
+		if f.Status != domain.FundingClaimed {
+			return domain.Invalid("payout_state", "status", "Este pagamento não está por confirmar.")
+		}
+		f.Status, f.PaidAt, f.Warning = domain.FundingOpen, nil, "Recusado pela RIHA: "+reason
+		return a.Integrations.SaveFunding(ctx, f)
 	})
 	if err != nil {
-		return f, err
+		return nil, err
 	}
-	if _, err := a.TransitionPayout(ctx, p.ID, domain.ActPaid, "", actor); err != nil {
-		return f, err
-	}
+	a.Record(ctx, p.MerchantID, Actor{ID: actor, Role: domain.RoleAdmin}, "payout.part_rejected", p.ID,
+		fmt.Sprintf("%s: %s MT por %s · %s", p.Ref(), domain.FormatShort(f.Send), f.Source, reason))
 	return f, nil
 }
 
@@ -290,14 +429,8 @@ func (a *App) FundingReceipt(ctx context.Context, id, partner string) (*domain.A
 	if err != nil || !f.HasReceipt() {
 		return nil, domain.NotFound("O comprovativo")
 	}
-	if partner != "" {
-		mine := false
-		for _, in := range a.integrationsOf(ctx, partner) {
-			mine = mine || in.Code == f.Source
-		}
-		if !mine {
-			return nil, domain.NotFound("O comprovativo")
-		}
+	if partner != "" && !a.partnerPays(ctx, partner, f.Source) {
+		return nil, domain.NotFound("O comprovativo")
 	}
 	data, err := a.Files.Read(ctx, f.ReceiptPath)
 	if err != nil {

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -137,9 +138,19 @@ func (srv *Server) idempotency() gin.HandlerFunc {
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 		hash := domain.Hash(c.Request.URL.Path + "\n" + string(body))
 		k := apiKey(c)
-		if rec := srv.A.IdempotentResponse(ctx(c), k.MerchantID, k.Livemode, key); rec != nil {
+		claim := &domain.IdempotencyRecord{MerchantID: k.MerchantID, Livemode: k.Livemode, Key: key, Path: c.Request.URL.Path, RequestHash: hash}
+		mine, rec, err := srv.A.ClaimIdempotent(ctx(c), claim)
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		if !mine {
 			if rec.RequestHash != hash {
 				fail(c, domain.Conflict("idempotency_key_reused", "Esta Idempotency-Key foi usada com outro pedido."))
+				return
+			}
+			if rec.StatusCode == 0 {
+				fail(c, domain.Conflict("idempotency_in_progress", "Um pedido com esta Idempotency-Key ainda está em curso. Repita daqui a pouco."))
 				return
 			}
 			c.Header("Idempotent-Replayed", "true")
@@ -149,10 +160,17 @@ func (srv *Server) idempotency() gin.HandlerFunc {
 		}
 		w := &captureWriter{ResponseWriter: c.Writer}
 		c.Writer = w
+		done := false
+		defer func() {
+			// A request that panicked or failed on RIHA's side frees its key.
+			if !done {
+				srv.A.ReleaseIdempotent(context.WithoutCancel(ctx(c)), claim.ID)
+			}
+		}()
 		c.Next()
 		if st := c.Writer.Status(); st < 500 {
-			srv.A.StoreIdempotent(ctx(c), &domain.IdempotencyRecord{MerchantID: k.MerchantID, Livemode: k.Livemode, Key: key,
-				Path: c.Request.URL.Path, RequestHash: hash, StatusCode: st, ResponseBody: w.buf.String()})
+			srv.A.FinishIdempotent(context.WithoutCancel(ctx(c)), claim.ID, st, w.buf.String())
+			done = true
 		}
 	}
 }
@@ -173,6 +191,25 @@ func newRateLimiter(capacity, perSecond float64) *rateLimiter {
 	return &rateLimiter{capacity: capacity, rate: perSecond, b: map[string]*bucket{}}
 }
 
+// prune makes room without forgetting who is being held back: buckets that
+// have filled up again are the same as new ones and go first; then any not
+// spent. A flood of new keys never frees an exhausted one.
+func (r *rateLimiter) prune(now time.Time) {
+	for k, b := range r.b {
+		if b.tokens+now.Sub(b.last).Seconds()*r.rate >= r.capacity {
+			delete(r.b, k)
+		}
+	}
+	if len(r.b) <= 50000 {
+		return
+	}
+	for k, b := range r.b {
+		if b.tokens+now.Sub(b.last).Seconds()*r.rate >= 1 {
+			delete(r.b, k)
+		}
+	}
+}
+
 func (r *rateLimiter) allow(key string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -180,7 +217,7 @@ func (r *rateLimiter) allow(key string) bool {
 	b, ok := r.b[key]
 	if !ok {
 		if len(r.b) > 100000 {
-			r.b = map[string]*bucket{}
+			r.prune(now)
 		}
 		b = &bucket{tokens: r.capacity, last: now}
 		r.b[key] = b

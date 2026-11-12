@@ -87,7 +87,7 @@ func (a *App) Invite(ctx context.Context, by *domain.User, t TeamTarget, in Invi
 	if len(perms) == 0 {
 		return nil, domain.Invalid("permissions_required", "permissions", "Escolha pelo menos uma permissão.")
 	}
-	if !holdsAll(by, perms) {
+	if !holdsAll(by, t, perms) {
 		return nil, domain.Forbidden("forbidden", "Só pode dar permissões que tem.")
 	}
 	hash, err := a.Hasher.Hash(domain.Token("", 32))
@@ -114,17 +114,20 @@ func (a *App) Invite(ctx context.Context, by *domain.User, t TeamTarget, in Invi
 	return u, nil
 }
 
-// holdsAll: a partner's user gives only permissions it has; staff with the team
-// permission give any staff or partner permission.
-func holdsAll(by *domain.User, perms []string) bool {
-	if by.Role == domain.RoleAdmin {
-		return true
+// holdsAll tells whether by may give perms to someone on team t: only the
+// permissions it holds itself, and "*" only if it holds "*". Staff who manage
+// the team give partners' users their partner permissions, which are another
+// set, about the partner's own account.
+func holdsAll(by *domain.User, t TeamTarget, perms []string) bool {
+	if by.Role == domain.RoleAdmin && t.Partner != "" {
+		return by.Can(domain.PermTeam)
 	}
 	for _, p := range perms {
-		if p == domain.PermAll && !by.Can(domain.PermAll) {
-			return false
-		}
-		if p != domain.PermAll && !by.Can(p) {
+		if p == domain.PermAll {
+			if !domain.Contains(by.Permissions, domain.PermAll) {
+				return false
+			}
+		} else if !by.Can(p) {
 			return false
 		}
 	}
@@ -156,12 +159,20 @@ func (a *App) SetAccess(ctx context.Context, by *domain.User, userID string, in 
 		return nil, domain.NotFound("A pessoa")
 	}
 	before := describeAccess(u)
+	// Nobody changes their own permissions, and nobody changes or closes the
+	// account of someone who can do more than they can.
+	if in.Permissions != nil && u.ID == by.ID {
+		return nil, domain.Forbidden("own_access", "Não pode mudar as suas próprias permissões. Peça a outra pessoa da equipa.")
+	}
+	if u.ID != by.ID && !holdsAll(by, t, u.Permissions) {
+		return nil, domain.Forbidden("forbidden", "Esta pessoa tem permissões que não tem. Só quem as tem pode mudar o seu acesso.")
+	}
 	if in.Permissions != nil {
 		perms := domain.CleanPermissions(in.Permissions, u.Role == domain.RoleAdmin)
 		if len(perms) == 0 {
 			return nil, domain.Invalid("permissions_required", "permissions", "Escolha pelo menos uma permissão, ou feche a conta.")
 		}
-		if !holdsAll(by, perms) {
+		if !holdsAll(by, t, perms) {
 			return nil, domain.Forbidden("forbidden", "Só pode dar permissões que tem.")
 		}
 		u.Permissions = perms

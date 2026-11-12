@@ -29,6 +29,8 @@ export default function Invoice() {
   const [accept, setAccept] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  // An earlier payment is still being confirmed: the next tap pays again, knowingly.
+  const [again, setAgain] = useState(false)
   const [receipt, setReceipt] = useState(false)
   const [tick, setTick] = useState(0)
   const start = useRef(0)
@@ -95,7 +97,7 @@ export default function Invoice() {
   const pay = async (ids?: string[]) => {
     setBusy(true); setErr('')
     try {
-      const body: any = { method, accept, charge_ids: ids || [] }
+      const body: any = { method, accept, charge_ids: ids || [], pay_again: again }
       if (method === 'card') Object.assign(body, { card_number: card.number, card_expiry: card.exp, card_cvc: card.cvc })
       else if (usingLast) body.use_last = true
       else body.phone = phone.replace(/\D/g, '')
@@ -110,7 +112,8 @@ export default function Invoice() {
         // The prompt may have gone out and cut the connection before the answer came back.
         lostPay.current = { before: d.payment?.id ?? null }
         setView('checking')
-      } else setErr(errMsg(e))
+      } else if (e?.code === 'payment_unconfirmed') { setAgain(true); setErr(errMsg(e)) }
+      else setErr(errMsg(e))
     } finally { setBusy(false) }
   }
 
@@ -241,7 +244,7 @@ export default function Invoice() {
       )}
       {err && <div className="form-err" style={{ marginTop: 14 }} role="alert">{err}</div>}
       <div style={{ flex: 1, minHeight: 20 }} />
-      <button className="btn btn-green btn-lg btn-block" style={{ marginTop: 18 }} disabled={busy || (d.needs_consent && !accept)} onClick={() => pay()}>{busy ? <Spinner /> : <><Icon name="lock" size={16} stroke={2.2} />Pagar {cents(total)} MT</>}</button>
+      <button className="btn btn-green btn-lg btn-block" style={{ marginTop: 18 }} disabled={busy || (d.needs_consent && !accept)} onClick={() => pay()}>{busy ? <Spinner /> : <><Icon name="lock" size={16} stroke={2.2} />{again ? 'Pagar de novo' : 'Pagar'} {cents(total)} MT</>}</button>
       {oldest && lines.length > 1 && <button className="btn btn-ghost" style={{ marginTop: 6 }} disabled={busy} onClick={() => pay([oldest.id])}>Pagar só {oldest.label.split(' ')[0].toLowerCase()} · {cents(oldest.amount)} MT</button>}
       <button className="btn btn-ghost" style={{ marginTop: 2, fontSize: 13 }} onClick={() => setView('manage')}>Ver assinatura</button>
     </PayFrame>

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -54,25 +55,6 @@ func (a *App) SetupIntegrations(ctx context.Context) error {
 	if err := a.fundOpenPayouts(ctx); err != nil {
 		return err
 	}
-	priced := 0
-	for {
-		ps, err := a.Integrations.Unpriced(ctx, 500)
-		if err != nil {
-			return err
-		}
-		if len(ps) == 0 {
-			break
-		}
-		for i := range ps {
-			if err := a.Integrations.SetPrice(ctx, ps[i].ID, a.priceFor(ctx, ps[i].MerchantID, ps[i].Integration, ps[i].Method, ps[i].Amount, ps[i].Fee)); err != nil {
-				return err
-			}
-		}
-		priced += len(ps)
-	}
-	if priced > 0 {
-		log.Printf("integrations: divided the fee of %d earlier payments", priced)
-	}
 	return nil
 }
 
@@ -102,22 +84,66 @@ func (a *App) routeFor(ctx context.Context, merchantID, method string, live bool
 
 // priceFor divides a payment's fee on the deal of the integration it went
 // through: the merchant's own share if one is set, or the integration's.
-func (a *App) priceFor(ctx context.Context, merchantID, code, method string, amount, fee int64) domain.Price {
+// priceFor divides a payment's fee. An error reading the deal is returned,
+// never taken for a deal of nothing: the payment stays to be priced again.
+func (a *App) priceFor(ctx context.Context, merchantID, code, method string, amount, fee int64) (domain.Price, error) {
 	if a.Integrations == nil || code == "" {
-		return domain.Price{}
+		return domain.Price{}, nil
 	}
 	in, err := a.Integrations.Get(ctx, code)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.Price{}, nil
+	}
 	if err != nil {
-		return domain.Price{}
+		return domain.Price{}, err
 	}
 	share := in.ShareBps
-	deals, _ := a.Integrations.Deals(ctx, merchantID)
+	deals, err := a.Integrations.Deals(ctx, merchantID)
+	if err != nil {
+		return domain.Price{}, err
+	}
 	for _, d := range deals {
 		if d.Integration == code {
 			share = d.ShareBps
 		}
 	}
-	return domain.PriceOf(amount, fee, in.PlatformBps[method], share)
+	return domain.PriceOf(amount, fee, in.PlatformBps[method], share), nil
+}
+
+// PriceBacklog divides the fee of payments not priced yet: from before
+// integrations, or whose pricing failed. It runs in the background, a batch
+// at a time, never holding up the start.
+func (a *App) PriceBacklog(ctx context.Context) {
+	if a.Integrations == nil {
+		return
+	}
+	priced := 0
+	for ctx.Err() == nil {
+		ps, err := a.Integrations.Unpriced(ctx, 500)
+		if err != nil || len(ps) == 0 {
+			break
+		}
+		done := 0
+		for i := range ps {
+			price, err := a.priceFor(ctx, ps[i].MerchantID, ps[i].Integration, ps[i].Method, ps[i].Amount, ps[i].Fee)
+			if err != nil {
+				log.Printf("integrations: pricing %s: %v", ps[i].ID, err)
+				continue
+			}
+			if err := a.Integrations.SetPrice(ctx, ps[i].ID, price); err != nil {
+				log.Printf("integrations: pricing %s: %v", ps[i].ID, err)
+				continue
+			}
+			done++
+		}
+		priced += done
+		if done == 0 {
+			break
+		}
+	}
+	if priced > 0 {
+		log.Printf("integrations: divided the fee of %d earlier payments", priced)
+	}
 }
 
 // IntegrationView is an integration as the backoffice shows it: its deal, the
@@ -518,18 +544,12 @@ func (a *App) Settlement(ctx context.Context, from, to *time.Time) (*SettlementR
 	}
 	recent, _ := a.Integrations.Settlements(ctx, "", 30)
 	rep := &SettlementReport{From: from, To: to, Merchants: money, Recent: recent, Partners: []PartnerPosition{}}
-	names := map[string]string{}
-	name := func(id string) string {
-		if n, ok := names[id]; ok {
-			return n
-		}
-		n := id
-		if m, err := a.Merchants.ByID(ctx, id); err == nil {
-			n = m.Name
-		}
-		names[id] = n
-		return n
+	ids := []string{}
+	for _, r := range period {
+		ids = append(ids, r.MerchantID)
 	}
+	merchants := a.merchantsByID(ctx, ids)
+	name := func(id string) string { return merchantName(merchants, id) }
 	known := map[string]bool{}
 	for _, in := range list {
 		known[in.Code] = true
@@ -537,7 +557,7 @@ func (a *App) Settlement(ctx context.Context, from, to *time.Time) (*SettlementR
 			continue
 		}
 		p := PartnerPosition{Integration: in, PartnerName: partnerNames[in.PartnerCode], Merchants: []MerchantCollected{}, Received: received[in.Code],
-			PaidOut: funding[in.Code][domain.FundingPaid], Reserved: funding[in.Code][domain.FundingOpen]}
+			PaidOut: funding[in.Code][domain.FundingPaid], Reserved: funding[in.Code][domain.FundingOpen] + funding[in.Code][domain.FundingClaimed]}
 		for _, r := range all {
 			if r.Integration == in.Code {
 				p.AllTime.add(r)

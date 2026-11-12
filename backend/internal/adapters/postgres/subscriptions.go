@@ -71,6 +71,7 @@ type memberRecord struct {
 	Token       string `gorm:"size:40;uniqueIndex"`
 	CreatedVia  string `gorm:"size:20"`
 	CreatedBy   string `gorm:"size:40"`
+	DuplicateOf string `gorm:"size:40"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -248,8 +249,12 @@ func (r Members) Lock(ctx context.Context, id string) (*domain.Member, error) {
 	return first[memberRecord, domain.Member](r.conn(ctx).Clauses(forUpdate).Where("id = ?", id))
 }
 func (r Members) Identity(ctx context.Context, merchantID string, live bool, phone, nameKey string) (*domain.Member, error) {
-	return first[memberRecord, domain.Member](r.conn(ctx).Where("merchant_id = ? AND livemode = ? AND phone = ? AND name_key = ?", merchantID, live, phone, nameKey))
+	return first[memberRecord, domain.Member](r.conn(ctx).Where("merchant_id = ? AND livemode = ? AND phone = ? AND name_key = ?", merchantID, live, phone, nameKey).Order("created_at, id"))
 }
+func (r Members) Identities(ctx context.Context, merchantID string, live bool, phone, nameKey string) ([]domain.Member, error) {
+	return find[memberRecord, domain.Member](r.conn(ctx).Where("merchant_id = ? AND livemode = ? AND phone = ? AND name_key = ?", merchantID, live, phone, nameKey).Order("created_at, id").Limit(20))
+}
+
 func (r Members) query(ctx context.Context, q ports.MemberQuery) *gormDB {
 	db := r.conn(ctx).Model(&memberRecord{}).Where("merchant_id = ? AND livemode = ?", q.MerchantID, q.Live)
 	if len(q.Statuses) > 0 {
@@ -471,6 +476,15 @@ func (r Messages) ByProviderID(ctx context.Context, providerID string) (*domain.
 func (r Messages) Failed(ctx context.Context, merchantID string, live bool, since time.Time, limit int) ([]domain.Message, error) {
 	return find[messageRecord, domain.Message](r.conn(ctx).Where("merchant_id = ? AND livemode = ? AND status = ? AND created_at >= ?", merchantID, live, "failed", since).Order("created_at DESC").Limit(limit))
 }
+// CountRecentToPhone counts messages of a kind to any of a merchant's members
+// with this phone.
+func (r Messages) CountRecentToPhone(ctx context.Context, merchantID, phone, kind string, since time.Time) (int64, error) {
+	var n int64
+	err := r.conn(ctx).Raw(`SELECT COUNT(*) FROM messages m JOIN members b ON b.id = m.member_id
+		WHERE b.merchant_id = ? AND b.phone = ? AND m.kind = ? AND m.created_at >= ?`, merchantID, phone, kind, since).Scan(&n).Error
+	return n, err
+}
+
 func (r Messages) CountRecent(ctx context.Context, memberID, kind string, since time.Time) (int64, error) {
 	var n int64
 	err := r.conn(ctx).Model(&messageRecord{}).Where("member_id = ? AND kind = ? AND created_at >= ?", memberID, kind, since).Count(&n).Error

@@ -114,14 +114,15 @@ func TestBimCallback(t *testing.T) {
 	rail.mu.Lock()
 	rail.out, rail.done = domain.Outcome{Success: true, OperatorReference: "NEP1"}, true
 	rail.mu.Unlock()
-	// The answer to create was lost, and the callback brings the id that finds the payment.
+	// The answer to create was lost: RIHA asks by its own operation number,
+	// and never by, nor keeps, the id the callback brings.
 	send("application/json", `{"transactionID_NEP":"NEPFROMCALLBACK1","operationNumber":"`+p.RailReference+`","amount":50.0,"paymentTimestamp":"2026-11-05 10:25:30","paymentType":"M"}`)
 	seen("ended, success true")
 	if status() != domain.PaymentSucceeded {
 		t.Fatalf("got %s", status())
 	}
-	if got, _ := a.Payments.ByID(ctx, p.ID); got.RailID != "NEPFROMCALLBACK1" {
-		t.Fatalf("the id must be kept, got %q", got.RailID)
+	if got, _ := a.Payments.ByID(ctx, p.ID); got.RailID == "NEPFROMCALLBACK1" || got.OperatorReference != "NEP1" {
+		t.Fatalf("rail id %q, operator reference %q: only the operator's own answer counts", got.RailID, got.OperatorReference)
 	}
 	send("application/json", `{"operationNumber":"`+p.RailReference+`"}`)
 	seen("has already ended")

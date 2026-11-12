@@ -319,9 +319,20 @@ var statusTabs = map[string][]string{
 
 func (a *App) MerchantDirectory(ctx context.Context, tab, query string) ([]MerchantRow, int64, int64) {
 	ms, _ := a.Merchants.List(ctx, ports.MerchantFilter{Statuses: statusTabs[tab], Query: query, OrderBy: "created_at DESC", Limit: 200})
+	// One read of the rollups for the whole page, not four per merchant.
+	ids := make([]string, len(ms))
+	for i := range ms {
+		ids[i] = ms[i].ID
+	}
+	sums, _ := a.Reports.MerchantSummaries(ctx, ids, a.Now().AddDate(0, 0, -30))
+	def := a.DefaultFeeBps(ctx)
 	out := make([]MerchantRow, 0, len(ms))
 	for i := range ms {
-		out = append(out, a.MerchantRow(ctx, &ms[i]))
+		s, fee := sums[ms[i].ID], def
+		if ms[i].FeeBps != nil {
+			fee = *ms[i].FeeBps
+		}
+		out = append(out, MerchantRow{Merchant: ms[i], Volume30d: s.Volume, Balance: s.Balance, MainMethod: s.MainMethod, FeeBps: fee})
 	}
 	total, _ := a.Merchants.Count(ctx, nil)
 	active, _ := a.Merchants.Count(ctx, []string{domain.MerchantActive})
@@ -352,24 +363,59 @@ func (a *App) MerchantDossier(ctx context.Context, id string) (*MerchantDossier,
 	return d, nil
 }
 
+// merchantsByID reads, in one query, the merchants of a list of rows.
+func (a *App) merchantsByID(ctx context.Context, ids []string) map[string]*domain.Merchant {
+	seen := map[string]bool{}
+	uniq := []string{}
+	for _, id := range ids {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			uniq = append(uniq, id)
+		}
+	}
+	out := map[string]*domain.Merchant{}
+	ms, err := a.Merchants.Many(ctx, uniq)
+	if err != nil {
+		return out
+	}
+	for i := range ms {
+		out[ms[i].ID] = &ms[i]
+	}
+	return out
+}
+
+// merchantName gives a merchant's name from a batch read, or its id.
+func merchantName(ms map[string]*domain.Merchant, id string) string {
+	if m := ms[id]; m != nil {
+		return m.Name
+	}
+	return id
+}
+
 type PayoutRow struct {
 	domain.Payout
 	MerchantName string
+	// HolderDiffers: the account's holder is neither the merchant's name nor
+	// its legal name.
+	HolderDiffers bool
 }
 
 func (a *App) PayoutRows(ctx context.Context, q ports.PayoutQuery) []PayoutRow {
 	ps, _ := a.Payouts.Find(ctx, q)
-	names := map[string]string{}
+	ids := make([]string, 0, len(ps))
+	for _, p := range ps {
+		ids = append(ids, p.MerchantID)
+	}
+	merchants := a.merchantsByID(ctx, ids)
 	out := make([]PayoutRow, 0, len(ps))
 	for _, p := range ps {
-		n, ok := names[p.MerchantID]
-		if !ok {
-			if m, err := a.Merchants.ByID(ctx, p.MerchantID); err == nil {
-				n = m.Name
-			}
-			names[p.MerchantID] = n
+		m := merchants[p.MerchantID]
+		r := PayoutRow{Payout: p}
+		if m != nil {
+			r.MerchantName = m.Name
+			r.HolderDiffers = !domain.SameHolder(p.Holder, m.Name, m.LegalName, m.OwnerName)
 		}
-		out = append(out, PayoutRow{p, n})
+		out = append(out, r)
 	}
 	return out
 }
@@ -429,8 +475,11 @@ type PlatformOverview struct {
 }
 
 func (a *App) PlatformOverview(ctx context.Context) *PlatformOverview {
+	// Days in Maputo: whole days come from the daily rollups, so the console
+	// adds up no payment rows but last week's same hours.
 	now := a.Now()
-	today := day(now)
+	mt := now.In(domain.Maputo)
+	today := time.Date(mt.Year(), mt.Month(), mt.Day(), 0, 0, 0, 0, domain.Maputo)
 	weekAgo := today.AddDate(0, 0, -7)
 	weekAgoNow := weekAgo.Add(now.Sub(today))
 	o := &PlatformOverview{}
@@ -450,7 +499,7 @@ func (a *App) PlatformOverview(ctx context.Context) *PlatformOverview {
 		o.Volume14d += r.Amount
 	}
 	for d := start; !d.After(today); d = d.AddDate(0, 0, 1) {
-		k := d.Format("2006-01-02")
+		k := d.Format("2006-01-02") // a Maputo date
 		v := byDay[k]
 		if v == nil {
 			v = map[string]any{"mpesa": int64(0), "emola": int64(0), "bim": int64(0), "card": int64(0)}
@@ -508,13 +557,19 @@ func (a *App) PlatformPayments(ctx context.Context, f PlatformPaymentsQuery) Pla
 	q.Offset = (page - 1) * q.Limit
 	ps, _ := a.Payments.Find(ctx, q)
 	out := PlatformPaymentsPage{Data: a.paymentViews(ctx, ps), Merchants: map[string]string{}, PerPage: q.Limit}
-	out.Total, _ = a.Payments.Count(ctx, q)
+	// Without a search, the total is a sum of the daily rollups, not a count
+	// of every row; late and duplicate payments have their own small index.
+	if q.Search == "" && !q.PaidLate && !q.Duplicates {
+		out.Total, _ = a.Reports.PaymentTotal(ctx, live, q.MerchantID, q.Method, q.Statuses)
+	} else {
+		out.Total, _ = a.Payments.Count(ctx, q)
+	}
+	ids := make([]string, 0, len(ps))
 	for _, p := range ps {
-		if _, ok := out.Merchants[p.MerchantID]; !ok {
-			if m, err := a.Merchants.ByID(ctx, p.MerchantID); err == nil {
-				out.Merchants[p.MerchantID] = m.Name
-			}
-		}
+		ids = append(ids, p.MerchantID)
+	}
+	for id, m := range a.merchantsByID(ctx, ids) {
+		out.Merchants[id] = m.Name
 	}
 	out.Unconfirmed, _ = a.Payments.Count(ctx, ports.PaymentQuery{Live: &live, Statuses: []string{domain.PaymentUnconfirmed}})
 	out.Duplicates, _ = a.Payments.Count(ctx, ports.PaymentQuery{Live: &live, Duplicates: true, Statuses: []string{domain.PaymentSucceeded}})

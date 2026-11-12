@@ -3,6 +3,8 @@ package domain
 import (
 	"strings"
 	"time"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 const (
@@ -25,7 +27,28 @@ type User struct {
 	PartnerCode string
 	DisabledAt  *time.Time
 	LastLoginAt *time.Time
-	CreatedAt   time.Time
+	// FailedLogins counts wrong passwords in a row; LockedUntil stops
+	// guessing for a while after too many.
+	FailedLogins int
+	LockedUntil  *time.Time
+	CreatedAt    time.Time
+}
+
+// LoginCode is the code emailed to staff and partners signing in on a device
+// RIHA doesn't know; TrustedDevice is one that entered it.
+type LoginCode struct {
+	UserID    string
+	CodeHash  string
+	Attempts  int
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+type TrustedDevice struct {
+	TokenHash string
+	UserID    string
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type AuthSession struct {
@@ -106,7 +129,56 @@ type BankAccount struct {
 	NIB        string
 	DocumentID *string
 	Verified   bool
-	UpdatedAt  time.Time
+	// ChangedAt is when an approved merchant last replaced the account: live
+	// withdrawals wait BankChangeHold, so a stolen session can't empty the
+	// balance into an account of its own before the owner sees the email.
+	ChangedAt *time.Time
+	UpdatedAt time.Time
+}
+
+const BankChangeHold = 48 * time.Hour
+
+// SameHolder tells whether an account holder is one of names, ignoring case,
+// accents, punctuation and company suffixes.
+func SameHolder(holder string, names ...string) bool {
+	h := holderKey(holder)
+	for _, n := range names {
+		if k := holderKey(n); k != "" && (k == h || strings.Contains(h, k) || strings.Contains(k, h)) {
+			return true
+		}
+	}
+	return h == ""
+}
+
+func holderKey(s string) string {
+	s = strings.ToLower(norm.NFD.String(s))
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == ' ' || r == '.' || r == ',' || r == '-' || r == '&':
+			b.WriteRune(' ')
+		}
+	}
+	words := []string{}
+	for _, w := range strings.Fields(b.String()) {
+		switch w {
+		case "lda", "limitada", "sa", "s", "a", "e", "de", "da", "do", "sociedade", "unipessoal", "su", "ei":
+			continue
+		}
+		words = append(words, w)
+	}
+	return strings.Join(words, " ")
+}
+
+// PayableFrom is when a replaced account can take live withdrawals.
+func (b *BankAccount) PayableFrom() *time.Time {
+	if b.ChangedAt == nil {
+		return nil
+	}
+	t := b.ChangedAt.Add(BankChangeHold)
+	return &t
 }
 
 const (
@@ -355,8 +427,12 @@ type WebhookEndpoint struct {
 	CreatedAt  time.Time
 }
 
+// EventPing is the test event: every active endpoint takes it, and no
+// integration can mistake it for money.
+const EventPing = "ping"
+
 func (e *WebhookEndpoint) Wants(event string) bool {
-	return e.Active && (contains(e.Events, event) || contains(e.Events, "*"))
+	return e.Active && (event == EventPing || contains(e.Events, event) || contains(e.Events, "*"))
 }
 
 type AllowedDomain struct {

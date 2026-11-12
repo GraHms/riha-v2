@@ -151,9 +151,16 @@ func (a *App) mailBankChanged(ctx context.Context, m *domain.Merchant, b *domain
 		To: m.Email, Subject: "A conta bancária da RIHA foi alterada", Title: "A conta bancária foi alterada",
 		Lines:  []string{merchantHello(m), "Os levantamentos de " + m.Name + " passam a ir para esta conta:"},
 		Rows:   []domain.NoticeRow{{Label: "Banco", Value: b.BankName}, {Label: "Titular", Value: b.Holder}, {Label: "NIB", Value: "•••• " + b.NIB[len(b.NIB)-4:]}},
-		Note:   "Se não foi você, altere já a palavra-passe e reponha a conta bancária.",
+		Note:   noteBankChanged(b),
 		Action: "Rever a conta bancária", URL: a.link("/painel/definicoes/banco"),
 	})
+}
+
+func noteBankChanged(b *domain.BankAccount) string {
+	if from := b.PayableFrom(); from != nil {
+		return "Por segurança, os levantamentos só vão para esta conta a partir de " + domain.EmailTime(*from) + ". Se não foi você, altere já a palavra-passe, reponha a conta bancária e fale connosco."
+	}
+	return "Se não foi você, altere já a palavra-passe e reponha a conta bancária."
 }
 
 func (a *App) mailKeyRolled(ctx context.Context, m *domain.Merchant, k *domain.APIKey) {
@@ -175,6 +182,15 @@ func (a *App) mailPasswordReset(ctx context.Context, u *domain.User, token strin
 		// The token goes in the fragment, so it never reaches a server or its logs.
 		Action: "Repor a palavra-passe", URL: a.link("/recuperar/nova#" + token),
 		Small: "Se não foi você, ignore este email: a sua palavra-passe não muda.",
+	})
+}
+
+func (a *App) mailLoginCode(ctx context.Context, u *domain.User, code, ip string) error {
+	return a.queue(ctx, "security.login_code", domain.Notice{
+		To: u.Email, Subject: code + " é o seu código para entrar na RIHA", Title: "O seu código para entrar",
+		Lines: []string{hello(u.Name), "Alguém, talvez você, está a entrar na sua conta RIHA num dispositivo novo. Escreva este código para continuar. É válido durante 10 minutos."},
+		Rows:  []domain.NoticeRow{{Label: "Código", Value: code}, {Label: "Endereço", Value: domain.FirstNonEmpty(ip, "—")}},
+		Small: "Se não foi você, alguém sabe a sua palavra-passe: reponha-a já em " + a.link("/recuperar") + ".",
 	})
 }
 

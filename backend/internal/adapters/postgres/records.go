@@ -14,6 +14,8 @@ type userRecord struct {
 	Permissions  StringList `gorm:"type:text"`
 	PartnerCode  string     `gorm:"size:30;not null;default:'';index"`
 	DisabledAt   *time.Time
+	FailedLogins int
+	LockedUntil  *time.Time
 	LastLoginAt  *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -88,6 +90,7 @@ type bankRecord struct {
 	NIB        string  `gorm:"column:nib;size:21"`
 	DocumentID *string `gorm:"size:40"`
 	Verified   bool
+	ChangedAt  *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -269,6 +272,7 @@ type payoutRecord struct {
 	BankName      string `gorm:"size:80"`
 	Holder        string `gorm:"size:200"`
 	NIB           string `gorm:"column:nib;size:21"`
+	BankChangedAt *time.Time
 	RequestedBy   string `gorm:"size:40"`
 	RequestedAt   time.Time
 	DueAt         time.Time
@@ -427,11 +431,31 @@ type passwordResetRecord struct {
 
 func (passwordResetRecord) TableName() string { return "password_resets" }
 
+type loginCodeRecord struct {
+	UserID    string `gorm:"primaryKey;size:40"`
+	CodeHash  string `gorm:"size:64;not null"`
+	Attempts  int
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+func (loginCodeRecord) TableName() string { return "login_codes" }
+
+type trustedDeviceRecord struct {
+	TokenHash string    `gorm:"primaryKey;size:64"`
+	UserID    string    `gorm:"size:40;index;not null"`
+	ExpiresAt time.Time `gorm:"index"`
+	CreatedAt time.Time
+}
+
+func (trustedDeviceRecord) TableName() string { return "trusted_devices" }
+
 func allRecords() []any {
 	return append([]any{
 		&userRecord{}, &sessionRecord{}, &merchantRecord{}, &documentRecord{}, &bankRecord{}, &keyRecord{},
 		&linkRecord{}, &sessionCheckoutRecord{}, &paymentRecord{}, &refundRecord{}, &ledgerRecord{}, &payoutRecord{},
 		&endpointRecord{}, &domainRecord{}, &eventRecord{}, &deliveryRecord{}, &requestLogRecord{}, &idempotencyRecord{},
 		&auditRecord{}, &settingRecord{}, &emailRecord{}, &passwordResetRecord{}, &trailRecord{},
-	}, append(subscriptionRecords(), integrationRecords()...)...)
+		&loginCodeRecord{}, &trustedDeviceRecord{},
+	}, append(append(subscriptionRecords(), integrationRecords()...), rollupRecords()...)...)
 }
