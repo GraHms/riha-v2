@@ -399,6 +399,9 @@ type Loan struct {
 	DeliveredAt    *time.Time
 	PayoutRef      string
 	Version        int
+	Proposed       int
+	AskedAt        *time.Time
+	Manual         bool
 	SettleOffer    int64
 	ApprovedBy     string
 	SecondBy       string
@@ -433,6 +436,7 @@ type Instalment struct {
 	Status     string
 	MoraPaid   int64
 	MoraWaived bool
+	Charged    int64
 	SessionID  *string
 	PaymentID  *string
 	Method     string
@@ -705,3 +709,19 @@ func AgingBucket(days int) int {
 }
 
 var ErrCodeWrong = Invalid("code_invalid", "code", "Código errado. Confirme o SMS e tente de novo.")
+
+type Disbursement struct {
+	Reference string
+	Phone     string
+	Method    string
+	Amount    int64
+	Live      bool
+	Note      string
+}
+
+type DisbursementResult struct {
+	ProviderRef string
+	Pending     bool
+}
+
+func CreditCodeDigits() string { return randFrom("0123456789", 6) }

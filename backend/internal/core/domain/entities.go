@@ -409,11 +409,13 @@ type Refund struct {
 }
 
 const (
-	LedgerPayment        = "payment"
-	LedgerPayout         = "payout"
-	LedgerPayoutReversal = "payout_reversal"
-	LedgerTransferFee    = "transfer_fee"
-	LedgerRefund         = "refund"
+	LedgerPayment         = "payment"
+	LedgerPayout          = "payout"
+	LedgerPayoutReversal  = "payout_reversal"
+	LedgerTransferFee     = "transfer_fee"
+	LedgerRefund          = "refund"
+	LedgerLoanOut         = "loan_out"
+	LedgerLoanOutReversal = "loan_out_reversal"
 )
 
 type LedgerEntry struct {

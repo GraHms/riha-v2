@@ -54,6 +54,9 @@ type Deps struct {
 	Messenger    ports.Messenger
 	Sheets       ports.Sheet
 	Integrations ports.Integrations
+	Credit       ports.Credit
+	// Disburser is optional: without it a loan can only be delivered outside RIHA.
+	Disburser ports.Disburser
 	// Trail is optional: without it nothing is traced.
 	Trail    ports.Trail
 	Insights ports.Insights

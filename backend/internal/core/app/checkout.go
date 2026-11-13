@@ -519,6 +519,11 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 					return err
 				}
 			}
+			if cs.SourceType == domain.SourceMicrocredit {
+				if err := a.settleInstalments(ctx, cs, p); err != nil {
+					return err
+				}
+			}
 		}
 		if err := a.emit(ctx, p.MerchantID, p.Livemode, "payment.succeeded", p.ID, domain.PaymentResource(p), cs.CallbackURL); err != nil {
 			return err

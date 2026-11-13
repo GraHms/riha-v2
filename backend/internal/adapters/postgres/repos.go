@@ -41,6 +41,11 @@ func (r Users) LoginFailed(ctx context.Context, id string, now time.Time, max in
 func (r Users) Team(ctx context.Context, role, partnerCode string) ([]domain.User, error) {
 	return find[userRecord, domain.User](r.conn(ctx).Where("role = ? AND partner_code = ?", role, partnerCode).Order("disabled_at NULLS FIRST, name"))
 }
+func (r Users) CountByMerchant(ctx context.Context, merchantID string) (int64, error) {
+	var n int64
+	err := r.conn(ctx).Model(&userRecord{}).Where("merchant_id = ? AND disabled_at IS NULL", merchantID).Count(&n).Error
+	return n, err
+}
 func (r Users) SetAccess(ctx context.Context, u *domain.User) error {
 	return r.conn(ctx).Model(&userRecord{}).Where("id = ?", u.ID).
 		Updates(map[string]any{"permissions": StringList(u.Permissions), "admin_title": u.AdminTitle, "disabled_at": u.DisabledAt, "name": u.Name}).Error

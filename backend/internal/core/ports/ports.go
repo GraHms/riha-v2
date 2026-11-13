@@ -25,6 +25,7 @@ type Users interface {
 	Team(ctx context.Context, role, partnerCode string) ([]domain.User, error)
 	// SetAccess saves a user's name, title, permissions and whether it's closed.
 	SetAccess(ctx context.Context, u *domain.User) error
+	CountByMerchant(ctx context.Context, merchantID string) (int64, error)
 }
 
 type AuthSessions interface {
@@ -642,4 +643,79 @@ type DayRow struct {
 	Count      int64
 	Amount     int64
 	PartnerFee int64
+}
+
+type CreditRequestQuery struct {
+	MerchantID string
+	Live       bool
+	Statuses   []string
+	ProductID  string
+	Search     string
+	Limit      int
+}
+
+type LoanQuery struct {
+	MerchantID string
+	Live       bool
+	Statuses   []string
+	ProductID  string
+	Search     string
+	IDs        []string
+	Limit      int
+}
+
+type Credit interface {
+	CreateProduct(ctx context.Context, p *domain.CreditProduct) error
+	SaveProduct(ctx context.Context, p *domain.CreditProduct) error
+	Product(ctx context.Context, merchantID, id string) (*domain.CreditProduct, error)
+	Products(ctx context.Context, merchantID string, live bool) ([]domain.CreditProduct, error)
+
+	CreateRequest(ctx context.Context, r *domain.CreditRequest) error
+	SaveRequest(ctx context.Context, r *domain.CreditRequest) error
+	LockRequest(ctx context.Context, id string) (*domain.CreditRequest, error)
+	Request(ctx context.Context, merchantID, id string) (*domain.CreditRequest, error)
+	RequestByToken(ctx context.Context, token string) (*domain.CreditRequest, error)
+	Requests(ctx context.Context, q CreditRequestQuery) ([]domain.CreditRequest, error)
+	CountRequests(ctx context.Context, merchantID string, live bool) (map[string]int64, error)
+	RecentRequests(ctx context.Context, phone string, since time.Time) (int64, error)
+
+	AddDocument(ctx context.Context, d *domain.CreditDocument) error
+	Documents(ctx context.Context, requestID string) ([]domain.CreditDocument, error)
+	Document(ctx context.Context, merchantID, id string) (*domain.CreditDocument, error)
+
+	CreateLoan(ctx context.Context, l *domain.Loan) error
+	SaveLoan(ctx context.Context, l *domain.Loan) error
+	LockLoan(ctx context.Context, id string) (*domain.Loan, error)
+	Loan(ctx context.Context, merchantID, id string) (*domain.Loan, error)
+	LoanByID(ctx context.Context, id string) (*domain.Loan, error)
+	LoanByToken(ctx context.Context, token string) (*domain.Loan, error)
+	Loans(ctx context.Context, q LoanQuery) ([]domain.Loan, error)
+	LoansByPhone(ctx context.Context, merchantID string, live bool, phone string) ([]domain.Loan, error)
+
+	CreateInstalment(ctx context.Context, i *domain.Instalment) error
+	SaveInstalment(ctx context.Context, i *domain.Instalment) error
+	LockInstalment(ctx context.Context, id string) (*domain.Instalment, error)
+	Instalments(ctx context.Context, loanID string) ([]domain.Instalment, error)
+	InstalmentsOf(ctx context.Context, merchantID string, live bool, statuses []string) ([]domain.Instalment, error)
+	InstalmentsBySession(ctx context.Context, sessionID string) ([]domain.Instalment, error)
+	OpenInstalmentsDue(ctx context.Context, before time.Time, limit int) ([]domain.Instalment, error)
+	PaidInstalments(ctx context.Context, merchantID string, live bool, from, to time.Time) ([]domain.Instalment, error)
+
+	CreateAgreement(ctx context.Context, g *domain.LoanAgreement) error
+	SaveAgreement(ctx context.Context, g *domain.LoanAgreement) error
+	Agreements(ctx context.Context, loanID string) ([]domain.LoanAgreement, error)
+
+	CreateCode(ctx context.Context, c *domain.CreditCode) error
+	SaveCode(ctx context.Context, c *domain.CreditCode) error
+	LatestCode(ctx context.Context, subject, purpose string) (*domain.CreditCode, error)
+	CodesSent(ctx context.Context, phone string, since time.Time) (int64, error)
+
+	Settings(ctx context.Context, merchantID string) (*domain.CreditSettings, error)
+	SaveSettings(ctx context.Context, merchantID string, s domain.CreditSettings) error
+}
+
+// Disburser sends money from RIHA to a customer's wallet, for a loan delivered
+// through the institution's balance.
+type Disburser interface {
+	Disburse(ctx context.Context, d domain.Disbursement) (domain.DisbursementResult, error)
 }

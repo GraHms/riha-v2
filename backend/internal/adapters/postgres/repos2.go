@@ -178,6 +178,7 @@ func (r Reports) scope(ctx context.Context, s ports.Scope) *gorm.DB {
 	}
 	return q
 }
+
 // days answers from the payment_days rollup when the scope's bounds start
 // Maputo days, as the console's and the reports' do; any other bounds read
 // the payments themselves, within those bounds.

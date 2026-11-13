@@ -57,7 +57,7 @@ func setup(t *testing.T) (*app.App, context.Context) {
 		Keys: r.Keys, Links: r.Links, Sessions: r.Sessions, Payments: r.Payments, Refunds: r.Refunds, Ledger: r.Ledger,
 		Payouts: r.Payouts, Endpoints: r.Endpoints, Domains: r.Domains, Events: r.Events, Deliveries: r.Deliveries,
 		RequestLogs: r.RequestLogs, Idempotency: r.Idempotency, Audit: r.Audit, Settings: r.Settings, Reports: r.Reports,
-		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings, Integrations: r.Integrations,
+		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings, Integrations: r.Integrations, Credit: r.Credit, Disburser: rails.Disbursers{Test: rails.SimulatedDisburser{}, Live: rails.SimulatedDisburser{}},
 		Messenger: &messaging.Outbox{}, Sheets: sheets.Reader{},
 		Rail: mock, Sender: nullSender{}, Files: filestore.Local{Root: t.TempDir()}, Hasher: crypto.Bcrypt{},
 		Renderer: pdf.New(), Mailer: mails, Emails: r.Emails, Resets: r.Resets,

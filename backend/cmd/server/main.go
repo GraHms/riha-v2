@@ -135,7 +135,7 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 		Keys: r.Keys, Links: r.Links, Sessions: r.Sessions, Payments: r.Payments, Refunds: r.Refunds, Ledger: r.Ledger,
 		Payouts: r.Payouts, Endpoints: r.Endpoints, Domains: r.Domains, Events: r.Events, Deliveries: r.Deliveries,
 		RequestLogs: r.RequestLogs, Idempotency: r.Idempotency, Audit: r.Audit, Settings: r.Settings, Reports: r.Reports,
-		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings, Integrations: r.Integrations,
+		Plans: r.Plans, Members: r.Members, Subs: r.Subs, Charges: r.Charges, Messages: r.Messages, SubSettings: r.SubSettings, Integrations: r.Integrations, Credit: r.Credit,
 		Messenger: &messaging.Outbox{Dir: filepath.Join(cfg.OutboxDir, "messages")},
 		Sheets:    sheets.Reader{},
 		Rail:      rails.NewMock(time.Duration(cfg.SimulatorDelayMs) * time.Millisecond),
@@ -146,7 +146,18 @@ func Deps(store *postgres.Store, cfg config.Config) app.Deps {
 		Mailer:    mailer(cfg),
 		Emails:    r.Emails,
 		Resets:    r.Resets,
+		Disburser: disbursers(cfg),
 	}
+}
+
+// disbursers: test mode simulates sending a loan to the wallet; live mode can only
+// once a provider is connected, and in development it is simulated too.
+func disbursers(cfg config.Config) rails.Disbursers {
+	d := rails.Disbursers{Test: rails.SimulatedDisburser{}}
+	if cfg.Env == "development" {
+		d.Live = rails.SimulatedDisburser{}
+	}
+	return d
 }
 
 // paymentSetup is the rail, the methods it can't take yet, and whether it moves real money.

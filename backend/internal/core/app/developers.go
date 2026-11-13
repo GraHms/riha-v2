@@ -468,6 +468,7 @@ func (a *App) RunWorkers(ctx context.Context) {
 	tick("closed", 5*time.Minute, 5*time.Minute, a.CheckClosedPayments)
 	tick("unconfirmed", time.Minute, 3*time.Minute, a.RecheckUnconfirmed)
 	tick("billing", 15*time.Second, 3*time.Minute, a.BillingTick)
+	tick("microcredit", 30*time.Second, 3*time.Minute, a.CreditTick)
 	tick("messages", 2*time.Second, 2*time.Minute, a.SendQueued)
 	tick("watchdog", time.Minute, time.Minute, a.Watchdog)
 	tick("trail", 6*time.Hour, 30*time.Minute, a.PruneTrail)

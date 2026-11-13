@@ -461,5 +461,5 @@ func allRecords() []any {
 		&endpointRecord{}, &domainRecord{}, &eventRecord{}, &deliveryRecord{}, &requestLogRecord{}, &idempotencyRecord{},
 		&auditRecord{}, &settingRecord{}, &emailRecord{}, &passwordResetRecord{}, &trailRecord{},
 		&loginCodeRecord{}, &trustedDeviceRecord{},
-	}, append(append(subscriptionRecords(), integrationRecords()...), rollupRecords()...)...)
+	}, append(append(append(subscriptionRecords(), integrationRecords()...), rollupRecords()...), creditRecords()...)...)
 }

@@ -476,6 +476,7 @@ func (r Messages) ByProviderID(ctx context.Context, providerID string) (*domain.
 func (r Messages) Failed(ctx context.Context, merchantID string, live bool, since time.Time, limit int) ([]domain.Message, error) {
 	return find[messageRecord, domain.Message](r.conn(ctx).Where("merchant_id = ? AND livemode = ? AND status = ? AND created_at >= ?", merchantID, live, "failed", since).Order("created_at DESC").Limit(limit))
 }
+
 // CountRecentToPhone counts messages of a kind to any of a merchant's members
 // with this phone.
 func (r Messages) CountRecentToPhone(ctx context.Context, merchantID, phone, kind string, since time.Time) (int64, error) {
