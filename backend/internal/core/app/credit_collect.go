@@ -202,7 +202,7 @@ func (a *App) CreditTick(ctx context.Context) {
 			m, _ = a.Merchants.ByID(ctx, l.MerchantID)
 			merchants[l.MerchantID] = m
 		}
-		if m == nil || !m.HasMicrocredit() {
+		if m == nil {
 			continue
 		}
 		if err := a.collectStep(ctx, m, l, x.ID, now); err != nil {

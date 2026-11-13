@@ -280,7 +280,7 @@ func (a *App) creditLoanByToken(ctx context.Context, token string) (*domain.Loan
 		return nil, nil, domain.NotFound("Este crédito")
 	}
 	m, err := a.Merchants.ByID(ctx, l.MerchantID)
-	if err != nil || !m.HasMicrocredit() {
+	if err != nil {
 		return nil, nil, domain.NotFound("Este crédito")
 	}
 	return l, m, nil
@@ -294,6 +294,9 @@ func (a *App) SendAgreementCode(ctx context.Context, token string, accept bool) 
 	}
 	if !accept {
 		return "", domain.Invalid("agreement_required", "accept", "Leia e aceite o acordo primeiro.")
+	}
+	if !m.HasMicrocredit() {
+		return "", domain.Invalid("no_agreement", "accept", "Este acordo já não pode ser aceite. Fale com a "+m.Name+".")
 	}
 	gs, _ := a.Credit.Agreements(ctx, l.ID)
 	g := proposed(gs)
@@ -309,6 +312,9 @@ func (a *App) AcceptAgreement(ctx context.Context, token, code, ip string) (*dom
 	l, m, err := a.creditLoanByToken(ctx, token)
 	if err != nil {
 		return nil, err
+	}
+	if !m.HasMicrocredit() {
+		return nil, domain.Invalid("no_agreement", "code", "Este acordo já não pode ser aceite. Fale com a "+m.Name+".")
 	}
 	first, _ := a.Credit.Agreements(ctx, l.ID)
 	pg := proposed(first)

@@ -127,7 +127,7 @@ func (a *App) creditRequestByToken(ctx context.Context, token string) (*domain.C
 		return nil, nil, domain.NotFound("Este pedido")
 	}
 	m, err := a.Merchants.ByID(ctx, r.MerchantID)
-	if err != nil || !m.HasMicrocredit() {
+	if err != nil {
 		return nil, nil, domain.NotFound("Este pedido")
 	}
 	return r, m, nil
@@ -141,6 +141,9 @@ func (a *App) ResendRequestCode(ctx context.Context, token string) (string, erro
 	if r.Status != domain.RequestVerifying {
 		return "", domain.Invalid("already_confirmed", "code", "O número já está confirmado.")
 	}
+	if !m.HasMicrocredit() {
+		return "", domain.NotFound("Este pedido")
+	}
 	return a.sendCreditCode(ctx, m, r.Livemode, r.ID, domain.CodeVerifyPhone, r.Phone, "confirmar o seu pedido de crédito")
 }
 
@@ -151,6 +154,9 @@ func (a *App) ConfirmCreditRequest(ctx context.Context, token, code string) (*do
 	}
 	if r.Status != domain.RequestVerifying {
 		return r, nil
+	}
+	if !m.HasMicrocredit() {
+		return nil, domain.NotFound("Este pedido")
 	}
 	if err := a.checkCreditCode(ctx, r.ID, domain.CodeVerifyPhone, code); err != nil {
 		return nil, err
@@ -185,9 +191,12 @@ var creditDocKinds = map[string]string{"id_front": "BI · frente", "id_back": "B
 func CreditDocLabel(kind string) string { return creditDocKinds[kind] }
 
 func (a *App) AddCreditDocument(ctx context.Context, token string, up Upload) (*domain.CreditDocument, error) {
-	r, _, err := a.creditRequestByToken(ctx, token)
+	r, m, err := a.creditRequestByToken(ctx, token)
 	if err != nil {
 		return nil, err
+	}
+	if !m.HasMicrocredit() {
+		return nil, domain.NotFound("Este pedido")
 	}
 	if r.Status != domain.RequestVerifying && r.Status != domain.RequestNew {
 		return nil, domain.Invalid("request_closed", "file", "Já não é possível juntar documentos a este pedido.")

@@ -67,6 +67,7 @@ Demo accounts (created by the seed):
 |---|---|---|
 | Merchant (Café Maputo, verified) | `ola@cafemaputo.co.mz` | `cafe-maputo-2026` |
 | Merchant (Escola Primavera, subscriptions demo) | `escola@primavera.co.mz` | `primavera-2026` |
+| Merchant (Avante Microcrédito, microcredit demo) | `ola@avante.co.mz` | `avante-2026` |
 | Super admin | `admin@riha.co.mz` | `riha-admin-2026` |
 
 Configuration (environment variables):
@@ -203,6 +204,33 @@ M-Pesa and e-Mola do not allow automatic debits, so **RIHA never charges on its 
 - Payments go oldest month first: a later month cannot be paid while an older one is open on the same subscription.
 - Every merchant route checks the merchant of the session; other merchants' members, charges and proofs return 404. Creating plans, inviting, importing, changing prices, editing the catalogue or settings, and marking payments all require an approved account.
 - Imports accept `.csv` and `.xlsx` up to 4 MB and 2 000 rows; the XLSX reader caps the unzipped size. CSV exports neutralise formula injection.
+
+## Microcrédito
+
+A service for institutions that lend: microcredit institutions, savings cooperatives, shops selling in instalments and employers advancing salaries. **RIHA does not lend.** The credit, the rate and the decision belong to the institution; RIHA carries the request, the agreement and the collection.
+
+**Access.** Only a RIHA admin holding every permission can turn it on for an approved, active account (admin › Comerciantes › Microcrédito, with a note, written to the audit log). Without it, `/api/microcredit/*` answers 403 and the dashboard hides the service. Revoking closes everything the institution can do and every new request or agreement, but **borrowers keep their page, can still pay, and keep getting reminders** for what they already owe.
+
+**Flow.**
+1. The institution creates *products*: amount range, weekly, fortnightly or monthly instalments, term range, flat interest per instalment period, day of payment (delivery day, or the customer chooses 1 to 28 for monthly products), mora, tolerance, maximum effort on income, and what to ask the customer.
+2. The customer opens `/credito/:merchant`, simulates (instalment, interest, total, dates), gives their details and ID photos, and confirms their number with a 6-digit SMS code. A request over the product's effort limit does not go through.
+3. The institution reviews the request (checks, documents, history with the institution), then approves it (adjusting amount, term and day) or declines it. Above an amount it chooses, a second person must approve. It can also create a loan directly for a phone number.
+4. The customer reads the agreement at `/cr/:token` and accepts it with an SMS code. Every version of the agreement is stored with its text, the time, the IP and the number that accepted it, and can be downloaded as a PDF.
+5. The money leaves the institution's RIHA balance for the customer's wallet, or is handed over outside RIHA and marked as delivered. A failed delivery puts the money back and appears under "Precisa de atenção" with "Tentar de novo".
+6. Instalments are paid through the normal checkout (PIN on the phone). A worker sends the reminder before the date, the link on the day, an evening reminder if it was not opened, resends at +2 and +7 days, the offer of a new agreement at +14, and at +30 stops the automatic messages (manual collection) unless set to continue. Each offset can be changed. Messages respect the institution's hours and Sundays.
+
+**Money rules.** Instalment = ⌈amount × (1 + rate × n) ÷ n⌉ in whole meticais; mora = mora rate × instalment for each week past the tolerance, counted from the first day after it, up to the maximum weeks. A new agreement joins the overdue amount into the instalments left, or extends by 1 to 12 months, on any day 1 to 28, optionally waiving the mora; the old plan stays valid until the customer accepts. Early settlement can be paid through a link (optionally discounted) or recorded as received outside RIHA. A loan can be written off with a reason.
+
+**Screens.** Panel tabs Resumo, Pedidos, Empréstimos, Produtos and Definições, on desktop and phone, plus the request link with QR. Customer pages for simulating, requesting, the agreement, the SMS code, money sent, the credit, paying an instalment, overdue with "Não consigo pagar agora", and a proposed new agreement. The public landing page is `/microcredito`.
+
+### Decisions and gaps
+
+- **Disbursement.** Wallet payouts (B2C) are a port, `ports.Disburser`. Only a simulator exists: test mode always, development also in live mode. In production, "Pelo saldo RIHA" stays unavailable until a provider adapter is connected; loans are delivered outside RIHA. In the simulator, a number ending in `0000` refuses the delivery.
+- **Paths.** `/c/` (checkout) and `/m/` (subscription member page) were taken, so the request link is `/credito/:merchant` and the customer page `/cr/:token` instead of the design's `/m/avante`.
+- **Approvers.** Merchant accounts have no team roles yet, so "Admin e Gestor de crédito" reads "Qualquer pessoa da conta". Two approvers can only be turned on with at least two people in the account.
+- **Early settlement** keeps the flat interest by default; the institution can lower the amount.
+- **New agreements** are monthly, as in the design, whatever the product's frequency.
+- **Test mode** shows the SMS code on screen so the flow can be tried; live mode never returns it.
 
 ## Public REST API (`/v1`)
 
