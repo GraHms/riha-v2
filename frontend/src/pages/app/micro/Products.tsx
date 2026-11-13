@@ -106,11 +106,11 @@ export function ProductForm() {
   const dec = (v: string, on: (s: string) => void, suffix: string) => <div className="phone-input" style={{ height: 48 }}><input inputMode="decimal" value={v} onChange={e => on(e.target.value.replace(/[^\d,.]/g, '').slice(0, 5))} /><span style={{ padding: '0 12px', color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 13 }}>{suffix}</span></div>
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.45fr) minmax(0,1fr)', gap: 18, alignItems: 'start' }} className="pf-grid">
-      <style>{`@media (max-width:1100px){.pf-grid{grid-template-columns:1fr!important}}`}</style>
+      <style>{`@media (max-width:1250px){.pf-grid{grid-template-columns:1fr!important}}.pf-3>*,.pf-4>*{min-width:0}.pf-3 .phone-input input,.pf-4 .phone-input input{min-width:0;width:100%}`}</style>
       <div className="card card-pad">
         <div className="between"><h3 className="display" style={{ fontSize: 22, margin: 0 }}>{editing ? 'Editar produto' : 'Novo produto'}</h3>{editing && <Seg value={d.status} options={[['active', 'Ativo'], ['draft', 'Rascunho']]} onChange={v => set({ status: v })} style={{ width: 200 }} />}</div>
         {editing && <p className="muted" style={{ fontSize: 13, margin: '6px 0 0' }}>Os empréstimos já aceites mantêm o seu acordo.</p>}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr', gap: 12, marginTop: 16 }} className="pf-3">
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr)', gap: 12, marginTop: 16 }} className="pf-3">
           <label>{lbl('Nome')}<input className="input" style={{ height: 48 }} value={d.name} maxLength={60} onChange={e => set({ name: e.target.value })} placeholder="Crédito Escolar" /></label>
           <label>{lbl('Montante mínimo')}{money(d.min, v => set({ min: v }))}</label>
           <label>{lbl('Montante máximo')}{money(d.max, v => set({ max: v }))}</label>
@@ -121,7 +121,7 @@ export function ProductForm() {
           <div>{lbl('Dia da prestação')}{d.freq === 'mensal' ? <Seg value={d.dayMode} options={[['entrega', 'Dia da entrega'], ['cliente', 'O cliente escolhe']]} onChange={v => set({ dayMode: v })} /> : <div className="muted" style={{ height: 48, display: 'flex', alignItems: 'center', fontSize: 13.5 }}>{d.freq === 'semanal' ? 'A cada 7 dias, desde a entrega' : 'A cada 14 dias, desde a entrega'}</div>}</div>
           <label>{lbl('Limite de esforço')}<div className="phone-input" style={{ height: 48 }}><input inputMode="numeric" value={d.effort} onChange={e => set({ effort: e.target.value.replace(/\D/g, '').slice(0, 3) })} /><span style={{ padding: '0 12px', color: 'var(--muted)', fontSize: 13, whiteSpace: 'nowrap' }}>% do rendimento</span></div></label>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: 12, marginTop: 12 }} className="pf-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', gap: 12, marginTop: 12 }} className="pf-4">
           <div>{lbl('Se atrasar')}<Seg value={d.mora} options={[[true, 'Com mora'], [false, 'Sem mora']]} onChange={v => set({ mora: v })} /></div>
           <label style={{ opacity: d.mora ? 1 : 0.4, pointerEvents: d.mora ? 'auto' : 'none' }}>{lbl('Mora')}{dec(d.moraP, v => set({ moraP: v }), '% / semana')}</label>
           <div style={{ opacity: d.mora ? 1 : 0.4, pointerEvents: d.mora ? 'auto' : 'none' }}>{lbl('Tolerância')}<Step label={`${d.grace} ${d.grace === 1 ? 'dia' : 'dias'}`} canDec={d.grace > 0} canInc={d.grace < 15} onDec={() => set({ grace: d.grace - 1 })} onInc={() => set({ grace: d.grace + 1 })} /></div>

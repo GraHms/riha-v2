@@ -93,6 +93,16 @@ func (srv *Server) metaFor(c context.Context, host, path string) pageMeta {
 	case path == "/registo":
 		title := "Criar conta para receber pagamentos M-Pesa · RIHA"
 		return pageMeta{status: 200, title: title, desc: "Crie a conta do seu negócio em menos de 3 minutos e comece a receber por M-Pesa depois de aprovado. Sem mensalidade nem taxa de adesão.", image: "/og/site.png", alt: title, path: "/registo", index: true}
+	case path == "/microcredito":
+		title := "Microcrédito: crédito pedido por link, prestações cobradas na data · RIHA"
+		desc := "Para instituições de crédito em Moçambique: o cliente pede e simula no telemóvel, aceita o acordo com um código SMS e recebe na carteira. A RIHA envia o link de cada prestação, com lembretes e reenvios."
+		return pageMeta{status: 200, title: title, desc: desc, image: "/og/site.png", alt: title, path: "/microcredito", index: true,
+			ld:       domain.M{"@context": "https://schema.org", "@type": "Service", "name": "Microcrédito RIHA", "description": desc, "provider": domain.M{"@type": "Organization", "name": siteName}, "areaServed": domain.M{"@type": "Country", "name": "Moçambique"}},
+			noscript: `<h1>Microcrédito: crédito pedido por link, prestações cobradas na data</h1><p>` + html.EscapeString(desc) + `</p>`}
+	case seg[0] == "credito" && len(seg) == 2:
+		return private("Pedir crédito")
+	case seg[0] == "cr" && len(seg) == 2:
+		return private("O meu crédito")
 	case path == "/entrar":
 		return private("Entrar")
 	case seg[0] == "recuperar", seg[0] == "verificacao", seg[0] == "painel", seg[0] == "admin":
@@ -242,13 +252,13 @@ func (srv *Server) servePage(c *gin.Context) {
 
 func (srv *Server) robots(c *gin.Context) {
 	c.Header("Cache-Control", "public, max-age=3600")
-	c.String(200, "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /painel\nDisallow: /verificacao\nDisallow: /i/\nDisallow: /m/\nDisallow: /api/\nDisallow: /v1/\n\nSitemap: %s\n", srv.url("/sitemap.xml"))
+	c.String(200, "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /painel\nDisallow: /verificacao\nDisallow: /i/\nDisallow: /m/\nDisallow: /cr/\nDisallow: /credito/\nDisallow: /api/\nDisallow: /v1/\n\nSitemap: %s\n", srv.url("/sitemap.xml"))
 }
 
 func (srv *Server) sitemap(c *gin.Context) {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-	for _, p := range []string{"/", "/docs", "/registo"} {
+	for _, p := range []string{"/", "/docs", "/registo", "/microcredito"} {
 		fmt.Fprintf(&b, "<url><loc>%s</loc></url>\n", html.EscapeString(srv.url(p)))
 	}
 	for _, u := range srv.catalogURLs(ctx(c)) {

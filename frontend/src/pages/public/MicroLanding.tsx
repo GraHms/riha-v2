@@ -56,8 +56,10 @@ const css = `
 .ml-two{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
 .ml-four{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:28px}
 .ml-phone{width:300px;border-radius:44px;background:#0B120E;padding:10px;box-shadow:0 50px 90px -30px rgba(0,0,0,.6);flex:none}
-.ml-screen{border-radius:36px;background:#F4F3EE;padding:18px 18px 22px;min-height:520px;display:flex;flex-direction:column}
-.ml-nav{display:flex;gap:26px;font-size:14.5px;font-weight:500;color:#3E4742}
+.ml-screen{border-radius:36px;background:#F4F3EE;color:#0B120E;padding:18px 18px 22px;min-height:520px;display:flex;flex-direction:column}
+.ml-nav{display:flex;gap:22px;font-size:14.5px;font-weight:500;color:#3E4742;white-space:nowrap;min-width:0;overflow:hidden}
+.ml-hide-spacer{display:none}
+@media (max-width:1100px){.ml-nav{display:none}.ml-hide-spacer{display:block}}
 @media (max-width:1000px){.ml-steps{grid-template-columns:1fr 1fr}.ml-two{grid-template-columns:1fr;gap:28px}.ml-four{grid-template-columns:1fr 1fr}.ml-nav{display:none}.ml-hide{display:none!important}}
 @media (max-width:620px){.ml-steps,.ml-four{grid-template-columns:1fr}.ml-phone{width:100%;max-width:330px}}
 `
