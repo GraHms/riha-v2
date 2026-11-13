@@ -8,7 +8,18 @@ import { Spinner } from './components/ui'
 
 const Landing = lazy(() => import('./pages/public/Landing'))
 const SubsShell = lazy(() => import('./pages/app/subs/SubsShell'))
-const Microcredit = lazy(() => import('./pages/app/micro/Microcredit'))
+const MicroShell = lazy(() => import('./pages/app/micro/MicroShell'))
+const MicroSummary = lazy(() => import('./pages/app/micro/Summary'))
+const MicroRequests = lazy(() => import('./pages/app/micro/Requests'))
+const MicroRequest = lazy(() => import('./pages/app/micro/Requests').then(m => ({ default: m.RequestDetail })))
+const MicroLoans = lazy(() => import('./pages/app/micro/Loans'))
+const MicroLoan = lazy(() => import('./pages/app/micro/Loans').then(m => ({ default: m.LoanDetail })))
+const MicroProducts = lazy(() => import('./pages/app/micro/Products'))
+const MicroProduct = lazy(() => import('./pages/app/micro/Products').then(m => ({ default: m.ProductForm })))
+const MicroSettings = lazy(() => import('./pages/app/micro/Settings'))
+const CreditRequest = lazy(() => import('./pages/public/credit/RequestPage'))
+const CreditPage = lazy(() => import('./pages/public/credit/CreditPage'))
+const MicroLanding = lazy(() => import('./pages/public/MicroLanding'))
 const Summary = lazy(() => import('./pages/app/subs/Summary'))
 const PlanDetail = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlanDetail })))
 const PlanForm = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlanForm })))
@@ -110,6 +121,7 @@ const TITLES: [string, string][] = [
   ['/docs', 'API de pagamentos M-Pesa para Moçambique: documentação · RIHA'],
   ['/registo', 'Criar conta para receber pagamentos M-Pesa · RIHA'],
   ['/entrar', 'Entrar · RIHA'], ['/recuperar', 'Recuperar palavra-passe · RIHA'], ['/verificacao', 'Verificação · RIHA'],
+  ['/microcredito', 'Microcrédito: crédito pedido por link, prestações cobradas na data · RIHA'], ['/credito/', 'Pedir crédito · RIHA'], ['/cr/', 'O meu crédito · RIHA'],
   ['/painel', 'Painel · RIHA'], ['/admin', 'Administração · RIHA'], ['/parceiro', 'Parceiro · RIHA'],
 ]
 
@@ -144,6 +156,9 @@ export default function App() {
       <Route path="/a/:merchant" element={<CatalogPage />} />
       <Route path="/i/:token" element={<Invoice />} />
       <Route path="/m/:token" element={<MemberPage />} />
+      <Route path="/microcredito" element={<MicroLanding />} />
+      <Route path="/credito/:merchant" element={<CreditRequest />} />
+      <Route path="/cr/:token" element={<CreditPage />} />
 
       <Route path="/painel" element={<RequireMerchant><AppShell /></RequireMerchant>}>
         <Route index element={<Overview />} />
@@ -167,7 +182,17 @@ export default function App() {
           <Route path="catalogo" element={<Catalog />} />
           <Route path="definicoes" element={<SubsSettings />} />
         </Route>
-        <Route path="microcredito/*" element={<Microcredit />} />
+        <Route path="microcredito" element={<MicroShell />}>
+          <Route index element={<MicroSummary />} />
+          <Route path="pedidos" element={<MicroRequests />} />
+          <Route path="pedidos/:id" element={<MicroRequest />} />
+          <Route path="emprestimos" element={<MicroLoans />} />
+          <Route path="emprestimos/:id" element={<MicroLoan />} />
+          <Route path="produtos" element={<MicroProducts />} />
+          <Route path="produtos/novo" element={<MicroProduct />} />
+          <Route path="produtos/:id" element={<MicroProduct />} />
+          <Route path="definicoes" element={<MicroSettings />} />
+        </Route>
       </Route>
 
       <Route path="/admin" element={<RequireAdmin><AdminShell /></RequireAdmin>}>
