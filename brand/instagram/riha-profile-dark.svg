@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+<rect width="1080" height="1080" fill="#0B120E"/>
+<g transform="translate(546 540) scale(3.8461538461538463) translate(-148 -89)">
+  <path d="M70,12 H93 L129,150 H105 Z" fill="#0A8205"/>
+  <path d="M127,12 H174 C194,12 205,32 205,56 C205,80 190,100 162,100 H150 Z
+           M133.3,36 L145.3,82 H164 C174,82 181,72 181,59 C181,46 174,36 164,36 Z" fill="#FFFFFF" fill-rule="evenodd"/>
+  <path d="M150,96 H186 L226,152 H166 Z" fill="#FFFFFF"/>
+  <path d="M98,12 H122 L163,166 H139 Z" fill="#FF0F15" stroke="#0B120E" stroke-width="7" paint-order="stroke"/></g></svg>
