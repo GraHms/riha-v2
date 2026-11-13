@@ -29,6 +29,8 @@ func walletOutcome(phone string) (domain.Outcome, time.Duration) {
 		return domain.Outcome{FailureCode: domain.FailCustomerCancelled}, 1
 	case "4444":
 		return domain.Outcome{FailureCode: domain.FailOperatorUnavailable}, 0
+	case "5555":
+		return domain.Outcome{FailureCode: domain.FailOperatorTimeout}, 3
 	}
 	return domain.Outcome{Success: true, OperatorReference: domain.ShortCode(10)}, 1
 }

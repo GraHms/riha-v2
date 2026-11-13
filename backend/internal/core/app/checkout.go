@@ -320,7 +320,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 		if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentUnconfirmed); n > 0 && !in.PayAgain {
 			return domain.Conflict("payment_unconfirmed", UnconfirmedNotice)
 		}
-		if n, _ := a.Payments.CountBySession(ctx, cs.ID, domain.PaymentFailed); n >= MaxAttemptsPerSession {
+		if n, _ := a.Payments.CountCustomerFailures(ctx, cs.ID); n >= MaxAttemptsPerSession {
 			return domain.Forbidden("too_many_attempts", "Demasiadas tentativas falhadas neste pagamento. Peça um novo link à loja.")
 		}
 		return a.Payments.Create(ctx, p)
@@ -368,13 +368,7 @@ func (a *App) Pay(ctx context.Context, sessionID string, in PayInput) (*domain.P
 	if res.Async {
 		// The operator may have answered already: "processing" is only said
 		// of a payment still processing, never after it ended.
-		_ = a.Tx.Do(ctx, func(ctx context.Context) error {
-			now, err := a.Payments.Lock(ctx, p.ID)
-			if err != nil || now.Status != domain.PaymentProcessing {
-				return err
-			}
-			return a.emit(ctx, m.ID, now.Livemode, "payment.processing", now.ID, domain.PaymentResource(now), "")
-		})
+		a.emitProcessing(ctx, p.ID)
 	} else if err := a.CompletePayment(ctx, p.ID, res.Outcome); err != nil {
 		return nil, err
 	}
@@ -422,9 +416,11 @@ func (a *App) keepRailID(paymentID, id string) {
 // processing, or one left unconfirmed when the answer was late: that one is paid
 // late, or fails, and its customer is told by SMS, since they were asked to wait.
 func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Outcome) error {
-	var notify *domain.Payment
+	var notify, retry *domain.Payment
 	var merchant *domain.Merchant
+	var retryPhone, descriptor string
 	err := a.Tx.Do(ctx, func(ctx context.Context) error {
+		notify, retry = nil, nil
 		p, err := a.Payments.Lock(ctx, paymentID)
 		if err != nil {
 			return err
@@ -462,6 +458,14 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			c := *p
 			notify, merchant = &c, m
 		}
+		if !o.Success && !late {
+			if retry, err = a.nextTry(ctx, p, cs, o); err != nil {
+				return err
+			}
+			if retry != nil {
+				retryPhone, descriptor = p.ContactPhone, m.StatementDescriptor
+			}
+		}
 		p.ContactPhone, p.RecheckAt = "", nil
 		if !o.Success {
 			p.Status, p.FailureCode, p.FailedAt = domain.PaymentFailed, o.FailureCode, &now
@@ -472,7 +476,7 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 			if notify != nil {
 				notify.Status, notify.FailureCode = p.Status, p.FailureCode
 			}
-			if cs.SourceType == domain.SourceSubscription {
+			if cs.SourceType == domain.SourceSubscription && retry == nil {
 				if err := a.chargesFailed(ctx, cs, p); err != nil {
 					return err
 				}
@@ -528,6 +532,9 @@ func (a *App) CompletePayment(ctx context.Context, paymentID string, o domain.Ou
 	})
 	if err == nil && notify != nil {
 		a.textCustomer(ctx, notify, merchant)
+	}
+	if err == nil && retry != nil {
+		a.startTry(retry, retryPhone, descriptor)
 	}
 	return err
 }

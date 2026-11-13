@@ -195,7 +195,8 @@ func (srv *Server) sessionView(c context.Context, cs *domain.CheckoutSession) gi
 	if p := srv.A.LatestPayment(c, cs.ID); p != nil {
 		out["payment"] = gin.H{"id": p.ID, "reference": p.Reference, "attempt_id": p.AttemptID, "status": p.Status, "method": p.Method, "phone_prefix": p.PhonePrefix,
 			"phone_last4": p.PhoneLast4, "card_brand": p.CardBrand, "card_last4": p.CardLast4, "failure_code": p.FailureCode,
-			"failure_message": p.FailureMessage, "created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt), "stage": waitStage(p)}
+			"failure_message": p.FailureMessage, "created_at": isoT(p.CreatedAt), "succeeded_at": iso(p.SucceededAt), "stage": waitStage(p),
+			"try": p.Retry + 1, "tries": srv.A.TriesFor(p)}
 	}
 	return out
 }

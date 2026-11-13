@@ -203,7 +203,7 @@ func (m *Mpesa) send(c mpesaCharge, body []byte, onComplete func(domain.Outcome)
 	case known:
 		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("O M-Pesa recusou ao fim de %d s: %s %s", secs, out.ResponseCode, out.ResponseDesc), domain.TrailWarn)
 	case out.ResponseCode == "INS-9":
-		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("O M-Pesa respondeu INS-9 (tempo esgotado) ao fim de %d s: o PIN não foi digitado a tempo, ou o pedido não chegou ao telemóvel. Perguntamos ao M-Pesa se ficou pago.", secs), domain.TrailWarn)
+		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("O M-Pesa respondeu INS-9 (tempo esgotado) ao fim de %d s: o M-Pesa não concluiu a transação. Perguntamos ao M-Pesa se ficou pago.", secs), domain.TrailWarn)
 	default:
 		m.answered(c, res.StatusCode, took, raw, out, fmt.Sprintf("Resposta do M-Pesa sem desfecho ao fim de %d s: %s %s. A verificação periódica pergunta ao M-Pesa.", secs, out.ResponseCode, out.ResponseDesc), domain.TrailWarn)
 	}
@@ -216,8 +216,9 @@ func (m *Mpesa) send(c mpesaCharge, body []byte, onComplete func(domain.Outcome)
 	}
 }
 
-// afterTimeout handles M-Pesa saying the customer didn't answer in time, which is
-// common. It asks whether that holds, so they don't wait for the sweep to try again.
+// afterTimeout handles M-Pesa giving up on a request, which it often does after
+// about a minute: a known M-Pesa problem, not the customer's. It asks whether
+// anything was paid, so the payment ends at once and RIHA can try again.
 func (m *Mpesa) afterTimeout(c mpesaCharge, onComplete func(domain.Outcome)) {
 	time.Sleep(mpesaTimeoutCheckDelay)
 	o, known, err := m.Query(domain.WithRequest(context.Background(), domain.RequestInfo{ID: c.requestID}), domain.StatusQuery{Reference: c.ref, PaymentID: c.paymentID})
@@ -227,7 +228,7 @@ func (m *Mpesa) afterTimeout(c mpesaCharge, onComplete func(domain.Outcome)) {
 	case known:
 		onComplete(o)
 	default:
-		onComplete(domain.Outcome{FailureCode: domain.FailCustomerTimeout})
+		onComplete(domain.Outcome{FailureCode: domain.FailOperatorTimeout})
 	}
 }
 
@@ -317,7 +318,7 @@ func (m *Mpesa) query(ctx context.Context, ref string) (domain.Outcome, bool, in
 	case "cancelled", "canceled":
 		return domain.Outcome{FailureCode: domain.FailCustomerCancelled}, true, res.StatusCode, out, nil
 	case "expired":
-		return domain.Outcome{FailureCode: domain.FailCustomerTimeout}, true, res.StatusCode, out, nil
+		return domain.Outcome{FailureCode: domain.FailOperatorTimeout}, true, res.StatusCode, out, nil
 	}
 	return domain.Outcome{}, false, res.StatusCode, out, nil
 }

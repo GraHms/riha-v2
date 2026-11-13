@@ -157,6 +157,9 @@ type Payments interface {
 	ByReference(ctx context.Context, ref string) (*domain.Payment, error)
 	LatestBySession(ctx context.Context, sessionID string) (*domain.Payment, error)
 	CountBySession(ctx context.Context, sessionID, status string) (int64, error)
+	// CountCustomerFailures counts the failed payments a customer started in a
+	// session, leaving out the tries RIHA made by itself.
+	CountCustomerFailures(ctx context.Context, sessionID string) (int64, error)
 	CountSettledByLink(ctx context.Context, linkID string) (int64, error)
 	Find(ctx context.Context, q PaymentQuery) ([]domain.Payment, error)
 	Count(ctx context.Context, q PaymentQuery) (int64, error)

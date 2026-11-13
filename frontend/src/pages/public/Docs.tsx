@@ -478,6 +478,7 @@ const FAILS: [string, string, string][] = [
   ['2222', 'customer_timeout', 'O cliente não respondeu a tempo'],
   ['3333', 'customer_cancelled', 'O cliente cancelou no telemóvel'],
   ['4444', 'operator_unavailable', 'Operador indisponível (falha imediata)'],
+  ['5555', 'operator_timeout', 'O operador falhou a transação: no M-Pesa a RIHA tenta de novo sozinha, até 3 tentativas'],
 ]
 
 const FLOW = [

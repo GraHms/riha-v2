@@ -369,6 +369,9 @@ type Payment struct {
 	// DuplicateOf is the payment the same customer already paid for the same
 	// thing, when this one came in late on top of it: a refund to look at.
 	DuplicateOf string
+	// Retry counts the automatic tries before this one, after the operator
+	// failed the transaction: 0 when the customer pressed pay.
+	Retry int
 	// Integration is the code of the integration that took the payment, which
 	// holds its money until it settles with RIHA. PlatformFee and PartnerFee are
 	// how RIHA's fee divided on that integration's deal when the payment began;

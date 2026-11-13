@@ -48,6 +48,9 @@ const (
 	FailCanceled            = "payment_canceled"
 	FailNotCompleted        = "payment_not_completed"
 	FailNotConfirmed        = "payment_not_confirmed"
+	// FailOperatorTimeout: the operator gave up on the request itself, as M-Pesa
+	// does after about a minute, and has no record of it being paid.
+	FailOperatorTimeout = "operator_timeout"
 )
 
 var FailureMessages = map[string]string{
@@ -64,6 +67,7 @@ var FailureMessages = map[string]string{
 	FailCanceled:            "O pagamento foi cancelado.",
 	FailNotCompleted:        "O pagamento não foi concluído. Confirme o saldo e tente de novo.",
 	FailNotConfirmed:        "O operador nunca confirmou este pagamento, por isso não foi cobrado.",
+	FailOperatorTimeout:     "O operador não concluiu a transação a tempo. Nada foi cobrado.",
 }
 
 type ChargeRequest struct {

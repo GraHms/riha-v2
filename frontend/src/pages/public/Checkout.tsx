@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom'
 import { errMsg, type ApiError } from '../../core/model'
 import { useGateway } from '../../core/gateway'
 import { fmt, fullDate, METHOD_NAME, METHOD_SUB } from '../../lib/format'
-import { walletPrompt } from '../../lib/walletPrompt'
+import { failedText, walletPrompt } from '../../lib/walletPrompt'
 import { Avatar, Icon, MethodIcon, Spinner, Stripes } from '../../components/ui'
 
 type Session = {
@@ -14,7 +14,7 @@ type Session = {
   line_items: { name: string; quantity: number; unit_amount: number }[]; payment_method_types: string[]
   success_url: string; cancel_url: string; return_host: string; client_reference_id: string; customer_phone: string; customer_name: string; email_on_file: boolean; coming_soon?: string[]; link?: { details: string; image_url: string }; success_message?: string; submit_type?: string
   expires_at: string; merchant: { name: string; initials: string; avatar_color: string; descriptor: string }
-  payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null; stage?: string }
+  payment: null | { id: string; reference: string; status: string; method: string; phone_prefix: string; phone_last4: string; card_brand: string; card_last4: string; failure_code: string; failure_message: string; created_at: string; succeeded_at: string | null; stage?: string; try?: number; tries?: number }
 }
 
 // bim holds a wallet payment for up to 5 minutes while it waits for the customer.
@@ -124,7 +124,7 @@ export default function Checkout() {
     // An unconfirmed payment shows its own notice on the pay screen, with its wallet picked.
     else if (d.payment?.status === 'unconfirmed' && d.payment_method_types.includes(d.payment.method)) setMethod(d.payment.method)
     // Coming back to a failed attempt: say so, rather than a form with no explanation.
-    else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 })
+    else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: failedText(d.payment), status: 402 })
   })
 
   useEffect(() => { start() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -137,6 +137,8 @@ export default function Checkout() {
   }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (s?.payment?.status === 'failed') track('result', { status: 'falhou: ' + (s.payment.failure_code || ''), payment: s.payment.id }) }, [s?.payment?.status, s?.payment?.id])
   useEffect(() => { if (conn === 'down') track('no_answer') }, [conn])
+  // A new try RIHA sent by itself starts its own wait.
+  useEffect(() => { if (view === 'confirm' && s?.payment?.status === 'processing') { startRef.current = Date.now(); setTick(0) } }, [s?.payment?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The page never opened for lack of a connection: open it when the connection is back.
   const noConnection = loadErr?.code === 'network_error'
@@ -179,7 +181,7 @@ export default function Checkout() {
       lostPay.current = null
       if (!d.payment) return
       if (d.status === 'complete' || d.payment.status === 'succeeded') setView('done')
-      else if (d.payment.status === 'failed') { setView('pay'); setErr({ code: d.payment.failure_code, message: d.payment.failure_message || 'O pagamento falhou.', status: 402 }) }
+      else if (d.payment.status === 'failed') { setView('pay'); setErr({ code: d.payment.failure_code, message: failedText(d.payment), status: 402 }) }
       else if (d.payment.status === 'unconfirmed') { setView('pay'); setErr(null) }
     }
     const start = () => {
@@ -263,7 +265,7 @@ export default function Checkout() {
       setS(d)
       if (d.status === 'complete') setView('done')
       else if (d.payment?.status === 'processing') { startRef.current = Date.now(); setTick(0); setView('confirm') }
-      else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: d.payment.failure_message, status: 402 })
+      else if (d.payment?.status === 'failed') setErr({ code: d.payment.failure_code, message: failedText(d.payment), status: 402 })
     } catch (e) {
       const failure = e as ApiError
       if (failure.code === 'network_error') {
@@ -297,7 +299,8 @@ export default function Checkout() {
   const elapsed = startRef.current ? Math.floor((Date.now() - startRef.current) / 1000) : 0
   const left = Math.max(0, WALLET_TIMEOUT - elapsed)
   const waitingPhone = s.payment?.status === 'processing' ? `${s.payment.phone_prefix} ••• ${s.payment.phone_last4}` : phone
-  const prompt = walletPrompt(s.payment?.method ?? method)
+  const company = s.merchant.name
+  const prompt = walletPrompt(s.payment?.method ?? method, company)
   const waitingRef = lostPay.current || s.payment?.status !== 'processing' ? null : s.payment.reference
   const failedRef = s.payment?.status === 'failed' ? s.payment.reference : null
   const noAnswer = elapsed >= NO_ANSWER_AFTER
@@ -388,7 +391,7 @@ export default function Checkout() {
                     <div style={{ marginTop: 20 }}>
                       <span className="label" style={{ marginBottom: 7 }}>Número {walletName}</span>
                       <div className="phone-input" style={{ border: '2px solid var(--ink)', height: 56 }}><span className="cc">+258</span><input inputMode="tel" autoComplete="tel-national" value={phone} onChange={e => setPhone(fmtPhone(e.target.value))} placeholder={`${walletPrefix} 412 4231`} style={{ fontSize: 17 }} /></div>
-                      <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8, lineHeight: 1.45 }}>{walletPrompt(method).before}</div>
+                      <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8, lineHeight: 1.45 }}>{walletPrompt(method, company).before}</div>
                     </div>
                   ) : (
                     <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -486,6 +489,10 @@ function WaitScreen(p: WaitProps) {
   } else if (p.pastLimit) {
     title = `Ainda sem resposta da ${p.walletName}`
     lines = [p.prompt.stillWaiting]
+  } else if (!answered && p.s.payment?.status === 'processing' && (p.s.payment.try ?? 1) > 1) {
+    // RIHA sent a new request by itself after the wallet failed the last one.
+    title = `O ${p.walletName} falhou a transação. A tentar de novo`
+    lines = [`Enviámos um novo pedido: tentativa ${p.s.payment.try} de ${p.s.payment.tries ?? p.s.payment.try}`, ...p.prompt.cues(p.phone)]
   } else if (answered) {
     title = `A ${p.walletName} está a confirmar`
     lines = ['Não precisa de fazer mais nada', 'Normalmente demora menos de 1 minuto', `O dinheiro só sai quando a ${p.walletName} confirmar`]

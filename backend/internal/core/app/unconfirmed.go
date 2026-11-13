@@ -167,7 +167,7 @@ func (a *App) CheckWithOperator(ctx context.Context, paymentID, actor string, ap
 	// Only a payment closed without the operator's own final word is
 	// reopened: for want of an answer, or on an error reaching it. One the
 	// operator turned down was already settled on its word.
-	unanswered := p.Status == domain.PaymentFailed && domain.Contains([]string{domain.FailCustomerTimeout, domain.FailNotCompleted, domain.FailNotConfirmed, domain.FailOperatorUnavailable}, p.FailureCode)
+	unanswered := p.Status == domain.PaymentFailed && domain.Contains([]string{domain.FailCustomerTimeout, domain.FailOperatorTimeout, domain.FailNotCompleted, domain.FailNotConfirmed, domain.FailOperatorUnavailable}, p.FailureCode)
 	switch {
 	case out.Answer == "paid" && (open || unanswered):
 		out.Fix = "credit"

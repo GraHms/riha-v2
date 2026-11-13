@@ -296,7 +296,12 @@ func (r Payments) ByReference(ctx context.Context, ref string) (*domain.Payment,
 	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("reference = ?", ref))
 }
 func (r Payments) LatestBySession(ctx context.Context, sessionID string) (*domain.Payment, error) {
-	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("session_id = ?", sessionID).Order("created_at DESC"))
+	return first[paymentRecord, domain.Payment](r.conn(ctx).Where("session_id = ?", sessionID).Order("created_at DESC, retry DESC"))
+}
+func (r Payments) CountCustomerFailures(ctx context.Context, sessionID string) (int64, error) {
+	var n int64
+	err := r.conn(ctx).Model(&paymentRecord{}).Where("session_id = ? AND status = ? AND retry = 0", sessionID, domain.PaymentFailed).Count(&n).Error
+	return n, err
 }
 func (r Payments) CountBySession(ctx context.Context, sessionID, status string) (int64, error) {
 	var n int64
@@ -364,7 +369,7 @@ func (r Payments) Count(ctx context.Context, q ports.PaymentQuery) (int64, error
 	return n, err
 }
 func (r Payments) RecentlyTimedOut(ctx context.Context, since time.Time, limit int) ([]domain.Payment, error) {
-	return find[paymentRecord, domain.Payment](r.conn(ctx).Where("livemode AND status = ? AND failure_code IN ? AND rail_reference <> '' AND failed_at >= ?", domain.PaymentFailed, []string{domain.FailCustomerTimeout, domain.FailNotCompleted}, since).Order("failed_at DESC").Limit(limit))
+	return find[paymentRecord, domain.Payment](r.conn(ctx).Where("livemode AND status = ? AND failure_code IN ? AND rail_reference <> '' AND failed_at >= ?", domain.PaymentFailed, []string{domain.FailCustomerTimeout, domain.FailOperatorTimeout, domain.FailNotCompleted}, since).Order("failed_at DESC").Limit(limit))
 }
 
 func (r Payments) DueRechecks(ctx context.Context, now time.Time, limit int) ([]domain.Payment, error) {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -71,6 +72,16 @@ func main() {
 	a.PayURL = cfg.PayURL
 	a.AllowPrivateNetworks = cfg.AllowPrivateNetworks
 	a.LoginCodes = cfg.Env != "development" && os.Getenv("RIHA_LOGIN_CODES") != "off"
+	// RIHA_MPESA_TRIES=1 turns the automatic M-Pesa tries off, and
+	// RIHA_MPESA_FALLBACK=off the last one through another integration.
+	if n, err := strconv.Atoi(os.Getenv("RIHA_MPESA_TRIES")); err == nil && n >= 1 {
+		a.MpesaTries = n
+	}
+	if f := os.Getenv("RIHA_MPESA_FALLBACK"); f == "off" {
+		a.MpesaFallback = ""
+	} else if f != "" {
+		a.MpesaFallback = f
+	}
 	if payments.RealMoney {
 		a.ComingSoon = payments.ComingSoon
 		a.NoLiveRefunds = true

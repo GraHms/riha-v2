@@ -226,6 +226,7 @@ type paymentRecord struct {
 	Rechecks          int        `gorm:"not null;default:0"`
 	PaidLate          bool       `gorm:"not null;default:false"`
 	DuplicateOf       string     `gorm:"size:40;not null;default:''"`
+	Retry             int        `gorm:"not null;default:0"`
 	Integration       string     `gorm:"size:30;not null;default:'';index"`
 	PlatformFee       int64      `gorm:"not null;default:0"`
 	PartnerFee        int64      `gorm:"not null;default:0"`

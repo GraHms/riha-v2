@@ -12,7 +12,7 @@ const PAID = '#2a78d6'
 const FAILED = '#eb6834'
 
 const FAILURES: Record<string, string> = {
-  payment_rejected: 'Recusado pela carteira', payment_not_completed: 'Não concluído no telemóvel', customer_timeout: 'Sem resposta do cliente',
+  payment_rejected: 'Recusado pela carteira', payment_not_completed: 'Não concluído no telemóvel', customer_timeout: 'Sem resposta do cliente', operator_timeout: 'O operador falhou a transação',
   pin_incorrect: 'PIN errado', insufficient_funds: 'Saldo insuficiente', operator_unavailable: 'Operador indisponível', canceled: 'Cancelado', desconhecido: 'Sem código',
 }
 

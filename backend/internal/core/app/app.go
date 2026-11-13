@@ -61,7 +61,7 @@ type Deps struct {
 
 type App struct {
 	Deps
-	hosts webhookHosts
+	hosts                webhookHosts
 	PublicURL            string
 	PayURL               string // the address in checkout and payment links
 	AllowPrivateNetworks bool
@@ -77,6 +77,11 @@ type App struct {
 	ComingSoon []string
 	// NoLiveRefunds: a live refund must send the money back, and no rail can yet.
 	NoLiveRefunds bool
+	// MpesaTries is how many requests M-Pesa gets when it keeps failing the
+	// transaction, the customer's first one included, and MpesaFallback the
+	// integration one more goes through after that ("" for none).
+	MpesaTries    int
+	MpesaFallback string
 	Now           func() time.Time
 	// sending is held while queued messages go out, so two senders never send the
 	// same message twice.
@@ -84,7 +89,7 @@ type App struct {
 }
 
 func New(d Deps, publicURL string) *App {
-	return &App{Deps: d, PublicURL: publicURL, PayURL: publicURL, Now: func() time.Time { return time.Now().UTC() }}
+	return &App{Deps: d, PublicURL: publicURL, PayURL: publicURL, MpesaTries: defaultMpesaTries, MpesaFallback: defaultMpesaFallback, Now: func() time.Time { return time.Now().UTC() }}
 }
 
 func notFound(err error, what string) error {

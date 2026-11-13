@@ -153,7 +153,7 @@ func TestMpesaQuery(t *testing.T) {
 	}{
 		{"Completed", "INS-0", 200, true, true, ""},
 		{"Cancelled", "INS-0", 200, true, false, domain.FailCustomerCancelled},
-		{"Expired", "INS-0", 200, true, false, domain.FailCustomerTimeout},
+		{"Expired", "INS-0", 200, true, false, domain.FailOperatorTimeout},
 		{"N/A", "INS-997", 400, false, false, ""},
 	} {
 		f := &mpesaFake{query: func(w http.ResponseWriter, r *http.Request) {
@@ -220,7 +220,7 @@ func TestMpesaTimeoutIsSettledByAskingMpesa(t *testing.T) {
 		success bool
 		failure string
 	}{
-		"no record":               {"N/A", 400, false, domain.FailCustomerTimeout},
+		"no record":               {"N/A", 400, false, domain.FailOperatorTimeout},
 		"paid at the last second": {"Completed", 200, true, ""},
 	} {
 		t.Run(name, func(t *testing.T) {
