@@ -188,6 +188,9 @@ func (a *App) sendCreditCode(ctx context.Context, m *domain.Merchant, live bool,
 		return "", domain.Conflict("code_just_sent", "Acabámos de enviar um código. Espere um pouco antes de pedir outro.")
 	}
 	code := domain.CreditCodeDigits()
+	if a.CreditCode != nil {
+		code = a.CreditCode()
+	}
 	now := a.Now()
 	c := &domain.CreditCode{ID: domain.NewID("ccd"), Subject: subject, Purpose: purpose, Phone: phone, Hash: domain.Hash(subject + ":" + code),
 		ExpiresAt: now.Add(domain.CodeTTL), CreatedAt: now}

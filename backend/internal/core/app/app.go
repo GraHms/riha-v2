@@ -86,6 +86,8 @@ type App struct {
 	MpesaTries    int
 	MpesaFallback string
 	Now           func() time.Time
+	// CreditCode makes the SMS codes of Microcrédito; seeding replaces it.
+	CreditCode func() string
 	// sending is held while queued messages go out, so two senders never send the
 	// same message twice.
 	sending sync.Mutex

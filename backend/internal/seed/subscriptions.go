@@ -2,6 +2,7 @@ package seed
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"riha/internal/core/app"
@@ -170,10 +171,11 @@ func (s *seeder) escolaPrimavera() {
 			}
 			var ids []string
 			token := ""
+			sort.Slice(cs, func(i, j int) bool { return cs[i].DueAt.Before(cs[j].DueAt) })
 			for _, c := range cs {
 				key := fmt.Sprintf("%s|%d", mem.Name, int(c.DueAt.In(domain.Maputo).Month()))
 				if unpaid[key] {
-					continue
+					break
 				}
 				if method, ok := outside[key]; ok {
 					_, err := a.MarkPaidOutside(ctx, m, true, mem.ID, app.OutsideInput{ChargeIDs: []string{c.ID}, Method: method, Date: clock}, owner, "Ana Cossa")
@@ -185,7 +187,7 @@ func (s *seeder) escolaPrimavera() {
 					wait = int(s.rng.Int63n(2))
 				}
 				if domain.LocalDate(clock).Sub(domain.LocalDate(c.DueAt)) < time.Duration(wait)*24*time.Hour {
-					continue
+					break
 				}
 				ids = append(ids, c.ID)
 				token = c.Token

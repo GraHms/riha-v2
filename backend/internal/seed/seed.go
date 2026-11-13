@@ -49,6 +49,7 @@ func Run(ctx context.Context, a *app.App) error {
 	s.others()
 	s.applicants()
 	s.escolaPrimavera()
+	s.avante()
 	return s.err
 }
 

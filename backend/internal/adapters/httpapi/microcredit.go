@@ -612,7 +612,7 @@ func (srv *Server) pubCreditProducts(c *gin.Context) {
 		out = append(out, publicProductJSON(&ps[i]))
 	}
 	c.Header("Cache-Control", "no-store")
-	c.JSON(200, gin.H{"merchant": merchantBrand(m), "products": out, "test_mode": !lv, "today": time.Now().UTC().Format(time.RFC3339)})
+	c.JSON(200, gin.H{"merchant": merchantBrand(m), "products": out, "test_mode": !lv, "contact": domain.NormalizeMZPhone(m.Phone)})
 }
 
 func (srv *Server) pubCreditRequest(c *gin.Context) {
@@ -694,7 +694,7 @@ func (srv *Server) pubCreditPage(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	out := gin.H{"merchant": merchantBrand(v.Merchant), "kind": "request", "test_mode": false}
+	out := gin.H{"merchant": merchantBrand(v.Merchant), "kind": "request", "test_mode": false, "contact": domain.NormalizeMZPhone(v.Merchant.Phone)}
 	if v.Product != nil {
 		out["product"] = publicProductJSON(v.Product)
 	}
