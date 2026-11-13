@@ -175,7 +175,9 @@ func (a *App) creditText(ctx context.Context, m *domain.Merchant, live bool, ref
 	return a.Messages.Create(ctx, msg)
 }
 
-func (a *App) creditURL(token string) string { return strings.TrimRight(a.PayURL, "/") + "/cr/" + token }
+func (a *App) creditURL(token string) string {
+	return strings.TrimRight(a.PayURL, "/") + "/cr/" + token
+}
 
 // sendCreditCode sends a 6-digit code by SMS. A number gets at most 5 codes an
 // hour, and a new one replaces the last.
