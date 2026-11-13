@@ -47,6 +47,24 @@ func RequireApproved(m *Merchant) *Error {
 	return Forbidden("account_not_approved", "A sua conta ainda não foi aprovada. Nenhuma operação é possível até a equipa RIHA concluir a verificação.")
 }
 
+// RequireMicrocredit allows Microcrédito only to approved accounts a RIHA super
+// admin has turned it on for.
+func RequireMicrocredit(m *Merchant) *Error {
+	if e := RequireApproved(m); e != nil {
+		return e
+	}
+	if !m.HasMicrocredit() {
+		return Forbidden("microcredit_not_enabled", "O Microcrédito não está ativo nesta conta. Fale com a equipa RIHA para o ativar.")
+	}
+	return nil
+}
+
+// CanGrantMicrocredit is true only for RIHA's own super admins: admins holding every
+// permission. A partner's "every permission" covers only the partner's account.
+func (u *User) CanGrantMicrocredit() bool {
+	return u != nil && u.Role == RoleAdmin && u.Can(PermAll)
+}
+
 func Slugify(s string) string {
 	s = norm.NFD.String(strings.ToLower(s))
 	var b strings.Builder

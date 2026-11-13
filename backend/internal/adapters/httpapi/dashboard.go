@@ -76,6 +76,7 @@ func (srv *Server) dashboardRoutes(api *gin.RouterGroup) {
 	})
 
 	srv.subscriptionRoutes(m)
+	srv.microcreditRoutes(m.Group("/microcredit", srv.requireMicrocredit()))
 
 	srv.adminRoutes(api.Group("/admin", srv.auth(), adminOnly()))
 	srv.partnerRoutes(api.Group("/partner", srv.auth(), partnerOnly()))

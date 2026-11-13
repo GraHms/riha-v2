@@ -67,6 +67,7 @@ export default function AppShell() {
           {NAV.map(([p, ic, l]) => <button key={p} className={'nav-btn' + (isOn(p) ? ' on' : '')} onClick={() => nav(p)}><Icon name={ic} />{l}</button>)}
           <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', color: 'var(--muted)', padding: '18px 12px 6px' }}>SERVIÇOS</div>
           <button className={'nav-btn' + (isOn('/painel/assinaturas') ? ' on' : '')} onClick={() => nav('/painel/assinaturas')}><Icon name="repeat" />Assinaturas</button>
+          {m.microcredit && <button className={'nav-btn' + (isOn('/painel/microcredito') ? ' on' : '')} onClick={() => nav('/painel/microcredito')}><Icon name="coins" />Microcrédito</button>}
         </nav>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -118,6 +119,13 @@ export default function AppShell() {
               <span style={{ flex: 1 }}><b style={{ display: 'block', fontSize: 16 }}>Assinaturas</b><span style={{ fontSize: 13, color: 'var(--muted)' }}>Planos, membros e catálogo</span></span>
               <Icon name="chevronRight" size={16} />
             </button>
+            {m.microcredit && (
+              <button onClick={() => { setSheet(false); nav('/painel/microcredito') }} className="card" style={{ width: '100%', display: 'flex', gap: 14, alignItems: 'center', padding: 16, borderRadius: 18, textAlign: 'left', border: '1px solid var(--line)', marginTop: 10 }}>
+                <span style={{ width: 42, height: 42, borderRadius: 13, background: 'var(--sun-bg)', color: 'var(--sun-text)', display: 'grid', placeItems: 'center' }}><Icon name="coins" size={20} /></span>
+                <span style={{ flex: 1 }}><b style={{ display: 'block', fontSize: 16 }}>Microcrédito</b><span style={{ fontSize: 13, color: 'var(--muted)' }}>Pedidos, empréstimos e produtos</span></span>
+                <Icon name="chevronRight" size={16} />
+              </button>
+            )}
           </div>
         </div>
       )}

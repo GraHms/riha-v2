@@ -88,6 +88,7 @@ export interface AdminPort {
   merchant(id: string): Promise<Json>
   setFee(id: string, bps: number | null): Promise<Json>
   setBeta(id: string, beta: boolean): Promise<Json>
+  setMicrocredit(id: string, on: boolean, note: string): Promise<Json>
   documentUrl(id: string): string
   payouts(tab: string): Promise<Json>
   payoutAction(ids: string[], action: string, reason?: string): Promise<Json>
@@ -174,6 +175,10 @@ export interface PublicSubscriptionsPort {
   cancel(token: string, subscriptionId: string): Promise<Json>
 }
 
+export interface MicrocreditPort {
+  status(): Promise<Json>
+}
+
 export interface Gateway {
   mode: { get(): Mode; set(m: Mode): void }
   auth: AuthPort
@@ -187,5 +192,6 @@ export interface Gateway {
   partner: PartnerPort
   subscriptions: SubscriptionsPort
   publicSubs: PublicSubscriptionsPort
+  microcredit: MicrocreditPort
   onUnauthorized(fn: () => void): () => void
 }

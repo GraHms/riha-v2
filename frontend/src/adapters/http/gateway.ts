@@ -89,6 +89,9 @@ export function httpGateway(t = new Transport()): Gateway {
       setAccess: (id, patch) => send('PATCH', '/partner/team/' + encodeURIComponent(id), patch),
       resendInvite: id => post(`/partner/team/${encodeURIComponent(id)}/invite`),
     },
+    microcredit: {
+      status: () => get('/microcredit'),
+    },
     subscriptions: {
       overview: () => get('/subscriptions/overview'),
       settings: () => get('/subscriptions/settings'),
@@ -146,6 +149,7 @@ export function httpGateway(t = new Transport()): Gateway {
       merchant: id => get('/admin/merchants/' + encodeURIComponent(id)),
       setFee: (id, bps) => send('PATCH', '/admin/merchants/' + encodeURIComponent(id), bps === null ? { reset_fee: true } : { fee_bps: bps }),
       setBeta: (id, beta) => send('PATCH', '/admin/merchants/' + encodeURIComponent(id), { beta }),
+      setMicrocredit: (id, microcredit, microcredit_note) => send('PATCH', '/admin/merchants/' + encodeURIComponent(id), { microcredit, microcredit_note }),
       documentUrl: id => t.url('/admin/documents/' + encodeURIComponent(id)),
       payouts: tab => get('/admin/payouts?' + qs({ tab })),
       payoutAction: (ids, action, reason = '') => post('/admin/payouts/action', { ids, action, reason }),

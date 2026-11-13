@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -200,6 +201,7 @@ func (srv *Server) adminMerchant(c *gin.Context) {
 	o["in_transit"] = d.InTransit
 	o["default_fee_bps"] = d.DefaultFeeBps
 	o["statement_descriptor"] = d.Merchant.StatementDescriptor
+	o["microcredit"] = srv.microcreditJSON(ctx(c), &d.Merchant)
 	o["recent_payments"] = paymentRows(d.RecentPayments)
 	o["payouts"] = payoutRowsJSON(d.Payouts)
 	audit := []gin.H{}
@@ -212,21 +214,33 @@ func (srv *Server) adminMerchant(c *gin.Context) {
 
 func (srv *Server) adminUpdateMerchant(c *gin.Context) {
 	var in struct {
-		FeeBps   *int  `json:"fee_bps"`
-		ResetFee bool  `json:"reset_fee"`
-		Beta     *bool `json:"beta"`
+		FeeBps          *int    `json:"fee_bps"`
+		ResetFee        bool    `json:"reset_fee"`
+		Beta            *bool   `json:"beta"`
+		Microcredit     *bool   `json:"microcredit"`
+		MicrocreditNote *string `json:"microcredit_note"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		bad(c, "Pedido inválido.")
 		return
 	}
-	if !in.ResetFee && in.FeeBps == nil && in.Beta == nil {
+	if !in.ResetFee && in.FeeBps == nil && in.Beta == nil && in.Microcredit == nil {
 		bad(c, "Nada para alterar.")
 		return
 	}
 	if (in.Beta != nil && !user(c).Can(domain.PermMerchants)) || ((in.ResetFee || in.FeeBps != nil) && !user(c).Can(domain.PermPricing)) {
 		refuse(c)
 		return
+	}
+	if in.Microcredit != nil {
+		note := ""
+		if in.MicrocreditNote != nil {
+			note = *in.MicrocreditNote
+		}
+		if _, err := srv.A.SetMerchantMicrocredit(ctx(c), user(c), c.Param("id"), *in.Microcredit, note, actor(c)); err != nil {
+			fail(c, err)
+			return
+		}
 	}
 	if in.Beta != nil {
 		if err := srv.A.SetMerchantBeta(ctx(c), c.Param("id"), *in.Beta, actor(c)); err != nil {
@@ -556,4 +570,15 @@ func (srv *Server) adminPayoutEmail(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{"ok": true, "to": to})
+}
+
+func (srv *Server) microcreditJSON(c context.Context, m *domain.Merchant) gin.H {
+	if !m.HasMicrocredit() {
+		return gin.H{"enabled": false}
+	}
+	by := ""
+	if u, err := srv.A.Users.ByID(c, m.MicrocreditBy); err == nil {
+		by = domain.FirstNonEmpty(u.Name, u.Email)
+	}
+	return gin.H{"enabled": true, "granted_at": iso(m.MicrocreditAt), "granted_by": by, "note": m.MicrocreditNote}
 }

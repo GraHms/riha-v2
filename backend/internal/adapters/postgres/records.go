@@ -51,6 +51,9 @@ type merchantRecord struct {
 	Status              string `gorm:"size:20;index;not null"`
 	FeeBps              *int
 	Beta                bool
+	MicrocreditAt       *time.Time
+	MicrocreditBy       string `gorm:"size:40"`
+	MicrocreditNote     string `gorm:"size:200"`
 	ImportedFrom        string `gorm:"size:10;not null;default:''"`
 	V1ID                string `gorm:"column:v1_id;size:40;not null;default:'';index"`
 	SuccessURL          string `gorm:"size:500"`

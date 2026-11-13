@@ -86,6 +86,11 @@ type Merchant struct {
 	FeeBps              *int
 	// Beta accounts may charge from 1 MT, plans included, to test with real money.
 	Beta bool
+	// Microcredit is granted by a RIHA super admin; without it the account has no
+	// access to anything in the Microcrédito service.
+	MicrocreditAt   *time.Time
+	MicrocreditBy   string
+	MicrocreditNote string
 	// ImportedFrom is "v1" for an account brought over from the first RIHA, and
 	// V1ID is its id there, so an import run twice doesn't bring it in twice.
 	ImportedFrom       string
@@ -102,6 +107,8 @@ type Merchant struct {
 	ReviewedBy         string
 	CreatedAt          time.Time
 }
+
+func (m *Merchant) HasMicrocredit() bool { return m != nil && m.MicrocreditAt != nil }
 
 func (m *Merchant) SigningSecret(live bool) string {
 	if live {

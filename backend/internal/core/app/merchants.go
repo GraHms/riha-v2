@@ -317,6 +317,44 @@ func (a *App) SetMerchantBeta(ctx context.Context, merchantID string, beta bool,
 	return nil
 }
 
+// SetMerchantMicrocredit turns the Microcrédito service on or off for an account.
+// Only a RIHA super admin may do it, and only for an approved account.
+func (a *App) SetMerchantMicrocredit(ctx context.Context, by *domain.User, merchantID string, on bool, note string, actor Actor) (*domain.Merchant, error) {
+	if !by.CanGrantMicrocredit() {
+		return nil, domain.Forbidden("forbidden", "Só um super administrador da RIHA pode ativar ou desativar o Microcrédito.")
+	}
+	m, err := a.Merchants.ByID(ctx, merchantID)
+	if err != nil {
+		return nil, notFound(err, "O comerciante")
+	}
+	note = domain.Trim(strings.TrimSpace(note), 200)
+	if on {
+		if e := domain.RequireApproved(m); e != nil {
+			return nil, domain.Invalid("merchant_not_active", "microcredit", "Só uma conta aprovada e ativa pode ter Microcrédito.")
+		}
+		if m.HasMicrocredit() && m.MicrocreditNote == note {
+			return m, nil
+		}
+		at, granter := a.Now(), by.ID
+		if m.HasMicrocredit() {
+			at, granter = *m.MicrocreditAt, m.MicrocreditBy
+		}
+		if err := a.Merchants.SetMicrocredit(ctx, m.ID, &at, granter, note); err != nil {
+			return nil, err
+		}
+		a.Record(ctx, m.ID, actor, "microcredit.granted", m.ID, domain.FirstNonEmpty(note, "Microcrédito ativado"))
+	} else {
+		if !m.HasMicrocredit() {
+			return m, nil
+		}
+		if err := a.Merchants.SetMicrocredit(ctx, m.ID, nil, "", ""); err != nil {
+			return nil, err
+		}
+		a.Record(ctx, m.ID, actor, "microcredit.revoked", m.ID, domain.FirstNonEmpty(note, "Microcrédito desativado"))
+	}
+	return a.Merchants.ByID(ctx, m.ID)
+}
+
 func (a *App) DocumentContent(ctx context.Context, d *domain.Document) ([]byte, error) {
 	data, err := a.Files.Read(ctx, d.StoredPath)
 	if err != nil {

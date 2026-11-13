@@ -101,6 +101,10 @@ func (r Merchants) SetFee(ctx context.Context, id string, bps *int) error {
 func (r Merchants) SetBeta(ctx context.Context, id string, beta bool) error {
 	return r.conn(ctx).Model(&merchantRecord{}).Where("id = ?", id).Update("beta", beta).Error
 }
+func (r Merchants) SetMicrocredit(ctx context.Context, id string, at *time.Time, by, note string) error {
+	return r.conn(ctx).Model(&merchantRecord{}).Where("id = ?", id).
+		Updates(map[string]any{"microcredit_at": at, "microcredit_by": by, "microcredit_note": note}).Error
+}
 func (r Merchants) filter(ctx context.Context, f ports.MerchantFilter) *gormDB {
 	q := r.conn(ctx).Model(&merchantRecord{})
 	if len(f.Statuses) > 0 {

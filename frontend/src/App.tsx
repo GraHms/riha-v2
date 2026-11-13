@@ -8,6 +8,7 @@ import { Spinner } from './components/ui'
 
 const Landing = lazy(() => import('./pages/public/Landing'))
 const SubsShell = lazy(() => import('./pages/app/subs/SubsShell'))
+const Microcredit = lazy(() => import('./pages/app/micro/Microcredit'))
 const Summary = lazy(() => import('./pages/app/subs/Summary'))
 const PlanDetail = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlanDetail })))
 const PlanForm = lazy(() => import('./pages/app/subs/Plans').then(m => ({ default: m.PlanForm })))
@@ -166,6 +167,7 @@ export default function App() {
           <Route path="catalogo" element={<Catalog />} />
           <Route path="definicoes" element={<SubsSettings />} />
         </Route>
+        <Route path="microcredito/*" element={<Microcredit />} />
       </Route>
 
       <Route path="/admin" element={<RequireAdmin><AdminShell /></RequireAdmin>}>

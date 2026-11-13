@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { can, errMsg } from '../../core/model'
+import { can, errMsg, isSuperAdmin } from '../../core/model'
 import { useGateway } from '../../core/gateway'
 import { useQuery } from '../../core/useQuery'
 import { bpsLabel, fmt, fullDate, MERCHANT_STATUS, methodLine, parseMT, PAYOUT_STATUS, relDate, STATUS } from '../../lib/format'
@@ -42,13 +42,15 @@ export default function MerchantDetail() {
   const { id } = useParams()
   const nav = useNavigate()
   const { toast, me } = useSession()
-  const pricing = can(me, 'pricing'), manage = can(me, 'merchants')
+  const pricing = can(me, 'pricing'), manage = can(me, 'merchants'), superAdmin = isSuperAdmin(me)
   const g = useGateway()
   const { data: m, setData, reload } = useQuery(g => g.admin.merchant(id!), [id])
   const [fee, setFee] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  const [mc, setMc] = useState<null | 'grant' | 'note' | 'revoke'>(null)
+  const [mcNote, setMcNote] = useState('')
   const settings = useQuery(g => g.admin.settings())
   const [def, setDef] = useState('')
   useEffect(() => { if (m) setFee((m.fee_bps / 100).toString().replace('.', ',')) }, [m?.fee_bps]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -69,6 +71,15 @@ export default function MerchantDetail() {
     setBusy(true)
     try { const r = await g.admin.setBeta(id!, beta); setData(r); toast(beta ? 'No programa beta: valores a partir de 1 MT' : 'Fora do programa beta') }
     catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
+  }
+  const openMc = (k: 'grant' | 'note' | 'revoke') => { setMcNote(k === 'note' ? m.microcredit?.note || '' : ''); setMc(k) }
+  const saveMc = async () => {
+    setBusy(true)
+    try {
+      const r = await g.admin.setMicrocredit(id!, mc !== 'revoke', mcNote)
+      setData(r); setMc(null)
+      toast(mc === 'revoke' ? 'Microcrédito desativado' : mc === 'note' ? 'Nota guardada' : 'Microcrédito ativado')
+    } catch (e) { toast(errMsg(e), true) } finally { setBusy(false) }
   }
   const saveTransfer = async () => {
     const fee = parseMT(tfee), from = parseMT(tfrom)
@@ -175,6 +186,22 @@ export default function MerchantDetail() {
             </Panel>
           )}
 
+          {superAdmin && (
+            <Panel title={<span className="md-h">Microcrédito<Tip text="Só um super administrador ativa o serviço. Sem ele, a conta não vê nem usa nada do Microcrédito." /></span>}
+              action={m.microcredit?.enabled ? <Badge tone="ok" dot>Ativo</Badge> : undefined}>
+              <div className="md-beta" style={m.microcredit?.enabled ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
+                <span className="o-t2" style={{ whiteSpace: 'normal', marginTop: 0 }}>
+                  {m.microcredit?.enabled
+                    ? <>Ativo desde {fullDate(m.microcredit.granted_at)}{m.microcredit.granted_by ? `, por ${m.microcredit.granted_by}` : ''}.{m.microcredit.note && <span style={{ display: 'block', marginTop: 4 }}>{m.microcredit.note}</span>}</>
+                    : m.status === 'active' ? 'Desativado. A conta não vê o serviço.' : 'Só uma conta aprovada pode ter Microcrédito.'}
+                </span>
+                {m.microcredit?.enabled
+                  ? <span style={{ display: 'flex', gap: 8, flex: 'none' }}><button className="btn btn-outline" onClick={() => openMc('note')} disabled={busy}>Nota</button><button className="btn btn-outline" onClick={() => openMc('revoke')} disabled={busy}>Desativar</button></span>
+                  : <button className="btn btn-green" style={{ flex: 'none' }} onClick={() => openMc('grant')} disabled={busy || m.status !== 'active'}>Ativar</button>}
+              </div>
+            </Panel>
+          )}
+
           {pricing && (
             <Panel title="Taxas da plataforma" sub="Para todos os comerciantes">
               <div className="md-blk">
@@ -204,6 +231,16 @@ export default function MerchantDetail() {
             <p>{confirm === 'suspend' ? 'Deixa de aceitar pagamentos e de pedir levantamentos até ser reativado.' : 'Volta a aceitar pagamentos.'}</p>
             <label style={{ display: 'block', marginTop: 14 }}><span className="label">Nota interna</span><input className="input" value={note} onChange={e => setNote(e.target.value)} /></label>
             <div className="md-m-do"><button className="btn btn-outline" onClick={() => setConfirm(null)}>Cancelar</button><button className={'btn ' + (confirm === 'suspend' ? 'btn-ink' : 'btn-green')} disabled={busy} onClick={() => decide(confirm)}>{busy ? <Spinner /> : 'Confirmar'}</button></div>
+          </div>
+        </Modal>
+      )}
+      {mc && (
+        <Modal onClose={() => setMc(null)}>
+          <div className="md-m">
+            <h3>{mc === 'grant' ? `Ativar o Microcrédito em ${m.name}?` : mc === 'revoke' ? `Desativar o Microcrédito em ${m.name}?` : 'Nota do Microcrédito'}</h3>
+            {mc !== 'note' && <p>{mc === 'grant' ? 'A conta passa a ver o serviço no painel e pode configurar produtos e conceder crédito.' : 'O serviço desaparece do painel da conta e os pedidos ao Microcrédito são recusados.'}</p>}
+            <label style={{ display: 'block', marginTop: 14 }}><span className="label">{mc === 'revoke' ? 'Motivo (fica no histórico)' : 'Nota interna, por exemplo o contrato'}</span><input className="input" maxLength={200} value={mcNote} onChange={e => setMcNote(e.target.value)} /></label>
+            <div className="md-m-do"><button className="btn btn-outline" onClick={() => setMc(null)}>Cancelar</button><button className={'btn ' + (mc === 'revoke' ? 'btn-ink' : 'btn-green')} disabled={busy} onClick={saveMc}>{busy ? <Spinner /> : mc === 'note' ? 'Guardar' : 'Confirmar'}</button></div>
           </div>
         </Modal>
       )}

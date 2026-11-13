@@ -21,7 +21,7 @@ func (srv *Server) merchantJSON(c context.Context, m *domain.Merchant) gin.H {
 		"fee_bps": bps, "fee_negotiated": m.FeeBps != nil, "fee_label": domain.FormatBps(bps),
 		"success_url": m.SuccessURL, "cancel_url": m.CancelURL, "sms_notifications": m.SMSNotifications, "email_notifications": m.EmailNotifications,
 		"coming_soon": srv.A.ComingSoon, "live_refunds": !srv.A.NoLiveRefunds,
-		"beta": m.Beta, "min_amount": domain.MinAmountFor(m), "plan_min_amount": domain.PlanMinFor(m),
+		"beta": m.Beta, "microcredit": m.HasMicrocredit(), "min_amount": domain.MinAmountFor(m), "plan_min_amount": domain.PlanMinFor(m),
 		"kyc_submitted_at": iso(m.KycSubmittedAt), "approved_at": iso(m.ApprovedAt), "review_note": m.ReviewNote,
 		"created_at": isoT(m.CreatedAt),
 	}
@@ -138,7 +138,7 @@ func merchantRowJSON(r *app.MerchantRow) gin.H {
 	m := &r.Merchant
 	return gin.H{"id": m.ID, "name": m.Name, "city": m.City, "status": m.Status, "initials": domain.Initials(m.Name), "avatar_color": m.AvatarColor,
 		"volume_30d": r.Volume30d, "balance": r.Balance, "main_method": r.MainMethod, "created_at": isoT(m.CreatedAt),
-		"fee_bps": r.FeeBps, "fee_negotiated": m.FeeBps != nil, "email": m.Email, "beta": m.Beta, "imported_from": m.ImportedFrom}
+		"fee_bps": r.FeeBps, "fee_negotiated": m.FeeBps != nil, "email": m.Email, "beta": m.Beta, "microcredit": m.HasMicrocredit(), "imported_from": m.ImportedFrom}
 }
 
 func publicMerchant(m *domain.Merchant) gin.H {

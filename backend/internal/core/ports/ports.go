@@ -77,6 +77,7 @@ type Merchants interface {
 	Save(ctx context.Context, m *domain.Merchant) error
 	SetFee(ctx context.Context, id string, bps *int) error
 	SetBeta(ctx context.Context, id string, beta bool) error
+	SetMicrocredit(ctx context.Context, id string, at *time.Time, by, note string) error
 	List(ctx context.Context, f MerchantFilter) ([]domain.Merchant, error)
 	Count(ctx context.Context, statuses []string) (int64, error)
 	// CountMatching counts what List would return without its limit.

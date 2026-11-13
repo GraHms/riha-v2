@@ -8,7 +8,7 @@ export type Merchant = {
   id: string; slug: string; name: string; legal_name: string; business_type: string; nuit: string; phone: string; email: string
   city: string; owner_name: string; status: string; fee_bps: number; fee_negotiated: boolean; fee_label: string
   statement_descriptor: string; avatar_color: string; success_url: string; cancel_url: string; sms_notifications: boolean; email_notifications: boolean; coming_soon: string[]; live_refunds: boolean
-  beta?: boolean; min_amount?: number; plan_min_amount?: number
+  beta?: boolean; microcredit?: boolean; min_amount?: number; plan_min_amount?: number
   approved_at: string | null; kyc_submitted_at: string | null; review_note: string; expected_volume: string; created_at: string
 }
 
@@ -16,6 +16,9 @@ export type Me = { user: { id: string; email: string; name: string; role: string
 
 // can says whether a staff or partner user has a permission.
 export const can = (me: Me | null | undefined, perm: string) => !!me && (me.user.permissions?.includes('*') || me.user.permissions?.includes(perm))
+
+// Only a RIHA admin holding every permission may grant Microcrédito.
+export const isSuperAdmin = (me: Me | null | undefined) => !!me && me.user.role === 'admin' && !!me.user.permissions?.includes('*')
 
 export type PaymentLink = {
   id: string; name: string; slug: string; amount: number | null; custom_amount: boolean; reusable: boolean; url: string; active: boolean
