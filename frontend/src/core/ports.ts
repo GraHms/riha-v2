@@ -177,6 +177,41 @@ export interface PublicSubscriptionsPort {
 
 export interface MicrocreditPort {
   status(): Promise<Json>
+  overview(): Promise<Json>
+  settings(): Promise<Json>
+  saveSettings(s: Json): Promise<Json>
+  products(): Promise<Json>
+  product(id: string): Promise<Json>
+  createProduct(p: Json): Promise<Json>
+  updateProduct(id: string, p: Json): Promise<Json>
+  requests(filter: string, product: string, q: string): Promise<Json>
+  request(id: string): Promise<Json>
+  reviewRequest(id: string): Promise<Json>
+  declineRequest(id: string, note: string): Promise<Json>
+  approveRequest(id: string, offer: Json): Promise<Json>
+  documentUrl(id: string): string
+  exportUrl(what: 'requests' | 'loans'): string
+  loans(tab: string, product: string, q: string): Promise<Json>
+  loan(id: string): Promise<Json>
+  createLoan(offer: Json): Promise<Json>
+  loanAction(id: string, action: string, body?: Json): Promise<Json>
+  markPaid(id: string, instalment: string, body: Json): Promise<Json>
+  agreementUrl(id: string, version?: number): string
+  resendOffers(): Promise<Json>
+}
+
+export interface PublicCreditPort {
+  products(merchant: string): Promise<Json>
+  request(merchant: string, body: Json): Promise<Json>
+  requestCode(token: string): Promise<Json>
+  confirm(token: string, code: string): Promise<Json>
+  document(token: string, kind: string, file: File): Promise<Json>
+  page(token: string, opened?: boolean): Promise<Json>
+  agreementCode(token: string, accept: boolean): Promise<Json>
+  accept(token: string, code: string): Promise<Json>
+  pay(token: string, body: Json): Promise<Json>
+  ask(token: string): Promise<Json>
+  agreementUrl(token: string, version?: number): string
 }
 
 export interface Gateway {
@@ -193,5 +228,6 @@ export interface Gateway {
   subscriptions: SubscriptionsPort
   publicSubs: PublicSubscriptionsPort
   microcredit: MicrocreditPort
+  publicCredit: PublicCreditPort
   onUnauthorized(fn: () => void): () => void
 }

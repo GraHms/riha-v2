@@ -233,7 +233,7 @@ func live(c *gin.Context) bool {
 	if v, ok := c.Get("livemode"); ok {
 		return v.(bool)
 	}
-	return c.GetHeader("X-Riha-Mode") != "test"
+	return c.GetHeader("X-Riha-Mode") != "test" && c.Query("mode") != "test"
 }
 
 func qInt(c *gin.Context, k string, def int) int {

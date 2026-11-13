@@ -373,6 +373,7 @@ type FileStore interface {
 type Renderer interface {
 	PayoutInstructions(sheets []domain.PayoutSheet) ([]byte, error)
 	PayoutStatement(sheet domain.PayoutSheet) ([]byte, error)
+	CreditAgreement(d domain.AgreementDoc) ([]byte, error)
 }
 
 type Mailer interface {

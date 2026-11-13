@@ -18,6 +18,7 @@ func (srv *Server) publicRoutes(g *gin.RouterGroup) {
 	g.POST("/links/:merchant/:slug/sessions", srv.throttle(srv.payLimiter, "link"), srv.publicLinkSession)
 	g.GET("/links/:merchant/:slug/image", srv.throttle(srv.viewLimiter, "link-image"), srv.publicLinkImage)
 	srv.publicSubscriptionRoutes(g)
+	srv.publicMicrocreditRoutes(g)
 	g.GET("/pricing", func(c *gin.Context) {
 		c.JSON(200, gin.H{"default_fee_bps": srv.A.DefaultFeeBps(ctx(c)), "coming_soon": srv.A.ComingSoon})
 	})

@@ -1080,3 +1080,50 @@ func (a *App) AskNewAgreement(ctx context.Context, token string) error {
 func portsLoanQuery(merchantID string, live bool, productID, search string) ports.LoanQuery {
 	return ports.LoanQuery{MerchantID: merchantID, Live: live, ProductID: productID, Search: strings.TrimSpace(search), Limit: 2000}
 }
+
+func (a *App) agreementPDF(ctx context.Context, m *domain.Merchant, l *domain.Loan, version int) ([]byte, error) {
+	gs, err := a.Credit.Agreements(ctx, l.ID)
+	if err != nil {
+		return nil, err
+	}
+	var g *domain.LoanAgreement
+	for i := range gs {
+		if version == 0 && (gs[i].Status == domain.AgreementAccepted || gs[i].Status == domain.AgreementProposed) || gs[i].Version == version {
+			g = &gs[i]
+		}
+	}
+	if g == nil {
+		return nil, domain.NotFound("O acordo")
+	}
+	doc := domain.AgreementDoc{Institution: m.Name, Loan: *l, Agreement: *g, Generated: a.Now()}
+	if p, err := a.Credit.Product(ctx, m.ID, l.ProductID); err == nil {
+		doc.Product = p.Name
+	}
+	if l.RequestID != "" {
+		if r, err := a.Credit.Request(ctx, m.ID, l.RequestID); err == nil {
+			doc.IDNumber = r.IDNumber
+		}
+	}
+	return a.Renderer.CreditAgreement(doc)
+}
+
+func (a *App) LoanAgreementPDF(ctx context.Context, m *domain.Merchant, live bool, id string, version int) ([]byte, *domain.Loan, error) {
+	if e := domain.RequireMicrocredit(m); e != nil {
+		return nil, nil, e
+	}
+	l, err := a.Credit.Loan(ctx, m.ID, id)
+	if err != nil || l.Livemode != live {
+		return nil, nil, domain.NotFound("O empréstimo")
+	}
+	b, err := a.agreementPDF(ctx, m, l, version)
+	return b, l, err
+}
+
+func (a *App) PublicAgreementPDF(ctx context.Context, token string, version int) ([]byte, *domain.Loan, error) {
+	l, m, err := a.creditLoanByToken(ctx, token)
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err := a.agreementPDF(ctx, m, l, version)
+	return b, l, err
+}

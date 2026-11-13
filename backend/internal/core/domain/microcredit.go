@@ -725,3 +725,13 @@ type DisbursementResult struct {
 }
 
 func CreditCodeDigits() string { return randFrom("0123456789", 6) }
+
+// AgreementDoc is an agreement as the PDF shows it.
+type AgreementDoc struct {
+	Institution string
+	Loan        Loan
+	Agreement   LoanAgreement
+	IDNumber    string
+	Product     string
+	Generated   time.Time
+}
